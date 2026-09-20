@@ -100,7 +100,7 @@ Order, top to bottom: headline sentence (Plex Serif 22) → `Figure` when the re
 - always, last: "No rows or personal data were sent to the AI", with a link "See exactly what was sent" that opens How I got this at that section
 Confidence sits beside the headline as a `Badge`; its reasons open in a Popover.
 
-Other kinds: **clarify** = the question, then option buttons, with a `WhatsThis`: "Why am I asking? 'Salary' matches three columns. Guessing would give you a confident wrong number." · **refusal** = what is missing and "What would make this answerable" · **error** = sentence, next step, Retry · **cached** = a quiet note "Same question, same data: answered from memory."
+Other kinds: **clarify** = the question, then option buttons, with a `WhatsThis`: "Why am I asking? 'Salary' matches three columns. Guessing would give you a confident wrong number." · **refusal** = what is missing and "What would make this answerable" · **error** = the server's sentence and nothing added to it, then Retry; when `retry_after_s` is set the button reads "Try again in 12 s", counts down, and enables itself at zero · **cached** = a quiet note "Same question, same data: answered from memory."
 
 ### 6.5 Saved answers board (`#/p/<id>/board`)
 A printable report: project name and date as the title, then saved answers as full-width statements (headline, figure, chart, keep-in-mind; no controls). Reorder with up/down buttons, remove, "Print or save as PDF" (`window.print()` with a print stylesheet: paper white, no header/sidebar, charts kept together). Empty state: "Save an answer to build a report you can print."

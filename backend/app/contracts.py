@@ -245,6 +245,7 @@ class Answer(BaseModel):
     text: str  # plain text only; the frontend never renders it as markdown or HTML
     clarification: Clarification | None = None
     missing: str | None = None  # refusal: what data would be needed
+    retry_after_s: int | None = None  # error: the models are busy; the UI counts this down
     chart: ChartSpec | None = None
     table: ResultTable | None = None
     work: Work = Field(default_factory=Work)

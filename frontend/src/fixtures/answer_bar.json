@@ -5,6 +5,7 @@
   "text": "Engineering has the highest total gross pay at ₹12.00 L, followed by Sales at ₹6.33 L and HR at ₹2.70 L.",
   "clarification": null,
   "missing": null,
+  "retry_after_s": null,
   "chart": {
     "type": "bar",
     "x": "department",

@@ -30,13 +30,16 @@ PROVIDERS: dict[str, tuple[str, str | None]] = {
 }
 
 DEFAULT_CHAINS: dict[str, str] = {
-    # Groq's free limits are per model, so alternating models spreads the token budget.
+    # Free-tier limits are per model, so a long chain over different models is the budget.
+    # Entries whose provider has no API key are skipped. Order = preference.
     "sql": "groq:openai/gpt-oss-120b,nvidia:deepseek-ai/deepseek-v4-flash-0731,"
-    "groq:qwen/qwen3.8-27b,gemini:gemma-4-31b-it,openrouter:qwen/qwen3.8-27b:free",
-    # A different model family from the primary, so agreement means something.
+    "groq:qwen/qwen3.8-27b,gemini:gemma-4-31b-it,openrouter:qwen/qwen3.8-27b:free,"
+    "openrouter:z-ai/glm-5.2:free,openrouter:nvidia/nemotron-3-super-120b-a12b:free,"
+    "groq:openai/gpt-oss-20b",  # last resort: smaller, but an answer beats an error
+    # A different model family from whichever model answered, so agreement means something.
     "crosscheck": "groq:qwen/qwen3.8-27b,nvidia:deepseek-ai/deepseek-v4-flash-0731,"
-    "openrouter:z-ai/glm-5.2:free",
-    "narrate": "groq:openai/gpt-oss-20b,gemini:gemma-4-31b-it,"
+    "groq:openai/gpt-oss-120b,openrouter:z-ai/glm-5.2:free,gemini:gemma-4-31b-it",
+    "narrate": "groq:openai/gpt-oss-20b,gemini:gemma-4-31b-it,groq:qwen/qwen3.8-27b,"
     "openrouter:google/gemma-4-31b-it:free",
 }
 
@@ -74,7 +77,16 @@ class Settings:
     duckdb_threads: int = int(_env("DUCKDB_THREADS", "2"))
     session_ttl_s: int = int(_env("SESSION_TTL_S", "7200"))
     max_sessions: int = int(_env("MAX_SESSIONS", "20"))
-    asks_per_ip_per_hour: int = int(_env("ASKS_PER_IP_PER_HOUR", "60"))
+    # Abuse limits. There are no accounts, so "a user" is a client IP (see app.limits).
+    asks_per_ip_per_hour: int = int(_env("ASKS_PER_IP_PER_HOUR", "40"))
+    asks_per_ip_per_day: int = int(_env("ASKS_PER_IP_PER_DAY", "200"))
+    asks_per_session: int = int(_env("ASKS_PER_SESSION", "150"))
+    sessions_per_ip_per_hour: int = int(_env("SESSIONS_PER_IP_PER_HOUR", "20"))
+    uploads_per_ip_per_hour: int = int(_env("UPLOADS_PER_IP_PER_HOUR", "30"))
+    max_concurrent_asks: int = int(_env("MAX_CONCURRENT_ASKS", "6"))
+    max_concurrent_asks_per_ip: int = int(_env("MAX_CONCURRENT_ASKS_PER_IP", "2"))
+    # How long a question may wait for a rate-limited free model before giving up.
+    llm_max_wait_s: float = float(_env("LLM_MAX_WAIT_S", "25"))
     llm_calls_per_day: int = int(_env("LLM_CALLS_PER_DAY", "3000"))
     crosscheck: bool = _env("CROSSCHECK", "on") == "on"
     llm_cache_dir: str = _env("LLM_CACHE_DIR", "")  # set by the eval runner only

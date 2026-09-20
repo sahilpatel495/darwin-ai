@@ -97,8 +97,10 @@ def answer_question(session: SessionLike, req: AskRequest, llm: LLMClient, emit:
 
     try:
         answer = _run(session, req, llm, _Trace(emit))
-    except LLMUnavailable as e:  # its message is written for users and never contains keys
-        answer = _error(req, str(e) or "The AI models are busy right now.", "If this is a rate limit, wait about a minute and ask again.")
+    except LLMUnavailable as e:  # its message is a complete sentence for users; never contains keys
+        answer = Answer(id=uuid.uuid4().hex, kind="error", question=req.question,
+                        text=str(e) or "The AI models are busy right now. Please try again in a minute.",
+                        retry_after_s=getattr(e, "retry_after_s", None))
     except ValueError:
         log.warning("unreadable model reply for question %r", req.question)
         answer = _error(req, "The AI model gave a reply I could not read.", "Ask again, or rephrase the question.")

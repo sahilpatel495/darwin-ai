@@ -5,6 +5,7 @@
   "text": "I can't answer that from the uploaded files: none of them contain customer or subscription data.",
   "clarification": null,
   "missing": "A table of customers with a start date and an end (churn) date.",
+  "retry_after_s": null,
   "chart": null,
   "table": null,
   "work": {

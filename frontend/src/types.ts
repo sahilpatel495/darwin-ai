@@ -190,6 +190,7 @@ export interface Answer {
   text: string
   clarification: Clarification | null
   missing: string | null
+  retry_after_s: number | null
   chart: ChartSpec | null
   table: ResultTable | null
   work: Work

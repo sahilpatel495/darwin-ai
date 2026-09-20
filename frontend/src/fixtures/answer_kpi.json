@@ -5,6 +5,7 @@
   "text": "Attrition for 2025 is 28.6%: 2 exits against an average headcount of 7.",
   "clarification": null,
   "missing": null,
+  "retry_after_s": null,
   "chart": {
     "type": "kpi",
     "x": null,
