@@ -63,6 +63,7 @@ from eval.report import (
     build_report,
     load_report,
     report_filename,
+    save_models_used,
     write_report,
 )
 
@@ -127,6 +128,8 @@ class CaseResult:
     # A model call may have gone to a provider, so the next question must wait. Not the
     # opposite of `cached`: replayed SQL with a live narration or cross-check still spends.
     live: bool = True
+    # (role, model) for every model that actually replied to this question. See `_models_used`.
+    models: list[tuple[str, str]] = field(default_factory=list)
 
 
 class AppUnderTest(Protocol):
@@ -388,7 +391,25 @@ def run_case(case: GoldenCase, ask: Ask, expected: Any, sleep: Sleep = time.slee
         # live. A fully replayed pass then sleeps for nothing; run that one without --sleep.
         live=any(not payload.cached for a in answers for payload in a.work.payloads)
         or answer.work.cross_check.status != "skipped",
+        models=_models_used(answers),
     )
+
+
+# What a payload's purpose means to a reader of the report. A repair is the same model writing
+# the SQL a second time, so it is not a role of its own.
+_ROLE_OF = {"generate": "Writes the SQL", "repair": "Writes the SQL", "narrate": "Phrases the answer"}
+
+
+def _models_used(answers: list[Answer]) -> list[tuple[str, str]]:
+    """Which model filled each role for this question, read from the calls that were actually
+    made. Never from the chain: a failover means the chain's first entry is not the model that
+    replied, and a report that assumes the order names a model that never ran."""
+    used = {(_ROLE_OF[p.purpose], f"{p.model} on {p.provider}")
+            for a in answers for p in a.work.payloads if p.purpose in _ROLE_OF}
+    check = answers[-1].work.cross_check
+    if check.status in ("agreed", "disagreed") and check.model:
+        used.add(("Cross-checks with its own SQL", check.model))
+    return sorted(used)
 
 
 def _ask_patiently(ask: Ask, req: AskRequest, sleep: Sleep) -> tuple[Answer, int]:
@@ -736,6 +757,10 @@ def _run(args: argparse.Namespace, app: AppUnderTest | None, sleep: Sleep) -> in
         cases = hide_holdout_notes(cases)
     report = build_report(cases, model=model, runs=args.runs, crosscheck_agreement=_agreement(results),
                           other_models=previous.models if previous else [])
+    # Saved before the page is rendered, and per case so a partial pass updates only the
+    # questions it asked, the way the report rows themselves do.
+    save_models_used(OUT_DIR, args.question_set,
+                     {case_id: runs[-1].models for case_id, runs in results.items()})
     write_report(report, OUT_DIR, hide, args.question_set)
     _print_summary(report, results, carried_over=len(cases) - len(fresh), report_path=report_path)
     return 0

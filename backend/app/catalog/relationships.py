@@ -41,13 +41,30 @@ def _headers_agree(left: ColumnProfile, right: ColumnProfile) -> bool:
     return left.name == right.name or SequenceMatcher(None, left.name, right.name).ratio() >= 0.8
 
 
+def _is_manager_link(left: ColumnProfile, right: ColumnProfile) -> bool:
+    """The one pair of different roles allowed to meet: a manager id *is* an employee id, but
+    only in the table that lists every employee once. Against a table with many rows per
+    person (a payroll register) the same values are just the same id space, and joining on
+    them multiplies rows, so the unique side is the whole condition.
+
+    Never switched on automatically, whatever the match rate: `_headers_agree` compares roles
+    and these two differ, so the status below can only ever be "suggested". That is the
+    intent, not an accident — the same two tables usually already join on the employee's own
+    id, and a second path between them (the store you work in against the store you manage)
+    is the analyst's choice to make.
+    """
+    if {left.role, right.role} != {"employee_id", "manager_id"}:
+        return False
+    return (left if left.role == "employee_id" else right).is_unique
+
+
 def _is_candidate(left: ColumnProfile, right: ColumnProfile) -> bool:
     if left.type != right.type or left.type not in _KEY_TYPES:
         return False
     if any(c.pii and c.pii != "email" for c in (left, right)):
         return False  # names and phone numbers are not join keys
-    if left.role and right.role and left.role != right.role:
-        return False  # an employee id is not a manager id, however well the values overlap
+    if left.role and right.role and left.role != right.role and not _is_manager_link(left, right):
+        return False  # a department code is not a location code, however well the values overlap
     if _is_key_like(left) and _is_key_like(right):
         return True
     # A shared category (department, region) is a key only into a lookup table, where it is
@@ -139,9 +156,10 @@ def detect_relationships(
     measured over the whole stacked dataset. Without it, only base tables are considered.
 
     Narrower than "every overlapping pair" on purpose (see the module docstring): conflicting
-    roles are never paired, a non-identifier pair needs a unique side, two tables with the
-    same schema are left to the union view, and a many-to-many link is dropped when both
-    tables already join through a master table, unless the user has decided on it.
+    roles are never paired except manager id to a unique employee id (`_is_manager_link`,
+    always "suggested"), a non-identifier pair needs a unique side, two tables with the same
+    schema are left to the union view, and a many-to-many link is dropped when both tables
+    already join through a master table, unless the user has decided on it.
     """
     previous = {r.id: r.status for r in existing if r.status in ("active", "rejected")}
     base = sorted(linkable_tables(tables, unions or []), key=lambda t: t.name)

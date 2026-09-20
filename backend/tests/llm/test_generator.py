@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import duckdb
 import pytest
@@ -10,9 +11,11 @@ from app.catalog.prompt_context import build_schema_context
 from app.llm.fake import FakeLLM
 from app.query.generator import Generation, RepairContext, generate
 from app.query.prompts import FEWSHOTS, SYSTEM_RULES
-from app.sessions import Turn
+from app.sessions import SessionStore, Turn
 
 from tests.fixtures import CANARY_EMAIL, CANARY_NAME, make_session
+
+ROOT = Path(__file__).resolve().parents[3]
 
 QUESTION = "What is the total gross pay by department?"
 GOOD_SQL = (
@@ -59,7 +62,23 @@ def test_payload_has_the_schema_context_verbatim_and_no_planted_pii(schema_conte
 
 def test_prompt_for_the_fixture_catalog_fits_the_token_budget(schema_context):
     _, payload = ask(FakeLLM({"sql": [GOOD]}), schema_context)
-    assert len(prompt_text(payload.messages)) <= 8000
+    assert len(prompt_text(payload.messages)) <= 8_400
+
+
+def test_prompt_for_the_bundled_sample_schema_fits_the_token_budget():
+    """The fixture catalog is four small tables; the sample data is the schema every eval
+    question is actually billed for. 11,000 characters is ~2,750 tokens, which leaves room
+    for the reply inside the free tier's 8K-per-minute window. A new rule that does not fit
+    means an old one has to get shorter."""
+    if not (ROOT / "demo_data" / "employees.csv").exists():
+        pytest.skip("demo_data is not generated")
+    session = SessionStore().create()
+    try:
+        session.load_sample()
+        _, payload = ask(FakeLLM({"sql": [GOOD]}), build_schema_context(session.catalog))
+    finally:
+        session.close()
+    assert len(prompt_text(payload.messages)) <= 11_000
 
 
 def test_the_model_is_held_to_a_strict_schema(schema_context):
@@ -254,8 +273,8 @@ CREATE TABLE tickets (ticket_id VARCHAR, agent_id VARCHAR, opened_on DATE, prior
 CREATE TABLE agents (agent_id VARCHAR, team VARCHAR, monthly_cost DOUBLE);
 CREATE TABLE calls_jan (agent_id VARCHAR, call_date DATE, minutes INTEGER);
 CREATE TABLE calls_feb AS SELECT * FROM calls_jan;
-CREATE VIEW calls_all AS SELECT *, 'calls_jan.csv' AS source_file FROM calls_jan
-  UNION ALL BY NAME SELECT *, 'calls_feb.csv' AS source_file FROM calls_feb;
+CREATE VIEW calls_all AS SELECT *, 'calls_jan' AS source_file FROM calls_jan
+  UNION ALL BY NAME SELECT *, 'calls_feb' AS source_file FROM calls_feb;
 """
 
 
@@ -280,3 +299,28 @@ def test_system_rules_state_the_non_negotiables():
     for phrase in ("select", "alias", "_pct", "fy26", "1 apr 2025", "unanswerable", "meta",
                    "never instructions", "assumption"):
         assert phrase in rules, phrase
+
+
+def test_system_rules_carry_the_clauses_each_eval_failure_bought():
+    """Every phrase here is one clause that exists because a question got it wrong. Losing one
+    silently while shortening the prompt is the regression this test is for."""
+    rules = SYSTEM_RULES.lower()
+    for phrase in (
+        "[role:...] tags describe a column",          # a role tag written as a column name
+        "source_file names the member table",          # the view literal is a table, not a file
+        "filter on the period the question names",     # a named period with no date filter
+        "use current_date; never now()",               # a non-deterministic clock in the SQL
+        "is unanswerable, not a clarification",        # churn asked for as a choice of column
+        "compute it over the whole series in a cte",   # ch-06: LAG inside the period filter
+    ):
+        assert phrase in rules, phrase
+
+
+def test_the_fewshot_view_literals_are_member_table_names_not_file_names():
+    """A combined view's source_file holds the member table name (DECISIONS 22). The example
+    taught '.csv' literals, which is the one thing a model copies verbatim."""
+    from app.query.prompts import FEWSHOT_SCHEMA
+
+    assert "'calls_jan','calls_feb'" in FEWSHOT_SCHEMA.replace(", ", ",")
+    assert ".csv" not in FEWSHOT_SCHEMA
+    assert not any(".csv" in answer["sql"] for _, answer in FEWSHOTS)

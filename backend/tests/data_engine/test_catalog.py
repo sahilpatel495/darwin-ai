@@ -187,7 +187,11 @@ def test_ids_that_only_share_values_are_never_switched_on_automatically(conn):
     assert link.status == "suggested" and link.match_left == 1.0
 
 
-def test_an_employee_id_is_not_linked_to_a_manager_id_in_another_table(conn):
+def test_a_manager_id_meets_an_employee_id_in_a_staff_master_but_is_only_ever_suggested(conn):
+    """A manager id *is* an employee id in the table that lists every employee once, so the
+    link is genuine. It still arrives unconfirmed: these two tables already join on the
+    employee's own id, and which of the two paths a question means (the store you work in or
+    the store you manage) is the analyst's answer to give."""
     conn.execute("CREATE TABLE org AS SELECT 'E' || i AS emp_id, 'E' || (i % 3) AS manager_id FROM range(10) t(i)")
     conn.execute("CREATE TABLE pay AS SELECT 'E' || i AS emp_code FROM range(10) t(i)")
     tables = [
@@ -195,7 +199,39 @@ def test_an_employee_id_is_not_linked_to_a_manager_id_in_another_table(conn):
                        _column("manager_id", role="manager_id", is_identifier=True)], 10),
         _table("pay", [_column("emp_code", role="employee_id", is_identifier=True, is_unique=True)], 10),
     ]
-    assert [r.id for r in detect_relationships(conn, tables, [])] == ["org.emp_id->pay.emp_code"]
+    links = _by_id(detect_relationships(conn, tables, []))
+    assert sorted(links) == ["org.emp_id->pay.emp_code", "org.manager_id->pay.emp_code"]
+    manager = links["org.manager_id->pay.emp_code"]
+    # Every manager is an employee: a perfect match rate that still does not switch it on.
+    assert (manager.match_left, manager.cardinality, manager.status) == (1.0, "N:1", "suggested")
+    assert links["org.emp_id->pay.emp_code"].status == "active"
+
+    confirmed = [manager.model_copy(update={"status": "active"})]
+    again = _by_id(detect_relationships(conn, tables, confirmed))
+    assert again["org.manager_id->pay.emp_code"].status == "active"  # the user's decision wins
+
+
+def test_a_manager_id_is_not_paired_with_an_employee_id_that_is_not_a_master_key(conn):
+    """The payroll register has many rows per person, so its emp_code is not a staff master's
+    key: joining a manager id to it would multiply rows and mean nothing."""
+    conn.execute("CREATE TABLE org AS SELECT 'E' || i AS emp_id, 'E' || (i % 3) AS manager_id FROM range(10) t(i)")
+    conn.execute("CREATE TABLE payroll AS SELECT 'E' || (i % 10) AS emp_code FROM range(30) t(i)")
+    tables = [
+        _table("org", [_column("emp_id", role="employee_id", is_identifier=True, is_unique=True),
+                       _column("manager_id", role="manager_id", is_identifier=True)], 10),
+        _table("payroll", [_column("emp_code", role="employee_id", is_identifier=True)], 30),
+    ]
+    assert [r.id for r in detect_relationships(conn, tables, [])] == ["org.emp_id->payroll.emp_code"]
+
+
+def test_no_other_pair_of_different_roles_is_allowed_to_meet(conn):
+    """Only manager/employee. A department code and a location code overlapping perfectly is
+    the coincidence the role check exists to refuse."""
+    conn.execute("CREATE TABLE a AS SELECT 'C' || i AS dept_code FROM range(10) t(i)")
+    conn.execute("CREATE TABLE b AS SELECT 'C' || i AS site_code FROM range(10) t(i)")
+    tables = [_table("a", [_column("dept_code", role="department", is_identifier=True, is_unique=True)], 10),
+              _table("b", [_column("site_code", role="location", is_identifier=True, is_unique=True)], 10)]
+    assert detect_relationships(conn, tables, []) == []
 
 
 def test_a_shared_category_links_only_to_a_lookup_table(conn):

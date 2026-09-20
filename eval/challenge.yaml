@@ -58,6 +58,12 @@
 - id: ch-06
   category: change_over_time
   split: holdout
+  # This question failed in the pass of 2026-09-20 18:05 (LAG taken over the already-filtered
+  # months, so February had no January to subtract), and SQL rule 11 of the generate prompt
+  # was written for exactly that. That is tuning on one question, so its result is no longer
+  # evidence about unseen questions: eval/report.py reports the challenge score twice, over
+  # all 16 and over the 15 nothing was tuned on, and names this case both times.
+  tuned_after_failure: true
   question: "By how much did total net pay rise or fall each month against the month before, from February to December 2025?"
   expect: {kind: answer, truth: net_pay_change_month_on_month_2025}
 
@@ -92,7 +98,11 @@
 - id: ch-11
   category: unions
   split: holdout
-  question: "In the combined attendance data, how many days of absence came from the attendance_q2.csv file?"
+  # Named as an analyst would say it, and as the app now shows it: the view's source_file
+  # column holds the member *table* name (DECISIONS 22), so "attendance_q2.csv" was a literal
+  # that is no longer in the data. The truth function is unchanged - it sums the clean q2
+  # frame and never looked at the literal.
+  question: "In the combined attendance data, how many days of absence came from the second-quarter attendance file (attendance_q2)?"
   expect: {kind: answer, truth: days_absent_from_attendance_q2_file}
 - id: ch-12
   category: non_hr

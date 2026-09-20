@@ -28,3 +28,4 @@ eval/.llm_cache/
 
 # isolated checkouts for long-running agent work
 .worktrees/
+eval/.runs/

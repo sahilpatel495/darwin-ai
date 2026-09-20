@@ -125,6 +125,27 @@ def test_the_highest_paid_person_per_department_is_a_single_person(challenge):
     assert len(departments) == len(set(departments))
 
 
+def test_no_question_names_an_uploaded_file_by_its_file_name(challenge):
+    """A combined view's source_file column holds the member *table* name (DECISIONS 22), so
+    "the attendance_q2.csv file" asked for a literal that is no longer in the data. The
+    question still has to sound like something an analyst would say, which is why ch-11 names
+    the quarter and puts the table name in brackets."""
+    cases, _ = challenge
+    assert not [c.id for c in cases if ".csv" in c.question or ".xlsx" in c.question]
+    ch11 = next(c for c in cases if c.id == "ch-11")
+    assert "second-quarter attendance file" in ch11.question and "attendance_q2" in ch11.question
+
+
+def test_exactly_one_question_is_flagged_as_tuned_after_it_failed(challenge):
+    """The set's whole claim is that it was never tuned on. One question now has been, so the
+    flag names it and the report scores the other fifteen on their own."""
+    from eval.report import _flagged
+
+    cases, _ = challenge
+    tuned = _flagged("challenge", "tuned_after_failure")
+    assert tuned == {"ch-06"} <= {c.id for c in cases}
+
+
 def test_every_challenge_question_names_its_period_in_months_or_not_at_all(challenge):
     """"The first half of 2025" reads as April to September to anyone who has seen this company's
     H1/H2 review cycles, and as January to June to everyone else, which are different answers.

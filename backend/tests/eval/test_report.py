@@ -8,12 +8,16 @@ from app.contracts import EvalCase, EvalReport, ModelScore
 from eval.report import (
     HIDDEN_NOTE,
     NARRATION_FAILURE,
+    _flagged,
+    _sentence_line,
     build_report,
+    failure_class,
     failure_kind,
     load_report,
     render_challenge,
     render_markdown,
     report_filename,
+    save_models_used,
     trust_points,
     write_report,
 )
@@ -152,6 +156,71 @@ def test_the_failures_table_carries_the_kind():
     assert "Kind of failure" in text and "| wrong result |" in text
 
 
+@pytest.mark.parametrize("case_kwargs, klass", [
+    ({"got": "error", "note": "No model was available."}, "provider error"),
+    ({"note": f"{NARRATION_FAILURE.capitalize()}: it calls Engineering the highest."}, "wrong sentence"),
+    ({"got": "refusal", "note": "The app declined."}, "over-refusal"),
+    ({"expected": "refusal", "note": "The app answered a question the data cannot answer."}, "missed refusal"),
+    ({"note": "The result does not match the expected value."}, "wrong SQL logic"),
+])
+def test_the_four_classes_a_machine_can_read_are_read_off_the_case(case_kwargs, klass):
+    assert failure_class(case("x", False, **case_kwargs)) == klass
+
+
+def test_a_class_that_needs_the_sql_read_is_recorded_by_id_not_typed_into_the_page(monkeypatch):
+    """"Wrong column" and "date logic" both look like "the result does not match". Only a
+    person who read the query can tell them apart, so the reading is kept where the renderer
+    can find it again instead of in REPORT.md, which the next run overwrites."""
+    from eval import report as report_module
+
+    wrong = case("ch-06", False, note="The result does not match the expected value.")
+    assert failure_class(wrong) == "wrong SQL logic"
+    monkeypatch.setitem(report_module.CLASSIFIED, "ch-06", "date logic")
+    assert failure_class(wrong) == "date logic"
+
+
+# ---------------------------------------------------------------- lines the JSON cannot carry
+
+
+def test_the_headline_splits_dev_from_holdout():
+    assert "By split: 2 of 4 dev, 1 of 2 holdout." in render_markdown(report())
+
+
+def test_the_sentence_grading_line_counts_the_questions_that_carry_it():
+    """The flag lives in golden.yaml, so the count comes from the question file, not the run."""
+    graded = _flagged("golden", "narration")
+    assert {"avg-02", "cmp-02", "joi-01", "inj-01"} <= graded and "tot-01" not in graded
+
+    cases = [case("avg-02", True), case("tot-01", True),
+             case("joi-01", False, note=f"{NARRATION_FAILURE.capitalize()}: it calls Engineering the highest.")]
+    line = _sentence_line(cases)
+    assert "2 of the 3 questions must name the highest" in line
+    assert "1 failure(s) of that kind (joi-01)" in line
+
+
+def test_the_models_that_answered_are_read_from_the_run_and_a_partial_pass_only_updates_its_own(tmp_path):
+    save_models_used(tmp_path, "golden", {"tot-01": [("Writes the SQL", "gemma-4-31b-it on gemini")],
+                                          "tot-02": [("Writes the SQL", "gemma-4-31b-it on gemini")]})
+    save_models_used(tmp_path, "golden", {"tot-02": [("Writes the SQL", "openai/gpt-oss-120b on groq")]})
+    text = render_markdown(report(), directory=tmp_path)
+    assert "### Which models answered" in text
+    assert "| Writes the SQL | `gemma-4-31b-it on gemini` | 1 of 6 |" in text
+    assert "| Writes the SQL | `openai/gpt-oss-120b on groq` | 1 of 6 |" in text
+
+
+def test_no_models_were_recorded_means_no_table_rather_than_an_invented_one(tmp_path):
+    assert "Which models answered" not in render_markdown(report(), directory=tmp_path)
+
+
+def test_the_comparison_table_says_what_each_row_was_measured_on():
+    """Two models, two versions of the code. A row with no date beside a fresh one is the
+    easiest way to read this table wrongly."""
+    others = [ModelScore(model="gemma-4-31b-it", accuracy=0.9, p50_ms=3000)]
+    text = render_markdown(report(other_models=others))
+    assert "| Measured on |" in text
+    assert "before the combined-view and prompt changes" in text and "the final code" in text
+
+
 # ---------------------------------------------------------------- the challenge section
 
 
@@ -187,6 +256,28 @@ def test_the_challenge_section_never_hides_a_failure():
 def test_a_clean_challenge_run_says_so_rather_than_printing_an_empty_table():
     text = render_challenge(challenge_report(CHALLENGE_CASES[:1]))
     assert "None. Every challenge question passed." in text and "|---|" not in text
+
+
+def test_the_challenge_score_is_reported_twice_when_a_prompt_was_tuned_after_a_failure():
+    """Rule 11 of the generate prompt exists because ch-06 failed, so ch-06 measures that rule
+    and not an unseen question. It stays in the headline and comes out of the second number."""
+    assert _flagged("challenge", "tuned_after_failure") == {"ch-06"}
+
+    cases = [case("ch-01", True, category="chain", split="holdout"),
+             case("ch-05", True, category="median", split="holdout"),
+             case("ch-06", False, category="change_over_time", split="holdout",
+                  note="The result does not match the expected value.")]
+    text = render_challenge(challenge_report(cases))
+    assert "**Accuracy: 66.7%** (2 of 3 correct)" in text
+    assert "**Accuracy over the 2 questions nothing was tuned on: 100.0%** (2 of 2)" in text
+    assert "`ch-06` is reported as **tuned after failure**" in text
+
+
+def test_the_challenge_failures_are_classified_and_the_empty_classes_are_named():
+    text = render_challenge(challenge_report())
+    assert "| Class |" in text
+    assert "| ch-15 | unanswerable | missed refusal |" in text
+    assert "Classes with no failure this pass:" in text and "fan-out" in text
 
 
 # ---------------------------------------------------------------- two sets, two files, one page
@@ -230,6 +321,20 @@ def test_a_challenge_run_does_not_republish_the_golden_holdout_failures_it_found
     assert "1 holdout question failed" in both, "the count is still reported"
     assert "hr-09" not in both, "the holdout question that failed must stay unnamed"
     assert "join-01" in both, "a dev failure is never hidden"
+
+
+def test_the_closing_paragraph_is_rendered_by_code_so_a_later_run_cannot_drop_it(tmp_path, monkeypatch):
+    """What the failures say about the ceiling is prose, and prose typed into REPORT.md is gone
+    the next time anything runs. It lives in `report.py` and is written on every pass."""
+    from eval import report as report_module
+
+    monkeypatch.setattr(report_module, "CEILING", "## The ceiling\n\nDefault to the fast model.")
+    write_report(report(), tmp_path)
+    assert "## The ceiling" in (tmp_path / "REPORT.md").read_text()
+
+    monkeypatch.setattr(report_module, "CEILING", "   ")
+    write_report(report(), tmp_path)
+    assert "## The ceiling" not in (tmp_path / "REPORT.md").read_text()
 
 
 def test_a_challenge_run_before_any_golden_run_writes_the_challenge_section_alone(tmp_path):

@@ -3,14 +3,23 @@
 Why every number is recomputed from the case list: the report can then be merged across
 partial runs, rebuilt from `report.json` alone, and checked by hand. The one exception is
 cross-check agreement, which is not stored per case and so describes the latest pass only.
+
+Why this module also reads the question files and holds a few constants: REPORT.md is
+regenerated from scratch by every run, so anything a reader needs that `EvalReport` cannot
+carry — which question's sentence is graded, which one a prompt was tuned for, what class a
+failure belongs to, which model filled which role — has to be produced here or it is silently
+dropped by the next pass. `backend/app/contracts.py` is not the eval's to grow, so the facts
+live beside the renderer instead. Every line of REPORT.md comes out of this file.
 """
 
 from __future__ import annotations
 
+import json
 import math
 from datetime import datetime
 from pathlib import Path
 
+import yaml
 from app.contracts import CalibrationBucket, EvalCase, EvalReport, ModelScore
 from pydantic import ValidationError
 
@@ -26,12 +35,67 @@ NARRATION_FAILURE = "right table, wrong sentence"
 # disk: a challenge pass re-renders the golden section and must not put a hidden reason back.
 HIDDEN_NOTE = "Hidden during tuning so prompts cannot be fitted to the holdout questions."
 _REPORT_FILES = {"golden": "report.json", "challenge": "challenge_report.json"}
+_QUESTION_FILES = {"golden": "golden.yaml", "challenge": "challenge.yaml"}
+MODELS_FILE = "models_used.json"  # which model answered what, written by the runner
+EVAL_DIR = Path(__file__).resolve().parent
+
+# ---------------------------------------------------------------- what the JSON cannot carry
+
+# A row of the model comparison table says nothing about *when* it was measured, and a stale
+# row beside a fresh one is the easiest way to read a report wrongly. One short phrase per
+# model, shown in the table's "Measured on" column.
+MODEL_NOTES: dict[str, str] = {
+    "openai/gpt-oss-120b": "the code of 2026-09-20 18:05, before the combined-view and prompt changes",
+    "gemma-4-31b-it": "the final code (combined views and the 12-rule generate prompt)",
+}
+
+# The eight classes a failure is reported in. Four can be read off the case; the other four
+# are a reading of the SQL, so a pass that reads one records it here by id rather than typing
+# it into REPORT.md, where the next run would drop it.
+READ_FROM_THE_CASE = ("provider error", "wrong sentence", "over-refusal", "missed refusal")
+READ_FROM_THE_SQL = ("wrong SQL logic", "wrong column", "date logic", "fan-out")
+CLASSIFIED: dict[str, str] = {}
+
+# The closing paragraph: what the failures say about the ceiling, and which model to default
+# to. Rewritten by hand after each pass, rendered by code so it cannot fall off the page.
+CEILING = ""
 
 
 def report_filename(question_set: str) -> str:
     """Which file a set's report lives in. `--set challenge` must never overwrite the golden
     report, so the name is decided here rather than passed in by the caller."""
     return _REPORT_FILES[question_set]
+
+
+def _flagged(question_set: str, key: str) -> set[str]:
+    """Ids in one question file carrying a flag the report has to name. Read from the YAML
+    rather than the report, because `EvalCase` has no field for "this question's sentence is
+    graded" or "a prompt was changed because this one failed"."""
+    try:
+        raw = yaml.safe_load((EVAL_DIR / _QUESTION_FILES[question_set]).read_text(encoding="utf-8")) or []
+    except (OSError, KeyError, yaml.YAMLError):
+        return set()
+    return {
+        str(entry.get("id")) for entry in raw
+        if isinstance(entry, dict)
+        and (entry.get(key) or (entry.get("expect") or {}).get(key))
+    }
+
+
+def save_models_used(directory: Path, question_set: str, per_case: dict[str, list[tuple[str, str]]]) -> None:
+    """Record which model filled which role, per question. Merged into whatever is already
+    there, so a `--ids` pass updates only the questions it asked."""
+    data = _models_used(directory)
+    data.setdefault(question_set, {}).update({case_id: [list(pair) for pair in roles]
+                                              for case_id, roles in per_case.items()})
+    (directory / MODELS_FILE).write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _models_used(directory: Path) -> dict[str, dict[str, list[list[str]]]]:
+    try:
+        return json.loads((directory / MODELS_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
 
 
 def failure_kind(case: EvalCase) -> str:
@@ -46,6 +110,23 @@ def failure_kind(case: EvalCase) -> str:
     if case.got_kind != case.expected_kind:
         return f"{case.got_kind}, expected {case.expected_kind}"
     return "wrong result"
+
+
+def failure_class(case: EvalCase) -> str:
+    """Which of the eight classes this failure belongs to. A class recorded in `CLASSIFIED`
+    wins, because only a person who read the SQL can tell a wrong column from date logic;
+    everything else is read off the case itself."""
+    if case.id in CLASSIFIED:
+        return CLASSIFIED[case.id]
+    if case.got_kind == "error":
+        return "provider error"
+    if NARRATION_FAILURE in case.note.casefold():
+        return "wrong sentence"
+    if case.got_kind == "refusal" and case.expected_kind != "refusal":
+        return "over-refusal"
+    if case.expected_kind == "refusal" and case.got_kind in _ASSERTIVE_KINDS:
+        return "missed refusal"
+    return "wrong SQL logic"  # the default until somebody reads the query and says otherwise
 
 
 def trust_points(case: EvalCase) -> int:
@@ -115,8 +196,9 @@ def write_report(report: EvalReport, directory: Path, hide_holdout_failures: boo
         report.model_dump_json(indent=2) + "\n", encoding="utf-8")
     golden = report if question_set == "golden" else load_report(directory / _REPORT_FILES["golden"])
     challenge = report if question_set == "challenge" else load_report(directory / _REPORT_FILES["challenge"])
-    sections = [render_markdown(golden, hide_holdout_failures) if golden else "",
-                render_challenge(challenge) if challenge else ""]
+    sections = [render_markdown(golden, hide_holdout_failures, directory) if golden else "",
+                render_challenge(challenge, directory) if challenge else "",
+                CEILING.strip() + "\n" if CEILING.strip() else ""]
     (directory / "REPORT.md").write_text("\n".join(s for s in sections if s), encoding="utf-8")
 
 
@@ -125,7 +207,8 @@ def write_report(report: EvalReport, directory: Path, hide_holdout_failures: boo
 # --------------------------------------------------------------------------
 
 
-def render_markdown(report: EvalReport, hide_holdout_failures: bool = False) -> str:
+def render_markdown(report: EvalReport, hide_holdout_failures: bool = False,
+                    directory: Path = EVAL_DIR) -> str:
     cases = report.cases
     holdout = [c for c in cases if c.split == "holdout"]
     passed = sum(c.passed for c in cases)
@@ -140,7 +223,8 @@ def render_markdown(report: EvalReport, hide_holdout_failures: bool = False) -> 
         "",
         "## Headline",
         "",
-        f"- **Accuracy: {report.accuracy:.1%}** ({passed} of {report.total} questions correct{every_run}).",
+        (f"- **Accuracy: {report.accuracy:.1%}** ({passed} of {report.total} questions correct{every_run}). "
+         f"By split: {_tally(cases, 'dev')} dev, {_tally(cases, 'holdout')} holdout."),
         _holdout_line(report, holdout),
         (f"- **Trust score: {report.trust_score:+.2f}** on a scale of -1 to +1 "
          "(+1 correct, 0 declined to answer, -1 gave a wrong answer)."),
@@ -148,6 +232,7 @@ def render_markdown(report: EvalReport, hide_holdout_failures: bool = False) -> 
          f"95% within {_seconds(report.p95_ms)}. Questions replayed from the model cache are not timed."),
         f"- Repairs: {report.repair_rate:.1%} of questions needed the SQL to be corrected before it ran.",
         _crosscheck_line(report),
+        _sentence_line(cases),
         "",
         "## Accuracy by category",
         "",
@@ -172,8 +257,11 @@ def render_markdown(report: EvalReport, hide_holdout_failures: bool = False) -> 
     if unbadged:
         lines += ["", f"{unbadged} question(s) carry no badge because the app refused, asked, or failed."]
 
-    lines += ["", "## Model comparison", "", "| Model | Accuracy | Typical time |", "|---|---|---|"]
-    lines += [f"| `{m.model}` | {m.accuracy:.1%} | {_seconds(m.p50_ms)} |" for m in report.models]
+    lines += ["", "## Model comparison", "",
+              "| Model | Accuracy | Typical time | Measured on |", "|---|---|---|---|"]
+    lines += [f"| `{m.model}` | {m.accuracy:.1%} | {_seconds(m.p50_ms)} | "
+              f"{MODEL_NOTES.get(m.model, 'this question set')} |" for m in report.models]
+    lines += _models_answered_lines("golden", cases, directory)
 
     lines += ["", "## Failures", ""] + _failure_lines(cases, hide_holdout_failures)
     lines += [
@@ -184,6 +272,47 @@ def render_markdown(report: EvalReport, hide_holdout_failures: bool = False) -> 
         "",
     ]
     return "\n".join(lines)
+
+
+def _tally(cases: list[EvalCase], split: str) -> str:
+    group = [c for c in cases if c.split == split]
+    return f"{sum(c.passed for c in group)} of {len(group)}"
+
+
+def _sentence_line(cases: list[EvalCase], question_set: str = "golden") -> str:
+    """The sentence is a second, separate failure class. It gets a headline line of its own
+    because the table and the sentence can disagree and only one of them used to be graded."""
+    graded = _flagged(question_set, "narration") & {c.id for c in cases}
+    if not graded:
+        return "- Only the result table is graded in this set; the sentence is graded in the golden set."
+    wrong = [c.id for c in cases if not c.passed and failure_class(c) == "wrong sentence"]
+    named = f" ({', '.join(wrong)})" if wrong else ""
+    return (f"- **The sentence is graded too, not only the table:** {len(graded)} of the {len(cases)} "
+            "questions must name the highest (and for one, the lowest) row of the expected result in "
+            f"the answer text, and no clause may call a different row the highest. {len(wrong)} "
+            f"failure(s) of that kind{named}. It is its own class because this set once scored 40/40 "
+            'while the live app still said "Engineering has the highest average salary" over a table '
+            "whose top row was Support (`DECISIONS.md` 20).")
+
+
+def _models_answered_lines(question_set: str, cases: list[EvalCase], directory: Path) -> list[str]:
+    """Which model filled which role, and for how many of these questions. Read from the calls
+    the run actually made, never from the chain: a failover means the chain's first entry is
+    not the model that replied."""
+    per_case = _models_used(directory).get(question_set, {})
+    tally: dict[tuple[str, str], int] = {}
+    for case in cases:
+        for pair in {(role, model) for role, model in per_case.get(case.id, [])}:
+            tally[pair] = tally.get(pair, 0) + 1
+    if not tally:
+        return []
+    return ["", "### Which models answered", "",
+            (f"Counted over the {len(cases)} questions of this set by reading every call that was "
+             "made, so a failover shows up as a second model on the same role."),
+            "", "| Role | Model | Questions |", "|---|---|---|"] + [
+        f"| {role} | `{model}` | {n} of {len(cases)} |"
+        for (role, model), n in sorted(tally.items(), key=lambda item: (item[0][0], -item[1]))
+    ]
 
 
 def _holdout_line(report: EvalReport, holdout: list[EvalCase]) -> str:
@@ -205,12 +334,20 @@ def _crosscheck_line(report: EvalReport) -> str:
     )
 
 
-def render_challenge(report: EvalReport) -> str:
-    """The challenge set's own section of REPORT.md: the score, then every failure.
+def render_challenge(report: EvalReport, directory: Path = EVAL_DIR) -> str:
+    """The challenge set's own section of REPORT.md: the score, then every failure, classified.
 
     Nothing is hidden and nothing is summarised away. The golden set is the regression bar; this
-    section is the one that says how hard the app actually finds this data."""
-    failures = [c for c in report.cases if not c.passed]
+    section is the one that says how hard the app actually finds this data.
+
+    The score is reported twice. A question a prompt was changed for after it failed is no
+    longer evidence about unseen questions, so it is counted in the headline (it is still a
+    question the app has to get right) and left out of the second number, which is the one
+    that says what a never-tuned question costs."""
+    cases = report.cases
+    failures = [c for c in cases if not c.passed]
+    tuned = _flagged("challenge", "tuned_after_failure") & {c.id for c in cases}
+    untouched = [c for c in cases if c.id not in tuned]
     lines = [
         "## Challenge set (never tuned)",
         "",
@@ -219,16 +356,35 @@ def render_challenge(report: EvalReport) -> str:
          f"`{report.model}`, {report.runs} run(s) each."),
         "",
         f"- **Accuracy: {report.accuracy:.1%}** ({report.total - len(failures)} of {report.total} correct).",
+    ]
+    if tuned:
+        listed = ", ".join(f"`{case_id}`" for case_id in sorted(tuned))
+        lines += [
+            (f"- **Accuracy over the {len(untouched)} questions nothing was tuned on: "
+             f"{_accuracy(untouched):.1%}** ({sum(c.passed for c in untouched)} of {len(untouched)})."),
+            (f"- {listed} is reported as **tuned after failure**: it failed in an earlier pass and a "
+             "rule was added to the generate prompt because of it, so its result is a measure of that "
+             "rule and not of an unseen question. It is counted in the first number and left out of "
+             "the second."),
+        ]
+    lines += [
         (f"- **Trust score: {report.trust_score:+.2f}** on the same scale as above "
          "(+1 correct, 0 declined to answer, -1 gave a wrong answer)."),
-        "",
-        "### Every challenge failure",
-        "",
+        (f"- Speed: half within {_seconds(report.p50_ms)}, 95% within {_seconds(report.p95_ms)}. "
+         f"Repairs: {report.repair_rate:.1%}. {_crosscheck_line(report).lstrip('- ')}"),
+        _sentence_line(cases, "challenge"),
     ]
+    lines += _models_answered_lines("challenge", cases, directory)
+    lines += ["", "### Every challenge failure", ""]
     if failures:
-        lines += ["| Id | Category | Kind of failure | Question | What happened |", "|---|---|---|---|---|"]
-        lines += [f"| {c.id} | {c.category} | {failure_kind(c)} | {_cell(c.question)} | {_cell(c.note)} |"
-                  for c in failures]
+        lines += ["| Id | Category | Class | Kind of failure | Question | What happened |",
+                  "|---|---|---|---|---|---|"]
+        lines += [f"| {c.id} | {c.category} | {failure_class(c)} | {failure_kind(c)} | "
+                  f"{_cell(c.question)} | {_cell(c.note)} |" for c in failures]
+        lines += ["", (f"Classes: {', '.join(READ_FROM_THE_SQL)} (a reading of the query), "
+                       f"{', '.join(READ_FROM_THE_CASE)} (read off the case itself). "
+                       f"Classes with no failure this pass: "
+                       f"{', '.join(c for c in READ_FROM_THE_SQL + READ_FROM_THE_CASE if c not in {failure_class(f) for f in failures})}.")]
     else:
         lines.append("None. Every challenge question passed.")
     lines += ["", "These questions were written to find where it breaks.", ""]
