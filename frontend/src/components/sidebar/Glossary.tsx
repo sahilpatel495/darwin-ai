@@ -18,8 +18,9 @@ interface GlossaryProps {
   onSave: (glossary: Metric[]) => Promise<boolean>
 }
 
-const FIELD = 'mt-1 block w-full rounded-control border border-rule bg-sheet px-2.5 py-1.5 type-small text-ink'
-const LABEL = 'block type-small font-medium text-ink-soft'
+const FIELD =
+  'mt-1 block w-full rounded-input border border-line bg-surface-2 px-2.5 py-2 type-small text-ink placeholder:text-ink-3 disabled:opacity-60'
+const LABEL = 'block type-small font-semibold text-ink-2'
 
 function MetricEditor({ metric, glossary, readOnly, onSave }: GlossaryProps & { metric: Metric }) {
   const [definition, setDefinition] = useState(metric.definition)
@@ -39,8 +40,16 @@ function MetricEditor({ metric, glossary, readOnly, onSave }: GlossaryProps & { 
   }
 
   return (
-    <Expander className="border-b border-rule" label={<span className="type-body font-medium text-ink">{metric.name}</span>}>
-      <form onSubmit={save} className="space-y-3 pb-4 pl-[18px]">
+    <Expander
+      className="border-b border-line-soft last:border-b-0"
+      label={
+        <>
+          <span className="block type-body font-semibold text-ink">{metric.name}</span>
+          <span className="block truncate type-small text-ink-2">{metric.definition}</span>
+        </>
+      }
+    >
+      <form onSubmit={save} className="space-y-3 pr-2 pb-4 pl-8">
         <label className={LABEL}>
           Definition
           {/* Length caps keep an edited glossary from crowding out the rest of the model's instructions.
@@ -73,20 +82,20 @@ function MetricEditor({ metric, glossary, readOnly, onSave }: GlossaryProps & { 
           />
         </label>
         {metric.required_roles.length > 0 && (
-          <p className="type-small text-ink-soft">Needs these kinds of column: {metric.required_roles.map((role) => role.replaceAll('_', ' ')).join(', ')}.</p>
+          <p className="type-small text-ink-2">Needs these kinds of column: {metric.required_roles.map((role) => role.replaceAll('_', ' ')).join(', ')}.</p>
         )}
         {/* Folded by default: a SQL template with {placeholders} is for the engineer, and it sat
             between the analyst and the Save button. */}
         <details>
-          <summary className="cursor-pointer type-small font-medium text-indigo">How it is calculated</summary>
-          <pre className="mt-1 rounded-control bg-wash p-2 type-code break-words whitespace-pre-wrap text-ink">{metric.sql_pattern}</pre>
+          <summary className="w-fit cursor-pointer type-small font-semibold text-blue-ink">How it is calculated</summary>
+          <pre className="mt-1.5 rounded-input bg-surface-2 p-2.5 type-code break-words whitespace-pre-wrap text-ink">{metric.sql_pattern}</pre>
         </details>
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" variant="primary" size="sm" loading={state === 'saving'} disabled={readOnly || !changed || problem !== null}>
             Save definition
           </Button>
           {/* One live region per entry, always in the DOM: a span added at save time is announced late or not at all. */}
-          <span role="status" className={`min-w-0 type-small break-words ${problem ? 'text-amber' : 'text-audit'}`}>
+          <span role="status" className={`min-w-0 type-small font-medium break-words ${problem ? 'text-amber-ink' : 'text-green-ink'}`}>
             {problem ?? (state === 'saved' && 'Saved')}
           </span>
         </div>
@@ -96,15 +105,17 @@ function MetricEditor({ metric, glossary, readOnly, onSave }: GlossaryProps & { 
 }
 
 export default function Glossary({ glossary, readOnly, onSave }: GlossaryProps) {
-  if (glossary.length === 0) return <p className="pt-3 type-body text-ink-soft">No metric definitions are loaded for these files.</p>
+  if (glossary.length === 0) return <p className="type-body text-ink-2">No metric definitions are loaded for these files.</p>
   return (
     <div>
-      <p className="measure py-3 type-body text-ink-soft">
+      <p className="measure type-small text-ink-2">
         “Attrition” can be computed three ways. These are the definitions Verity uses. Change them to match your company.
       </p>
-      {glossary.map((metric) => (
-        <MetricEditor key={metric.key} metric={metric} glossary={glossary} readOnly={readOnly} onSave={onSave} />
-      ))}
+      <div className="-mx-2 mt-2">
+        {glossary.map((metric) => (
+          <MetricEditor key={metric.key} metric={metric} glossary={glossary} readOnly={readOnly} onSave={onSave} />
+        ))}
+      </div>
     </div>
   )
 }

@@ -7,7 +7,7 @@ export interface PopoverProps {
   trigger: ReactNode
   /** Accessible name for the trigger, needed whenever `trigger` is an icon or one character. */
   triggerLabel?: string
-  /** First line inside the panel, in the section-title style. */
+  /** First line inside the panel, in the section-heading style. */
   title?: string
   children: ReactNode
   /** Which edge of the trigger the panel lines up with. Use `right` near the right of the screen. */
@@ -62,13 +62,13 @@ export default function Popover({ trigger, triggerLabel, title, children, align 
         <div
           id={panelId}
           className={cx(
-            'absolute top-full z-30 mt-2 w-72 max-w-[calc(100vw-2rem)] animate-fade',
-            'rounded-control border border-rule bg-sheet p-3 shadow-float',
+            'popover-in absolute top-full z-40 mt-2 w-72 max-w-[calc(100vw-2rem)]',
+            'rounded-card bg-surface p-3.5 shadow-3',
             align === 'right' ? 'right-0' : 'left-0',
           )}
         >
-          {title && <p className="type-title text-ink">{title}</p>}
-          <div className={cx('type-small text-ink-soft', title && 'mt-1')}>{children}</div>
+          {title && <p className="type-section text-ink">{title}</p>}
+          <div className={cx('type-small text-ink-2', title && 'mt-1')}>{children}</div>
         </div>
       )}
     </span>

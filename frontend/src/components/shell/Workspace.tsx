@@ -7,13 +7,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, ensureSession, getCatalog, loadSample, resetSession, setLinkStatus, saveGlossary, uploadFiles } from '../../api'
-import { fileNamesFrom, useProject } from '../../lib/projects'
+import { fileNamesFrom, tourSeen, useProject } from '../../lib/projects'
 import type { ProjectRecord, Turn } from '../../lib/projects'
 import type { Catalog } from '../../types'
 import Tour from '../education/Tour'
 import Sidebar from '../sidebar/Sidebar'
 import Thread from '../thread/Thread'
-import { Banner, Dialog, Skeleton } from '../ui'
+import { Banner, Button, cx, Dialog, Skeleton } from '../ui'
+import { DataIcon } from './icons'
 import { checkFiles, nothingAdded } from '../upload/files'
 import type { Busy } from '../upload/UploadProgress'
 import DropZone from '../upload/DropZone'
@@ -31,6 +32,10 @@ interface WorkspaceProps {
   initialProject?: ProjectRecord | null
   /** The catalog from the upload that just created this project, so it is not fetched twice. */
   initialCatalog: Catalog | null
+  /** A question sent here by "Ask about this" on Overview or Analyses (§13, §14). Asked once. */
+  initialQuestion?: string | null
+  /** Called when that question has been put in the composer, so the sender can forget it. */
+  onQuestionTaken?: () => void
 }
 
 /**
@@ -55,7 +60,7 @@ function askInComposer(question: string) {
 function Loading() {
   return (
     <div role="status" className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
-      <p className="type-body text-ink-soft">Loading your files…</p>
+      <p className="type-body text-ink-2">Loading your files…</p>
       <div aria-hidden className="mt-4 space-y-3">
         <Skeleton className="h-6 w-2/3" />
         <Skeleton className="h-6 w-1/2" />
@@ -64,7 +69,7 @@ function Loading() {
   )
 }
 
-export default function Workspace({ projectId, initialProject, initialCatalog }: WorkspaceProps) {
+export default function Workspace({ projectId, initialProject, initialCatalog, initialQuestion = null, onQuestionTaken }: WorkspaceProps) {
   const [project, update] = useProject(projectId, initialProject)
   const [catalog, setCatalog] = useState<Catalog | null>(initialCatalog)
   const [loading, setLoading] = useState(initialCatalog === null)
@@ -73,6 +78,9 @@ export default function Workspace({ projectId, initialProject, initialCatalog }:
   const [adding, setAdding] = useState(false)
   /** "Show me around again" in How Verity works (§6.7) — the record has already been marked done. */
   const [replaying, setReplaying] = useState(false)
+  /** The side panel, from 768px up. Below that the panel sits above the thread and collapses
+   *  itself, so a second control in the header would be two buttons for one panel. */
+  const [dataOpen, setDataOpen] = useState(true)
 
   // Opening a project is what "last opened" means, and the home list is ordered by it.
   useEffect(() => {
@@ -111,8 +119,24 @@ export default function Workspace({ projectId, initialProject, initialCatalog }:
       })
     return () => {
       live = false
+      // The guard has to be released with the fetch it was guarding. StrictMode runs this effect,
+      // tears it down and runs it again: without this line the first fetch is abandoned, the
+      // second never starts, and opening a saved project sits on "Loading your files…" for ever.
+      loaded.current = false
     }
   }, [savedSessionId, update])
+
+  // "Ask about this" on a tile lands here. It waits for the composer to exist — the thread is
+  // behind the loading state until the catalog is in — and fires once.
+  const asked = useRef<string | null>(null)
+  useEffect(() => {
+    // Keyed by the question, not a boolean: StrictMode runs this effect twice, and asking the
+    // analyst's question twice would cost them a model call and put two identical turns in the thread.
+    if (!initialQuestion || !catalog || asked.current === initialQuestion) return
+    asked.current = initialQuestion
+    askInComposer(initialQuestion)
+    onQuestionTaken?.()
+  }, [initialQuestion, catalog, onQuestionTaken])
 
   const onSessionExpired = useCallback(() => {
     setCatalog(null)
@@ -211,12 +235,28 @@ export default function Workspace({ projectId, initialProject, initialCatalog }:
     </div>
   )
 
+  // The tour's first step points at the Files tab, so the panel is opened before it starts
+  // rather than pointing at something that has been folded away.
+  const touring = catalog !== null && (!tourSeen() || replaying)
+
   return (
     <div className="flex h-full flex-col">
       <Header
-        project={{ id: project.id, name: project.name, savedCount: project.savedAnswerIds.length }}
+        project={{ id: project.id, name: project.name }}
         onRename={(name) => update({ name })}
         onReplayTour={catalog ? () => setReplaying(true) : undefined}
+        actions={
+          <Button
+            size="sm"
+            aria-expanded={dataOpen}
+            aria-controls="verity-data"
+            onClick={() => setDataOpen((was) => !was)}
+            className="gap-1.5 max-md:hidden"
+          >
+            <DataIcon size={16} />
+            Data
+          </Button>
+        }
       />
 
       {/* `relative` matters: screen-reader-only text is absolutely positioned, and against an
@@ -227,7 +267,7 @@ export default function Workspace({ projectId, initialProject, initialCatalog }:
         <button
           type="button"
           onClick={() => document.getElementById('verity-question')?.focus()}
-          className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-control focus:bg-sheet focus:px-3 focus:py-2 focus:type-small focus:font-medium focus:text-indigo max-md:hidden"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-input focus:bg-surface focus:px-3 focus:py-2 focus:type-small focus:font-medium focus:text-blue-ink focus:shadow-3 max-md:hidden"
         >
           Skip to your question
         </button>
@@ -235,8 +275,8 @@ export default function Workspace({ projectId, initialProject, initialCatalog }:
         {/* On a phone the sidebar is a panel above the conversation, so it is capped and scrolls:
             an expanded file list must not push the question box off the screen. `md:contents`
             takes this wrapper out of the layout again on a wide screen, where the sidebar is a
-            column that sizes itself. */}
-        <div className="shrink-0 overflow-y-auto max-md:max-h-[60dvh] md:contents">
+            column that sizes itself — and where "Data" in the header folds it away. */}
+        <div id="verity-data" className={cx('shrink-0 overflow-y-auto max-md:max-h-[60dvh]', dataOpen || touring ? 'md:contents' : 'md:hidden')}>
           <Sidebar
             sessionId={sessionId}
             catalog={catalog}
@@ -284,9 +324,7 @@ export default function Workspace({ projectId, initialProject, initialCatalog }:
       {/* "Add more files" lives in the Files tab; the picker opens here, where it cannot be missed
           and where Esc puts the analyst back on the button they pressed. */}
       <Dialog open={adding && !detached} onClose={() => setAdding(false)} title="Add files to this project" size="sm">
-        <p className="type-body text-ink-soft">
-          They join the files already loaded, and Verity looks for links between them the same way.
-        </p>
+        <p className="type-body text-ink-2">They join the files already loaded, and Verity looks for links between them the same way.</p>
         <div className="mt-4">{busy ? <UploadProgress busy={busy} /> : <DropZone onFiles={onFiles} />}</div>
         {banner && <div className="mt-3">{banner}</div>}
       </Dialog>
@@ -294,7 +332,7 @@ export default function Workspace({ projectId, initialProject, initialCatalog }:
       {/* The first-run tour (§6.7). It waits for the files, so every step points at something that
           is already on the screen, and `tourDone` on the record is what remembers it. */}
       <Tour
-        run={catalog !== null && (!project.tourDone || replaying)}
+        run={touring}
         onDone={() => {
           setReplaying(false)
           if (!project.tourDone) update({ tourDone: true })

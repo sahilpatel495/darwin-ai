@@ -5,7 +5,8 @@
 // it is never shown. It ends by handing the reader a way to check the claim themselves, because
 // a promise the product cannot be caught breaking is not worth much.
 
-import { Button, Dialog, RuledRow } from '../ui'
+import type { ReactNode } from 'react'
+import { Button, Check, Dialog } from '../ui'
 
 interface HowItWorksDialogProps {
   open: boolean
@@ -37,15 +38,17 @@ const NEVER = [
   'Anyone’s salary',
 ]
 
-function Column({ title, items, className }: { title: string; items: string[]; className?: string }) {
+/** The two lists sit in inset blocks so the boundary between them is the point, not a rule. */
+function Column({ title, items, marker }: { title: string; items: string[]; marker: () => ReactNode }) {
   return (
-    <div className={className}>
-      <h3 className="type-title text-ink">{title}</h3>
-      <ul className="mt-2">
+    <div className="rounded-card bg-surface-2 p-4">
+      <h3 className="type-section text-ink">{title}</h3>
+      <ul className="mt-2 space-y-2">
         {items.map((item) => (
-          <RuledRow as="li" key={item} className="type-small text-ink-soft">
-            {item}
-          </RuledRow>
+          <li key={item} className="flex gap-2.5 type-small text-ink">
+            {marker()}
+            <span className="min-w-0">{item}</span>
+          </li>
         ))}
       </ul>
     </div>
@@ -58,6 +61,7 @@ export default function HowItWorksDialog({ open, onClose, onReplayTour }: HowItW
       open={open}
       onClose={onClose}
       title="How Verity works"
+      description="What happens to your files, and what the AI is allowed to see."
       size="lg"
       footer={
         <>
@@ -72,23 +76,35 @@ export default function HowItWorksDialog({ open, onClose, onReplayTour }: HowItW
         </>
       }
     >
-      <ol>
+      <ol className="space-y-3">
         {STEPS.map(([title, detail], i) => (
-          <RuledRow as="li" key={title}>
+          <li key={title} className="flex gap-3">
             {/* The numeral is the sequence, so it is read out: no aria-hidden here. */}
-            <span className="w-5 shrink-0 font-serif text-[20px] leading-7 font-medium text-ink-soft tabular-nums">{i + 1}</span>
-            <span className="min-w-0">
-              <span className="block type-title text-ink">{title}</span>
-              <span className="mt-0.5 block type-small text-ink-soft">{detail}</span>
+            <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-pill bg-blue-soft type-micro font-semibold tnum text-blue-ink">
+              {i + 1}
             </span>
-          </RuledRow>
+            <span className="min-w-0">
+              <span className="block type-body font-semibold text-ink">{title}</span>
+              <span className="mt-0.5 block measure type-small text-ink-2">{detail}</span>
+            </span>
+          </li>
         ))}
       </ol>
 
-      <div className="mt-6 grid gap-6 sm:grid-cols-2">
-        <Column title="What the AI sees" items={SEES} />
-        {/* The rule between the columns is the point: two lists, one boundary. */}
-        <Column title="What it never sees" items={NEVER} className="sm:border-l sm:border-rule sm:pl-6" />
+      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        <Column
+          title="What the AI sees"
+          items={SEES}
+          // A neutral dot: these are facts about the data, not a promise being kept.
+          marker={() => <span aria-hidden className="mt-[7px] size-1.5 shrink-0 rounded-pill bg-ink-3" />}
+        />
+        <Column
+          title="What it never sees"
+          items={NEVER}
+          // A check, because this list is the promise: each line is something held back. Silent to
+          // a screen reader — the heading above already says what the checks mean.
+          marker={() => <Check size={16} className="mt-0.5" />}
+        />
       </div>
 
       <p className="mt-6 measure type-body text-ink">Check it yourself: open How I got this under any answer.</p>

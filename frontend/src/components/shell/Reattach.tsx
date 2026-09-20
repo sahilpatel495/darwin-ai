@@ -3,7 +3,7 @@
 // same sentence on purpose: we never keep your files, so you have to hand them over again.
 
 import type { ProjectRecord } from '../../lib/projects'
-import { Banner, Button, RuledRow } from '../ui'
+import { Banner, Button, Chip } from '../ui'
 import DropZone from '../upload/DropZone'
 import UploadProgress from '../upload/UploadProgress'
 import type { Busy } from '../upload/UploadProgress'
@@ -30,12 +30,12 @@ export default function Reattach({ project, busy, onFiles, onSample }: ReattachP
         </Button>
       ) : (
         <div>
-          <p className="type-small text-ink-soft">This project was built from these files:</p>
-          <ul className="mt-2 border-t border-rule">
+          <p className="type-small text-ink-2">This project was built from these files:</p>
+          <ul className="mt-2 flex flex-wrap gap-1.5">
             {project.fileNames.map((name) => (
-              <RuledRow as="li" key={name} className="py-1.5 type-small text-ink">
-                {name}
-              </RuledRow>
+              <li key={name}>
+                <Chip static>{name}</Chip>
+              </li>
             ))}
           </ul>
           <DropZone compact label="Re-attach files" onFiles={onFiles} className="mt-3" />

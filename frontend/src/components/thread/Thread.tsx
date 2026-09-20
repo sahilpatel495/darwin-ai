@@ -14,7 +14,7 @@ import type { Catalog, StepEvent } from '../../types'
 import AnswerStatement from '../answer/AnswerStatement'
 import { AnswerContext } from '../answer/context'
 import { hasWork } from '../answer/HowIGotThis'
-import StepList from './StepList'
+import Working from './Working'
 import { foldStep } from './steps'
 
 export interface ThreadProps {
@@ -46,6 +46,8 @@ interface LiveTurn {
   /** Meanings the user picked for ambiguous terms, e.g. { salary: "salary_register.gross" }. */
   clarification: Record<string, string> | null
   steps: StepEvent[]
+  /** performance.now() when the question was sent, for the elapsed timer (§11). */
+  startedAt: number
   state: 'running' | 'stopped' | 'failed'
   problem: Problem | null
 }
@@ -55,6 +57,8 @@ interface LiveTurn {
 interface HowItRan {
   steps: StepEvent[]
   clarification: Record<string, string> | null
+  /** How long the run took, for "Answered in 3.2 s". */
+  ms: number
 }
 
 const NO_TABLES: Catalog['tables'] = [] // one empty array, so the context value stays stable
@@ -81,11 +85,11 @@ function carried(question: string, chosen: Record<string, string> | null): Recor
 
 function Question({ text, clarification, tables }: { text: string; clarification: Record<string, string> | null | undefined; tables: Catalog['tables'] }) {
   return (
-    <div className="ml-auto w-fit max-w-[85%] rounded-control bg-indigo-soft px-4 py-2.5">
+    <div className="ml-auto w-fit max-w-[85%] rounded-hero bg-blue-soft px-4 py-2.5">
       <h3 className="type-body whitespace-pre-wrap break-words text-ink">{text}</h3>
       {/* A Set: a second clarifying question about the same word can carry the same column twice. */}
       {clarification && (
-        <p className="mt-1 type-small text-ink-soft">
+        <p className="mt-1 type-small text-blue-ink">
           Using {[...new Set(Object.values(clarification))].map((ref) => columnLabel(ref, tables)).join(', ')}
         </p>
       )}
@@ -167,9 +171,10 @@ export default function Thread({
     const text = question.trim().slice(0, MAX_QUESTION)
     if (!text || !canAsk || !sessionId) return
     const key = nextKey.current++
+    const startedAt = performance.now()
     const controller = new AbortController()
     inFlight.current = controller
-    setLive((all) => [...all, { key, question: text, clarification, steps: [], state: 'running', problem: null }])
+    setLive((all) => [...all, { key, question: text, clarification, steps: [], startedAt, state: 'running', problem: null }])
 
     // After Stop, late steps and answers are ignored: mock mode and proxies do not honour abort.
     const alive = () => !controller.signal.aborted
@@ -179,7 +184,10 @@ export default function Thread({
         // The turn moves from here to the project record in one step: it is complete, so the
         // parent owns it from now on, and the step list it was watching is kept for this page.
         setLive((all) => all.filter((t) => t.key !== key))
-        setRan((all) => ({ ...all, [answer.id]: { steps: liveRef.current.find((t) => t.key === key)?.steps ?? [], clarification } }))
+        setRan((all) => ({
+          ...all,
+          [answer.id]: { steps: liveRef.current.find((t) => t.key === key)?.steps ?? [], clarification, ms: performance.now() - startedAt },
+        }))
         setNewAnswerId(answer.id)
         // Stored in the analyst's words: the board has no catalog to resolve table names with.
         onTurnsChange([...latestTurns.current, { id: answer.id, question: text, answer: plainAnswer(answer, tables), askedAt: new Date().toISOString() }])
@@ -241,15 +249,15 @@ export default function Thread({
             scroller it is laid out against the page instead, the page grows as tall as the whole
             conversation, and scrolling to a new question pushes the header off the screen. */}
         <div className="relative min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
-          <div className="mx-auto w-full max-w-3xl space-y-10 px-4 py-6">
+          <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-6 sm:px-6">
             {empty && emptyState}
 
             {turns.map((turn, i) => {
               const detail = ran[turn.answer.id]
               return (
-                <article key={turn.id} ref={i === turnCount - 1 ? latestTurn : undefined} className="scroll-mt-4 space-y-4 last:min-h-[70dvh]">
+                <article key={turn.id} ref={i === turnCount - 1 ? latestTurn : undefined} className="scroll-mt-4 space-y-3 last:min-h-[70dvh]">
                   <Question text={turn.question} clarification={detail?.clarification} tables={tables} />
-                  <StepList steps={detail?.steps ?? []} running={false} />
+                  <Working steps={detail?.steps ?? []} running={false} ms={detail?.ms ?? null} />
                   <AnswerStatement
                     answer={turn.answer}
                     mode="thread"
@@ -263,18 +271,20 @@ export default function Thread({
             })}
 
             {live.map((turn, i) => (
-              <article key={turn.key} ref={turns.length + i === turnCount - 1 ? latestTurn : undefined} className="scroll-mt-4 space-y-4 last:min-h-[70dvh]">
+              <article key={turn.key} ref={turns.length + i === turnCount - 1 ? latestTurn : undefined} className="scroll-mt-4 space-y-3 last:min-h-[70dvh]">
                 <Question text={turn.question} clarification={turn.clarification} tables={tables} />
-                <StepList steps={turn.steps} running={turn.state === 'running'} />
+                {/* No elapsed time on a stopped or failed run: it was never answered, so the
+                    summary says what it got through instead of how long it took. */}
+                <Working steps={turn.steps} running={turn.state === 'running'} startedAt={turn.startedAt} onStop={stop} />
                 {turn.problem && (
-                  <Banner tone="error" nextStep={turn.problem.nextStep} action={turn.problem !== EXPIRED && canAsk && <Button onClick={askAgain(turn)}>Try again</Button>}>
+                  <Banner tone="error" nextStep={turn.problem.nextStep} action={turn.problem !== EXPIRED && canAsk && <Button variant="primary" onClick={askAgain(turn)}>Try again</Button>}>
                     {turn.problem.message}
                   </Banner>
                 )}
                 {turn.state === 'stopped' && (
-                  <p className="type-body text-ink-soft">
+                  <p className="type-body text-ink-2">
                     You stopped this question.{' '}
-                    <button type="button" disabled={!canAsk} className="text-indigo underline decoration-rule-strong underline-offset-2 hover:decoration-current disabled:no-underline disabled:opacity-55" onClick={askAgain(turn)}>
+                    <button type="button" disabled={!canAsk} className="text-blue-ink underline decoration-blue-ink/40 underline-offset-2 hover:decoration-current disabled:no-underline disabled:opacity-55" onClick={askAgain(turn)}>
                       Ask it again
                     </button>
                   </p>
@@ -284,48 +294,47 @@ export default function Thread({
           </div>
         </div>
 
-        <div className="sticky bottom-0 shrink-0 border-t border-rule bg-sheet print-hide">
-          {notice && <div className="mx-auto w-full max-w-3xl px-4 pt-3">{notice}</div>}
+        <div className="sticky bottom-0 shrink-0 bg-wash print-hide">
+          {notice && <div className="mx-auto w-full max-w-3xl px-4 pt-3 sm:px-6">{notice}</div>}
           <form onSubmit={submit} data-tour="composer">
-            <div className="mx-auto flex w-full max-w-3xl items-end gap-2 px-4 py-3">
-              <label htmlFor="verity-question" className="sr-only">
-                Your question
-              </label>
-              <textarea
-                id="verity-question"
-                ref={input}
-                rows={1}
-                value={draft}
-                maxLength={MAX_QUESTION}
-                disabled={running || sessionId === null}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={onKeyDown}
-                placeholder={
-                  sessionId === null
-                    ? 'Re-attach your files to ask a new question'
-                    : running
-                      ? 'Working on your question'
-                      : 'Ask about your data, for example: average CTC by department'
-                }
-                aria-describedby="verity-question-hint"
-                // One line, growing to four, then it scrolls (§6.3).
-                className="max-h-28 min-h-9 flex-1 resize-none rounded-control border border-rule bg-sheet px-3 py-2 type-body text-[16px] text-ink md:text-[15px] [field-sizing:content] placeholder:text-ink-faint disabled:bg-wash disabled:text-ink-soft"
-              />
-              {running ? (
-                <Button onClick={stop}>Stop</Button>
-              ) : (
-                <Button type="submit" variant="primary" disabled={!draft.trim() || sessionId === null}>
+            <div className="mx-auto w-full max-w-3xl px-4 pt-3 pb-4 sm:px-6">
+              {/* One white surface lifted off the wash: the place where a question is written. */}
+              <div className="flex items-end gap-2 rounded-hero bg-surface p-2 shadow-2">
+                <label htmlFor="verity-question" className="sr-only">
+                  Your question
+                </label>
+                <textarea
+                  id="verity-question"
+                  ref={input}
+                  rows={1}
+                  value={draft}
+                  maxLength={MAX_QUESTION}
+                  disabled={running || sessionId === null}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={onKeyDown}
+                  placeholder={
+                    sessionId === null
+                      ? 'Re-attach your files to ask a new question'
+                      : running
+                        ? 'Working on your question'
+                        : 'Ask about your data, for example: average CTC by department'
+                  }
+                  aria-describedby="verity-question-hint"
+                  // One line, growing to four, then it scrolls (§6.3).
+                  // The focus ring is the shared one (§9): it draws around the writing area itself,
+                  // inside the white surface, so tabbing to the composer is unmistakable.
+                  className="max-h-28 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 type-body text-[16px] text-ink md:text-[15px] [field-sizing:content] placeholder:text-ink-3 disabled:text-ink-3"
+                />
+                <Button type="submit" variant="primary" pill disabled={!draft.trim() || !canAsk}>
                   Ask
                 </Button>
-              )}
-            </div>
-            <div className="mx-auto w-full max-w-3xl px-4 pb-3">
-              <p id="verity-question-hint" className="type-small text-ink-soft">
+              </div>
+              <p id="verity-question-hint" className="mt-2 type-small text-ink-2">
                 Press Enter to ask, Shift+Enter for a new line.
                 {draft.length >= MAX_QUESTION - 50 && ` ${MAX_QUESTION - draft.length} characters left.`}
               </p>
               {empty && sessionId !== null && (
-                <ul className="mt-1 flex flex-wrap gap-x-6 gap-y-0.5 type-small text-ink-soft">
+                <ul className="mt-1 flex flex-wrap gap-x-6 gap-y-0.5 type-small text-ink-2">
                   {WRITING_TIPS.map((tip) => (
                     <li key={tip}>{tip}</li>
                   ))}

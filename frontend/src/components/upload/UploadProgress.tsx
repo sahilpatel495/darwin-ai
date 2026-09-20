@@ -29,14 +29,14 @@ export default function UploadProgress({ busy, className }: { busy: Busy; classN
 
   return (
     <div role="status" aria-live="polite" className={cx('space-y-2', className)}>
-      <p className="type-body text-ink">{sentence(busy)}</p>
-      <div role="progressbar" aria-label="Progress" aria-valuenow={percent ?? undefined} className="h-1 overflow-hidden rounded-chip bg-wash">
+      <p className="type-body font-medium text-ink">{sentence(busy)}</p>
+      <div role="progressbar" aria-label="Progress" aria-valuenow={percent ?? undefined} className="h-1.5 overflow-hidden rounded-pill bg-fill">
         <div
-          className={cx('h-full bg-indigo transition-[width] duration-200', percent === null && 'animate-pulse')}
+          className={cx('h-full rounded-pill bg-blue transition-[width] duration-200 ease-[var(--ease-standard)]', percent === null && 'animate-pulse')}
           style={{ width: `${percent ?? 100}%` }}
         />
       </div>
-      {slow && <p className="type-small text-ink-soft">The server sleeps when nobody is using it, so the first load can take about a minute.</p>}
+      {slow && <p className="type-small text-ink-2">The server sleeps when nobody is using it, so the first load can take about a minute.</p>}
     </div>
   )
 }

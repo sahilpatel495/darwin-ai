@@ -49,7 +49,7 @@ export default function PreviewRows({ sessionId, table }: { sessionId: string; t
           </Button>
         }
       >
-        <p className="type-small text-ink-soft">Shown only to you. Rows are never sent to the AI.</p>
+        <p className="type-small text-ink-2">Shown only to you. Rows are never sent to the AI.</p>
         <div className="mt-3">
           {load.state === 'loading' && (
             <div role="status" aria-label="Loading rows">

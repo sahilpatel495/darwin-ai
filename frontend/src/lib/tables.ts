@@ -48,6 +48,16 @@ export function plainAnswer(answer: Answer, tables: Named[]): Answer {
   return { ...answer, work: { ...answer.work, caveats, cross_check } }
 }
 
+/**
+ * The same swap for a computed tile (§13, §14). Done once, where the tile arrives from the
+ * server, for the same reason as `plainAnswer`: a tile saved to the board is re-read on a page
+ * that has no catalog loaded, and "removed from salary_register_2025_register" is not a sentence
+ * anyone wants to print. The SQL in "View table and SQL" still names the real tables.
+ */
+export function plainTile<T extends { statement: string; caveats: string[] }>(tile: T, tables: Named[]): T {
+  return { ...tile, statement: plainTables(tile.statement, tables), caveats: tile.caveats.map((caveat) => plainTables(caveat, tables)) }
+}
+
 /** "employees.ctc" -> "ctc in employees.csv", using the header as it is written in the file. */
 export function columnLabel(ref: string, tables: TableProfile[]): string {
   const dot = ref.indexOf('.')

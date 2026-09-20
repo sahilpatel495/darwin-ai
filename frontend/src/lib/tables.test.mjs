@@ -1,7 +1,7 @@
 // Run from frontend/: node --test "src/**/*.test.mjs"
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { columnLabel, labelOf, optionLabel, plainAnswer, plainTables } from './tables.ts'
+import { columnLabel, labelOf, optionLabel, plainAnswer, plainTables, plainTile } from './tables.ts'
 
 const column = (name, label) => ({ name, label })
 const tables = [
@@ -62,4 +62,16 @@ test('a stored answer already speaks file names, so the board needs no catalog',
   assert.equal(stored.work.sql, answer.work.sql)
   // Idempotent: the thread substitutes at render time too, and a file name matches no table name.
   assert.deepEqual(plainAnswer(stored, tables), stored)
+})
+
+test('a computed tile speaks file names too, and only in its prose', () => {
+  const tile = {
+    statement: 'Gross pay by month, from salary_register_2025_register.',
+    caveats: ['6 exact duplicate rows were removed from salary_register_2025_register before answering.'],
+    sql: 'select * from salary_register_2025_register',
+  }
+  const plain = plainTile(tile, tables)
+  assert.equal(plain.statement, 'Gross pay by month, from Salary_Register_2025.xlsx (sheet Register).')
+  assert.equal(plain.caveats[0], '6 exact duplicate rows were removed from Salary_Register_2025.xlsx (sheet Register) before answering.')
+  assert.equal(plain.sql, tile.sql, 'the query still names the real table')
 })

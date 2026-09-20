@@ -1,6 +1,7 @@
 // Everything Verity found in the uploaded files: the files with their receipts, how the files
-// connect, and the metric definitions. A column from 768px up; below that the same panel collapses
-// behind one line, because on a phone the briefing and the question box come first.
+// connect, and the metric definitions. A white card in a column from 768px up; below that the same
+// card collapses behind its own header, because on a phone the briefing and the question box come
+// first.
 //
 // The sidebar owns its two writes (keep/remove a link, save a definition). It reports the new
 // catalog upwards so the workspace can store it, and reports the edit itself so the project record
@@ -9,7 +10,7 @@
 import { useId, useState } from 'react'
 import { ApiError, saveGlossary, setLinkStatus } from '../../api'
 import type { Catalog, Metric } from '../../types'
-import { Banner, RuledRow, Tabs, cx } from '../ui'
+import { Banner, Button, Card, ListRow, Tabs, cx } from '../ui'
 import type { TabItem } from '../ui'
 import Files from './Files'
 import Glossary from './Glossary'
@@ -29,7 +30,7 @@ export interface SidebarProps {
   onAddFiles: () => void
 }
 
-const TITLE = "What we found in your files"
+const TITLE = 'Your data'
 
 interface Problem {
   message: string
@@ -84,55 +85,58 @@ export default function Sidebar({ sessionId, catalog, readOnly, fileNames, onCat
       aria-label={TITLE}
       // `relative` matters: screen-reader-only text is absolutely positioned, and against an
       // unpositioned scroller it is laid out on the page instead, which then scrolls as a whole.
-      className="relative w-full shrink-0 border-rule bg-paper print-hide max-md:border-b md:w-80 md:overflow-y-auto md:border-r"
+      className="relative w-full shrink-0 bg-wash px-3 pt-3 pb-1 print-hide md:w-[23rem] md:overflow-y-auto md:px-4 md:py-5"
     >
-      {/* One line on a phone, a heading on a wide screen: the same words either way. */}
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={panelId}
-        onClick={() => setOpen((was) => !was)}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left md:hidden"
-      >
-        <span className="type-title text-ink">{TITLE}</span>
-        <span className="type-small text-ink-soft">{open ? 'Hide' : 'Show'}</span>
-      </button>
-      <h2 className="px-4 pt-4 type-title text-ink max-md:hidden">{TITLE}</h2>
+      <Card flush>
+        <div className="flex items-start gap-3 px-4 pt-4 pb-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="type-section text-ink">{TITLE}</h2>
+            <p className="mt-0.5 type-small text-ink-2">
+              {catalog ? overviewLine(catalog) : 'These are the files this project was built from.'}
+            </p>
+          </div>
+          {/* One tap on a phone, always open on a wide screen: the same words either way. */}
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-expanded={open}
+            aria-controls={panelId}
+            aria-label={open ? `Hide ${TITLE}` : `Show ${TITLE}`}
+            onClick={() => setOpen((was) => !was)}
+            className="-mt-0.5 md:hidden"
+          >
+            {open ? 'Hide' : 'Show'}
+          </Button>
+        </div>
 
-      <div id={panelId} className={cx('px-4 pb-8', !open && 'max-md:hidden')}>
-        {catalog ? (
-          <>
-            <p className="pb-3 type-small text-ink-soft">{overviewLine(catalog)}</p>
-            {problem && (
-              <Banner tone="error" nextStep={problem.nextStep} onDismiss={() => setProblem(null)} className="mb-3">
-                {problem.message}
-              </Banner>
-            )}
+        <div id={panelId} className={cx('pb-1', !open && 'max-md:hidden')}>
+          {problem && (
+            <Banner tone="error" nextStep={problem.nextStep} onDismiss={() => setProblem(null)} className="mx-4 mb-3">
+              {problem.message}
+            </Banner>
+          )}
+          {catalog ? (
             <Tabs label="Files, links and definitions" tabs={tabs} active={tab} onChange={setTab}>
-              {tab === 'files' && <Files sessionId={sessionId} catalog={catalog} readOnly={readOnly} onAddFiles={onAddFiles} />}
-              {tab === 'links' && <Links catalog={catalog} readOnly={readOnly} onSetLink={setLink} />}
-              {tab === 'glossary' && <Glossary glossary={catalog.glossary} readOnly={readOnly} onSave={saveMetrics} />}
+              <div className="px-4 pt-3 pb-4">
+                {tab === 'files' && <Files sessionId={sessionId} catalog={catalog} readOnly={readOnly} onAddFiles={onAddFiles} />}
+                {tab === 'links' && <Links catalog={catalog} readOnly={readOnly} onSetLink={setLink} />}
+                {tab === 'glossary' && <Glossary glossary={catalog.glossary} readOnly={readOnly} onSave={saveMetrics} />}
+              </div>
             </Tabs>
-          </>
-        ) : (
-          <>
-            <p className="measure pb-3 type-small text-ink-soft">These are the files this project was built from.</p>
-            <ul>
+          ) : (
+            <ul className="px-2 pb-3">
               {fileNames.map((fileName) => (
-                <RuledRow as="li" key={fileName}>
-                  {/* One child, so nothing here has to fight RuledRow's own alignment or gap. */}
-                  <span className="flex w-full items-baseline justify-between gap-3">
-                    <span className="min-w-0 truncate type-body text-ink" title={fileName}>
-                      {fileName}
-                    </span>
-                    <span className="shrink-0 type-small text-ink-soft">Not loaded</span>
+                <ListRow as="li" key={fileName} className="items-baseline justify-between">
+                  <span className="min-w-0 truncate type-body text-ink" title={fileName}>
+                    {fileName}
                   </span>
-                </RuledRow>
+                  <span className="shrink-0 type-small text-ink-2">Not loaded</span>
+                </ListRow>
               ))}
             </ul>
-          </>
-        )}
-      </div>
+          )}
+        </div>
+      </Card>
     </aside>
   )
 }

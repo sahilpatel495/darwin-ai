@@ -8,7 +8,7 @@ import { labelOf } from '../../lib/tables'
 import type { Catalog } from '../../types'
 import type { Explanation } from '../education/explain'
 import { EXPLAIN } from '../education/explain'
-import { Button, RuledRow, WhatsThis, cx } from '../ui'
+import { Button, ListRow, WhatsThis, cx } from '../ui'
 import type { LinkLine } from './wording'
 import { linkLine, unionLine } from './wording'
 
@@ -55,24 +55,24 @@ function LinkRow({ id, line, status, noun, readOnly, onSetLink }: LinkRowProps) 
   const note = status === 'rejected' ? 'Not used in answers' : status === 'suggested' ? 'Suggested' : readOnly ? 'In use' : null
 
   return (
-    // flex-col only: RuledRow's own gap and alignment are utilities too, and a second utility for
+    // flex-col only: ListRow's own gap and alignment are utilities too, and a second utility for
     // the same property would be decided by stylesheet order rather than by this file.
-    <RuledRow as="li" className="flex-col">
-      <p className={cx('type-body', status === 'rejected' ? 'text-ink-soft' : 'text-ink')}>{line.sentence}</p>
-      <div ref={actions} className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        {note && <span className="type-small text-ink-soft">{note}</span>}
+    <ListRow as="li" className="flex-col gap-2 py-3">
+      <p className={cx('type-body', status === 'rejected' ? 'text-ink-2' : 'text-ink')}>{line.sentence}</p>
+      <div ref={actions} className="flex flex-wrap items-center gap-2">
         {!readOnly && status !== 'active' && (
-          <Button size="sm" aria-disabled={saving} className={cx(saving && 'opacity-55')} onClick={() => set('active')} aria-label={`Keep the ${noun} between ${line.pair}`}>
+          <Button size="sm" pill aria-disabled={saving} className={cx(saving && 'opacity-55')} onClick={() => set('active')} aria-label={`Keep the ${noun} between ${line.pair}`}>
             Keep
           </Button>
         )}
         {!readOnly && status !== 'rejected' && (
-          <Button size="sm" aria-disabled={saving} className={cx(saving && 'opacity-55')} onClick={() => set('rejected')} aria-label={`Remove the ${noun} between ${line.pair}`}>
+          <Button size="sm" pill aria-disabled={saving} className={cx(saving && 'opacity-55')} onClick={() => set('rejected')} aria-label={`Remove the ${noun} between ${line.pair}`}>
             Remove
           </Button>
         )}
+        {note && <span className="type-small text-ink-2">{note}</span>}
       </div>
-    </RuledRow>
+    </ListRow>
   )
 }
 
@@ -80,8 +80,8 @@ function Heading({ children, explain }: { children: string; explain: Explanation
   return (
     // The "?" sits at the right edge and opens leftwards: the panel is as wide as this column,
     // so anywhere else it would be clipped by the sidebar's own scroller.
-    <div className="flex items-center justify-between gap-2 pt-1">
-      <h3 className="type-title text-ink">{children}</h3>
+    <div className="flex items-center justify-between gap-2">
+      <h3 className="type-small font-semibold text-ink">{children}</h3>
       <WhatsThis {...explain} align="right" />
     </div>
   )
@@ -95,15 +95,15 @@ export default function Links({ catalog, readOnly, onSetLink }: LinksProps) {
   const relationships = [...catalog.relationships].sort((a, b) => a.id.localeCompare(b.id))
 
   if (relationships.length === 0 && catalog.unions.length === 0) {
-    return <p className="pt-3 type-body text-ink-soft">No links were found between these files, so each question will use one file at a time.</p>
+    return <p className="type-body text-ink-2">No links were found between these files, so each question will use one file at a time.</p>
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {relationships.length > 0 && (
         <section>
           <Heading explain={EXPLAIN.links}>Links between your files</Heading>
-          <ul>
+          <ul className="-mx-2 mt-1">
             {relationships.map((link) => (
               <LinkRow key={link.id} id={link.id} line={linkLine(link, name)} status={link.status} noun="link" readOnly={readOnly} onSetLink={onSetLink} />
             ))}
@@ -113,7 +113,7 @@ export default function Links({ catalog, readOnly, onSetLink }: LinksProps) {
       {catalog.unions.length > 0 && (
         <section>
           <Heading explain={EXPLAIN.combined}>Combined views</Heading>
-          <ul>
+          <ul className="-mx-2 mt-1">
             {catalog.unions.map((union) => (
               <LinkRow key={union.id} id={union.id} line={unionLine(union, name)} status={union.status} noun="combined view" readOnly={readOnly} onSetLink={onSetLink} />
             ))}

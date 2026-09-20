@@ -39,19 +39,19 @@ export default function DropZone({ onFiles, compact = false, label, className }:
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
         className={cx(
-          'cursor-pointer rounded-control border border-dashed text-center transition-colors duration-100',
-          dragging ? 'border-indigo bg-indigo-soft' : 'border-rule-strong bg-sheet hover:border-indigo',
+          'cursor-pointer rounded-card border-2 border-dashed text-center transition-colors duration-100',
+          dragging ? 'border-blue bg-blue-soft' : 'border-line bg-surface-2 hover:border-blue hover:bg-blue-soft/40',
           compact ? 'px-3 py-3' : 'px-4 py-8 sm:px-6',
           className,
         )}
       >
-        {!compact && <p className="type-statement text-ink">Drop your CSV or Excel files here</p>}
+        {!compact && <p className="type-card text-ink">Drop your CSV or Excel files here</p>}
         {/* The keyboard control. No onClick of its own: the click bubbles to the frame above,
             which opens the picker once. */}
-        <Button variant={compact ? 'quiet' : 'primary'} size={compact ? 'sm' : 'md'} className={compact ? '' : 'mt-4'}>
+        <Button variant={compact ? 'ghost' : 'primary'} size={compact ? 'sm' : 'md'} className={compact ? '' : 'mt-4'}>
           {label ?? (compact ? 'Add more files' : 'Choose files')}
         </Button>
-        <p className={cx('text-ink-soft', compact ? 'type-small' : 'mt-3 type-small')}>
+        <p className={cx('type-small text-ink-2', !compact && 'mt-3')}>
           {compact ? 'or drop them here' : 'Several files at once is fine: .csv, .tsv, .xlsx or .xlsm.'}
         </p>
       </div>

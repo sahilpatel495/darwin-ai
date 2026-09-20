@@ -67,6 +67,24 @@ export function formatValue(value: Cell, format: ValueFormat): string {
 export const formatTick = (value: number, format: ValueFormat): string =>
   Number.isFinite(value) ? formatNumeric(value, format, true) : ''
 
+/**
+ * A tick formatter with one unit for the whole axis. `formatTick` decides per value, which on a
+ * salary axis reads "₹0, ₹35,000, ₹70,000, ₹1.1 L" — three rulers in one. Given the largest
+ * value the axis has to show, this picks the unit once: rupees up to ten lakh, then lakh, then
+ * crore from one crore, so every tick is a number worth reading.
+ */
+export function axisTicks(format: ValueFormat, max: number): (value: number) => string {
+  const abs = Math.abs(max)
+  const unit = format === 'percent' ? 1 : abs >= CRORE ? CRORE : abs >= 10 * LAKH ? LAKH : 1
+  const suffix = unit === CRORE ? ' Cr' : unit === LAKH ? ' L' : ''
+  return (value) => {
+    if (!Number.isFinite(value)) return ''
+    const digits = `${grouped(Math.abs(value) / unit, 0, format === 'percent' ? 1 : 2)}${suffix}`
+    const sign = value < 0 && /[1-9]/.test(digits) ? '-' : ''
+    return `${sign}${format === 'currency_inr' ? '₹' : ''}${digits}${format === 'percent' ? '%' : ''}`
+  }
+}
+
 /** A 0..1 share as a percentage: 0.925 -> "92.5%". The eval report stores fractions, while
  *  query results store percent points, hence two functions. */
 export const formatShare = (fraction: number): string => (Number.isFinite(fraction) ? `${grouped(fraction * 100, 0, 1)}%` : EMPTY)

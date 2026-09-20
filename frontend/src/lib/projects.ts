@@ -8,11 +8,15 @@
 // ponytail: localStorage, ~5 MB. Move to IndexedDB if a project needs more than 60 turns.
 
 import { useCallback, useState } from 'react'
-import type { Answer, Catalog, Metric } from '../types'
+import type { Answer, Catalog, InsightTile, Metric, ResultTable } from '../types'
 
 const KEY = 'verity.projects.v1'
 const MAX_TURNS = 60
 const MAX_TABLE_ROWS = 200
+/** A board of 24 tiles already prints to about eight pages. Past that it is a document, not a board. */
+const MAX_SAVED_TILES = 24
+/** Fired after every write, so the shell can re-read a record another screen has just changed. */
+const CHANGED = 'verity:projects-changed'
 
 export interface Turn {
   id: string
@@ -38,28 +42,46 @@ export interface ProjectRecord {
   turns: Turn[]
   /** Order is the board's order. */
   savedAnswerIds: string[]
+  /** Tiles kept from Overview and Analyses (§15). Order is the board's order, newest last. */
+  savedTiles: InsightTile[]
   tourDone?: boolean
 }
 
 // --- Pure helpers (tested in projects.test.mjs) ------------------------------------------------
 
+/** Anything stored keeps at most 200 rows: enough to re-read the result and download most of it. */
+function trimTable(table: ResultTable | null): ResultTable | null {
+  if (!table || table.rows.length <= MAX_TABLE_ROWS) return table
+  return { ...table, rows: table.rows.slice(0, MAX_TABLE_ROWS), display: table.display.slice(0, MAX_TABLE_ROWS), truncated: true }
+}
+
 /**
- * A stored answer is a receipt, not a copy of the data. 200 rows is enough to re-read the result
- * and re-download most of it; the model payloads after the first are the same prompt again with
- * one more message, and together they are what actually fills the quota.
+ * A stored answer is a receipt, not a copy of the data. The model payloads after the first are
+ * the same prompt again with one more message, and together they are what fills the quota.
  */
 export function trimAnswer(answer: Answer): Answer {
-  const table =
-    answer.table && answer.table.rows.length > MAX_TABLE_ROWS
-      ? {
-          ...answer.table,
-          rows: answer.table.rows.slice(0, MAX_TABLE_ROWS),
-          display: answer.table.display.slice(0, MAX_TABLE_ROWS),
-          truncated: true,
-        }
-      : answer.table
   const payloads = answer.work.payloads.map((payload, i) => (i === 0 ? payload : { ...payload, messages: [] }))
-  return { ...answer, table, work: { ...answer.work, payloads } }
+  return { ...answer, table: trimTable(answer.table), work: { ...answer.work, payloads } }
+}
+
+/** A saved tile is a receipt too: the same 200 rows, and nothing else to drop. */
+export function trimTile(tile: InsightTile): InsightTile {
+  return { ...tile, table: trimTable(tile.table) }
+}
+
+export function isTileSaved(project: Pick<ProjectRecord, 'savedTiles'>, tileId: string): boolean {
+  return (project.savedTiles ?? []).some((tile) => tile.id === tileId)
+}
+
+/**
+ * Save a tile to the board, or take it off again — the same control either way, so a tile card
+ * needs one button and not two. Pure: the caller stores what comes back.
+ */
+export function toggleSavedTile(project: ProjectRecord, tile: InsightTile): ProjectRecord {
+  const tiles = project.savedTiles ?? []
+  if (isTileSaved(project, tile.id)) return { ...project, savedTiles: tiles.filter((saved) => saved.id !== tile.id) }
+  // Past the cap the oldest tile goes, which is the one the analyst saved furthest from this thought.
+  return { ...project, savedTiles: [...tiles, trimTile(tile)].slice(-MAX_SAVED_TILES) }
 }
 
 /** Newest turns win: a project that has run for an hour keeps its last hour. */
@@ -96,12 +118,14 @@ export function projectName(fileNames: string[], isSample = false): string {
   return rest > 0 ? `${base} and ${rest} more` : base
 }
 
-/** "12 questions, 3 saved" — what the row says about a project without opening it. */
-export function projectSummary(record: Pick<ProjectRecord, 'turns' | 'savedAnswerIds'>): string {
+/** "12 questions, 3 saved" — what the card says about a project without opening it. */
+export function projectSummary(record: Pick<ProjectRecord, 'turns' | 'savedAnswerIds' | 'savedTiles'>): string {
   const questions = record.turns.length
-  if (questions === 0) return 'No questions yet'
+  // The board holds both kinds, so "saved" counts both: one number for one screen.
+  const saved = record.savedAnswerIds.length + (record.savedTiles ?? []).length
+  if (questions === 0) return saved > 0 ? `${saved} saved` : 'No questions yet'
   const asked = `${questions} ${questions === 1 ? 'question' : 'questions'}`
-  return record.savedAnswerIds.length > 0 ? `${asked}, ${record.savedAnswerIds.length} saved` : asked
+  return saved > 0 ? `${asked}, ${saved} saved` : asked
 }
 
 /** "Opened today" / "Opened yesterday" / "Opened on 12 September". */
@@ -134,10 +158,23 @@ function readAll(): ProjectRecord[] {
   try {
     const raw = localStorage.getItem(KEY)
     const parsed: unknown = raw ? JSON.parse(raw) : []
-    return Array.isArray(parsed) ? parsed.filter(isRecord) : []
+    // savedTiles arrived after the first release: a record stored before it has none, and every
+    // screen is allowed to read the field without checking.
+    return Array.isArray(parsed) ? parsed.filter(isRecord).map((record) => ({ ...record, savedTiles: record.savedTiles ?? [] })) : []
   } catch {
     return [] // storage unavailable, or someone else's data under our key
   }
+}
+
+/** Tell the shell a record changed: renaming in the header renames the project in the nav rail. */
+function announce(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(CHANGED))
+}
+
+/** Subscribe to any write. Returns the unsubscribe, so an effect can just return it. */
+export function onProjectsChanged(listener: () => void): () => void {
+  window.addEventListener(CHANGED, listener)
+  return () => window.removeEventListener(CHANGED, listener)
 }
 
 function writeAll(list: ProjectRecord[]): void {
@@ -146,6 +183,10 @@ function writeAll(list: ProjectRecord[]): void {
     return
   } catch {
     /* quota exceeded, or storage unavailable */
+  } finally {
+    // Announced either way: the screen that asked for the change has already applied it in state,
+    // and the others must show the same thing whether or not the disk took it.
+    announce()
   }
   const smaller = shrink(list)
   if (!smaller) return
@@ -159,6 +200,15 @@ function writeAll(list: ProjectRecord[]): void {
 /** Newest first, which is the order a person looks for their work in. */
 export function listProjects(): ProjectRecord[] {
   return readAll().sort((a, b) => b.lastOpenedAt.localeCompare(a.lastOpenedAt))
+}
+
+/**
+ * Has this browser been shown the tour? §6.7 says once, and it means once per person: the second
+ * project an analyst makes is not the first time they have seen the product. The flag stays on
+ * the record (§7); this is the question every caller actually wants to ask.
+ */
+export function tourSeen(): boolean {
+  return readAll().some((project) => project.tourDone)
 }
 
 export function getProject(id: string): ProjectRecord | null {
@@ -183,6 +233,7 @@ export function createProject(input: { name: string; isSample: boolean; fileName
     removedLinkIds: [],
     turns: [],
     savedAnswerIds: [],
+    savedTiles: [],
   }
   writeAll([record, ...readAll()])
   return record
@@ -195,6 +246,7 @@ export function updateProject(id: string, patch: Partial<ProjectRecord>): Projec
   if (index < 0) return null
   const next: ProjectRecord = { ...list[index], ...patch }
   if (patch.turns) next.turns = trimTurns(patch.turns)
+  if (patch.savedTiles) next.savedTiles = patch.savedTiles.slice(-MAX_SAVED_TILES).map(trimTile)
   list[index] = next
   writeAll(list)
   return next
@@ -219,13 +271,16 @@ export function useProject(id: string, fallback?: ProjectRecord | null): [Projec
   const [record, setRecord] = useState<ProjectRecord | null>(() => getProject(id) ?? (fallback?.id === id ? fallback : null))
 
   const update = useCallback(
-    (patch: Partial<ProjectRecord>) =>
-      setRecord((current) => {
-        if (!current) return current
-        // The stored record wins when there is one, so the screen shows what a reload would show
-        // (turns past 60 are already gone). Without storage, the merge keeps the sitting working.
-        return updateProject(id, patch) ?? { ...current, ...patch }
-      }),
+    (patch: Partial<ProjectRecord>) => {
+      // The write happens here and not inside the updater: a state updater must be pure, and this
+      // one announced the change while React was rendering, which React reports as a setState in
+      // the middle of another component's render. updateProject reads storage itself, so it needs
+      // nothing from the current state.
+      const stored = updateProject(id, patch)
+      // The stored record wins when there is one, so the screen shows what a reload would show
+      // (turns past 60 are already gone). Without storage, the merge keeps the sitting working.
+      setRecord((current) => (current ? (stored ?? { ...current, ...patch }) : current))
+    },
     [id],
   )
 

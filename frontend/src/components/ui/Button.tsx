@@ -2,9 +2,12 @@ import type { ButtonHTMLAttributes, Ref } from 'react'
 import { cx } from './cx'
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  /** `primary` indigo fill · `secondary` rule border on a sheet · `quiet` text only. */
-  variant?: 'primary' | 'secondary' | 'quiet'
+  /** `primary` blue fill · `secondary` on `fill` · `ghost` text only. (`quiet` = `ghost`.) */
+  variant?: 'primary' | 'secondary' | 'ghost' | 'quiet'
+  /** `md` 36px · `sm` 28px. */
   size?: 'md' | 'sm'
+  /** Fully rounded. For a button that sits among chips. */
+  pill?: boolean
   /** Swaps the label for a spinner and disables the button. The width does not change. */
   loading?: boolean
   /** React 19: pass `ref` straight through, no forwardRef wrapper needed. */
@@ -12,25 +15,22 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT = {
-  primary: 'bg-indigo text-white enabled:hover:bg-indigo-ink',
-  secondary: 'border border-rule bg-sheet text-ink enabled:hover:bg-wash',
-  quiet: 'text-indigo enabled:hover:bg-indigo-soft',
+  primary: 'bg-blue text-white enabled:hover:bg-blue-hover',
+  secondary: 'bg-fill text-ink enabled:hover:bg-fill-hover',
+  // blue-ink, not blue: a ghost button often sits on the grey wash, where #0866FF is 4.3:1.
+  ghost: 'text-blue-ink enabled:hover:bg-blue-soft',
+  quiet: 'text-blue-ink enabled:hover:bg-blue-soft',
 } as const
 
-const SIZE = {
-  md: 'h-9 text-[15px]',
-  sm: 'h-8 text-[13px]',
-} as const
+const SIZE = { md: 'h-9 text-[15px]', sm: 'h-7 text-[13px]' } as const
+// A ghost button sits in running text and needs less air around it than a filled one.
+const PAD = { primary: 'px-4', secondary: 'px-4', ghost: 'px-2.5', quiet: 'px-2.5' } as const
 
-// `quiet` sits in running text and needs less air around it than a filled button.
-const PAD = { primary: 'px-4', secondary: 'px-4', quiet: 'px-2' } as const
-
-/**
- * The only button in the product. Buttons say what happens: "Save to board", not "Submit".
- */
+/** The only button in the product. Buttons say what happens: "Save to board", not "Submit". */
 export default function Button({
   variant = 'secondary',
   size = 'md',
+  pill = false,
   loading = false,
   className,
   children,
@@ -44,8 +44,9 @@ export default function Button({
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={cx(
-        'relative inline-flex shrink-0 items-center justify-center gap-2 rounded-control font-medium whitespace-nowrap',
-        'transition-colors duration-100 disabled:cursor-not-allowed disabled:opacity-55',
+        'press relative inline-flex shrink-0 items-center justify-center gap-2 font-semibold whitespace-nowrap',
+        'disabled:cursor-not-allowed disabled:opacity-50',
+        pill ? 'rounded-pill' : 'rounded-input',
         VARIANT[variant],
         SIZE[size],
         PAD[variant],

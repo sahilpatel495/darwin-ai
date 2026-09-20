@@ -34,12 +34,12 @@ export default function RenameField({ name, onSave, onCancel, className }: Renam
         maxLength={MAX_NAME}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={(event) => event.key === 'Escape' && onCancel()}
-        className="min-w-0 flex-1 rounded-control border border-rule bg-sheet px-2 py-1 type-body text-ink"
+        className="min-w-0 flex-1 rounded-input border border-line bg-surface-2 px-2.5 py-1 type-body text-ink"
       />
       <Button type="submit" variant="primary" size="sm">
         Save name
       </Button>
-      <Button variant="quiet" size="sm" onClick={onCancel}>
+      <Button variant="ghost" size="sm" onClick={onCancel}>
         Cancel
       </Button>
     </form>

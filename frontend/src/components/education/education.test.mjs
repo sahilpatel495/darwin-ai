@@ -4,7 +4,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { EXPLAIN } from './explain.ts'
-import { placePanel, TOUR_STEPS } from './tourSteps.ts'
+import { anchorSelectors, placePanel, TOUR_STEPS } from './tourSteps.ts'
 
 // §8: the analyst never reads these words, so they must never appear in copy shown to them.
 const JARGON = /\b(schema|join|joins|joined|fan-?out|guard|payload|pipeline|llm|token|tokens|session|sessions)\b/i
@@ -25,16 +25,31 @@ test('every explanation has a title and a body written for an analyst', () => {
   }
 })
 
-test('the tour names the four anchors once each and stays in the analyst’s words', () => {
+test('the tour names the six anchors once each and stays in the analyst’s words', () => {
   assert.deepEqual(
     TOUR_STEPS.map((step) => step.anchor),
-    ['files', 'composer', 'working', 'trust'],
+    ['files', 'composer', 'working', 'overview', 'analyses', 'trust'],
   )
   for (const { anchor, title, body } of TOUR_STEPS) {
     assert.doesNotMatch(title, JARGON, `${anchor}: the title uses the analyst's words`)
     assert.doesNotMatch(body, JARGON, `${anchor}: the body uses the analyst's words`)
     assert.doesNotMatch(title, /[A-Z]{2,}/, `${anchor}: no all-caps labels`)
   }
+})
+
+test('a step looks for its placed anchor first, then for the nav rail link', () => {
+  // Order matters: querySelector with a comma-joined list would return whichever comes first in
+  // the document, which is the rail — so the selectors are tried one at a time, best first.
+  for (const step of TOUR_STEPS) {
+    const selectors = anchorSelectors(step)
+    assert.equal(selectors[0], `[data-tour="${step.anchor}"]`, `${step.anchor}: the placed anchor is tried first`)
+    assert.equal(selectors.length, step.fallback ? 2 : 1)
+  }
+  // The three rail steps are the ones nobody places an anchor for.
+  assert.deepEqual(
+    TOUR_STEPS.filter((step) => step.fallback).map((step) => step.anchor),
+    ['overview', 'analyses', 'trust'],
+  )
 })
 
 test('the tour panel sits below its anchor, above it when there is no room, and never off screen', () => {
