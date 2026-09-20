@@ -1,23 +1,28 @@
-// The HR glossary: what "attrition" or "headcount" means in this session. Companies disagree on
-// these definitions, so the analyst can edit the wording and the synonyms. The SQL pattern is
-// shown read-only: it is what actually computes the metric, and changing it safely is an
-// engineer's job, not a text box's.
+// The Glossary tab: what "attrition" or "headcount" means for this company. Companies disagree on
+// these definitions, so the analyst can edit the wording and the other names it goes by. The SQL
+// pattern is shown read-only: it is what actually computes the metric, and changing it safely is
+// an engineer's job, not a text box's.
 
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Metric } from '../../types'
+import { Button } from '../ui'
 import Expander from './Expander'
 import { metricProblem, parseSynonyms } from './wording'
 
 interface GlossaryProps {
   glossary: Metric[]
-  /** Resolves true when saved. The shell reports failures, so this only drives the "Saved" note. */
+  /** Files are not loaded: the definitions still read, but the server cannot be told about a change. */
+  readOnly: boolean
+  /** Resolves true when saved. The sidebar reports failures, so this only drives the "Saved" note. */
   onSave: (glossary: Metric[]) => Promise<boolean>
 }
 
-const field = 'mt-1 block w-full rounded-md border border-line bg-surface px-2.5 py-1.5 text-sm text-ink'
+const FIELD =
+  'mt-1 block w-full rounded-input border border-line bg-surface-2 px-2.5 py-2 type-small text-ink placeholder:text-ink-3 disabled:opacity-60'
+const LABEL = 'block type-small font-semibold text-ink-2'
 
-function MetricEditor({ metric, glossary, onSave }: GlossaryProps & { metric: Metric }) {
+function MetricEditor({ metric, glossary, readOnly, onSave }: GlossaryProps & { metric: Metric }) {
   const [definition, setDefinition] = useState(metric.definition)
   const [synonyms, setSynonyms] = useState(metric.synonyms.join(', '))
   const [state, setState] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -35,56 +40,63 @@ function MetricEditor({ metric, glossary, onSave }: GlossaryProps & { metric: Me
   }
 
   return (
-    <Expander label={metric.name}>
-      <form onSubmit={save} className="space-y-3 pt-1 pb-3">
-        <label className="block text-xs font-medium text-ink-soft">
+    <Expander
+      className="border-b border-line-soft last:border-b-0"
+      label={
+        <>
+          <span className="block type-body font-semibold text-ink">{metric.name}</span>
+          <span className="block truncate type-small text-ink-2">{metric.definition}</span>
+        </>
+      }
+    >
+      <form onSubmit={save} className="space-y-3 pr-2 pb-4 pl-8">
+        <label className={LABEL}>
           Definition
-          {/* Length caps keep an edited glossary from crowding out the rest of the model's instructions. */}
-          {/* field-sizing: the box grows to fit the definition, so nobody scrolls a four-line box inside a scrolling sidebar. */}
+          {/* Length caps keep an edited glossary from crowding out the rest of the model's instructions.
+              field-sizing: the box grows to fit, so nobody scrolls a four-line box inside a scrolling sidebar. */}
           <textarea
             required
             rows={4}
             maxLength={600}
+            disabled={readOnly}
             value={definition}
             onChange={(e) => {
               setDefinition(e.target.value)
               setState('idle')
             }}
-            className={`${field} [field-sizing:content]`}
+            className={`${FIELD} [field-sizing:content]`}
           />
         </label>
-        <label className="block text-xs font-medium text-ink-soft">
-          Also called (separate with commas)
+        <label className={LABEL}>
+          Other names for it, separated by commas
           <input
             type="text"
             maxLength={200}
+            disabled={readOnly}
             value={synonyms}
             onChange={(e) => {
               setSynonyms(e.target.value)
               setState('idle')
             }}
-            className={field}
+            className={FIELD}
           />
         </label>
         {metric.required_roles.length > 0 && (
-          <p className="text-xs text-ink-soft">Needs these kinds of column: {metric.required_roles.map((role) => role.replaceAll('_', ' ')).join(', ')}.</p>
+          <p className="type-small text-ink-2">Needs these kinds of column: {metric.required_roles.map((role) => role.replaceAll('_', ' ')).join(', ')}.</p>
         )}
         {/* Folded by default: a SQL template with {placeholders} is for the engineer, and it sat
-            between the analyst and the Save button. A plain <details>, because Expanders must not nest. */}
+            between the analyst and the Save button. */}
         <details>
-          <summary className="cursor-pointer text-xs font-medium text-accent-ink">How it is calculated (SQL pattern)</summary>
-          <pre className="mt-1 rounded-md bg-sunken p-2 font-mono text-xs break-words whitespace-pre-wrap text-ink">{metric.sql_pattern}</pre>
+          <summary className="w-fit cursor-pointer type-small font-semibold text-blue-ink">How it is calculated</summary>
+          <pre className="mt-1.5 rounded-input bg-surface-2 p-2.5 type-code break-words whitespace-pre-wrap text-ink">{metric.sql_pattern}</pre>
         </details>
-        <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={!changed || problem !== null || state === 'saving'}
-            className="shrink-0 rounded-md bg-accent px-3 py-1.5 text-xs font-medium whitespace-nowrap text-white hover:bg-accent-ink disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {state === 'saving' ? 'Saving…' : 'Save definition'}
-          </button>
-          <span role="status" className={`min-w-0 text-xs break-words ${problem ? 'text-warn' : 'text-good'}`}>
-            {problem ?? (state === 'saved' && 'Saved. New questions will use this definition.')}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="submit" variant="primary" size="sm" loading={state === 'saving'} disabled={readOnly || !changed || problem !== null}>
+            Save definition
+          </Button>
+          {/* One live region per entry, always in the DOM: a span added at save time is announced late or not at all. */}
+          <span role="status" className={`min-w-0 type-small font-medium break-words ${problem ? 'text-amber-ink' : 'text-green-ink'}`}>
+            {problem ?? (state === 'saved' && 'Saved')}
           </span>
         </div>
       </form>
@@ -92,13 +104,18 @@ function MetricEditor({ metric, glossary, onSave }: GlossaryProps & { metric: Me
   )
 }
 
-export default function Glossary({ glossary, onSave }: GlossaryProps) {
-  if (glossary.length === 0) return <p className="text-sm text-ink-soft">No metric definitions are loaded for this session.</p>
+export default function Glossary({ glossary, readOnly, onSave }: GlossaryProps) {
+  if (glossary.length === 0) return <p className="type-body text-ink-2">No metric definitions are loaded for these files.</p>
   return (
-    <div className="rounded-card border border-line bg-surface px-3 pb-1 [&>details:first-child]:border-t-0">
-      {glossary.map((metric) => (
-        <MetricEditor key={metric.key} metric={metric} glossary={glossary} onSave={onSave} />
-      ))}
+    <div>
+      <p className="measure type-small text-ink-2">
+        “Attrition” can be computed three ways. These are the definitions Verity uses. Change them to match your company.
+      </p>
+      <div className="-mx-2 mt-2">
+        {glossary.map((metric) => (
+          <MetricEditor key={metric.key} metric={metric} glossary={glossary} readOnly={readOnly} onSave={onSave} />
+        ))}
+      </div>
     </div>
   )
 }

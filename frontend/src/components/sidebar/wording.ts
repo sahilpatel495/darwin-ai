@@ -1,17 +1,26 @@
-// Every sentence the sidebar derives from catalog data lives here, as pure functions.
-// Why: the analyst has to trust these lines in front of their CHRO, so the wording is tested
+// Every sentence the workspace derives from catalog data lives here, as pure functions.
+// Why: the analyst has to read these lines out in front of their CHRO, so the wording is tested
 // (wording.test.mjs) without a browser. Only `import type` is allowed in this file: Node runs the
 // tests by stripping types, and it cannot resolve the app's extensionless value imports.
 
-import type { ColumnType, DataHealth, Relationship, UnionView } from '../../types'
+import type { Catalog, ColumnType, DataHealth, Relationship, UnionView } from '../../types'
 
-/** `warn` marks lines the analyst should read before trusting a number from this file. */
-export interface ReceiptLine {
+/**
+ * One line of the Data Health receipt: what was done on the left, how much of it on the right.
+ * `warn` marks a line the analyst should read before trusting a number from this file.
+ */
+export interface ReceiptItem {
   tone: 'ok' | 'warn'
-  text: string
+  /** The left column. Sentence case, no full stop: it is a ledger line, not a sentence. */
+  label: string
+  /** The right column, right-aligned and tabular: a count, a percentage or a date format. */
+  amount?: string
+  /** A second line under the label: the examples, or the columns the line is about. */
+  note?: string
 }
 
-const count = (n: number, noun: string): string => `${n.toLocaleString('en-IN')} ${noun}${n === 1 ? '' : 's'}`
+/** "1 file", "7 files". Every counted noun in the workspace is written through this. */
+export const count = (n: number, noun: string): string => `${n.toLocaleString('en-IN')} ${noun}${n === 1 ? '' : 's'}`
 
 /** Caps long column lists: a 300-column export must not turn the receipt into a wall of names. */
 function nameList(names: string[], max = 6): string {
@@ -19,7 +28,7 @@ function nameList(names: string[], max = 6): string {
   return `${names.slice(0, max).join(', ')} and ${names.length - max} more`
 }
 
-/** Column types in the analyst's words; also used for the column list on the file card. */
+/** Column types in the analyst's words; also used for the column list under each file. */
 export const TYPE_NOUN: Record<ColumnType, string> = {
   currency: '₹ amounts',
   date: 'dates',
@@ -31,96 +40,128 @@ export const TYPE_NOUN: Record<ColumnType, string> = {
 }
 
 /**
- * Turns the ingestion receipt into sentences, in the order the cleaning happened.
+ * Turns the ingestion receipt into itemised lines, in the order the cleaning happened.
  * Always returns at least one line, so an empty receipt never looks like a check that was skipped.
  * `label` turns a cleaned column name (pay_month) back into the header the analyst wrote (Pay Month).
  */
-export function receiptLines(health: DataHealth, label: (column: string) => string = (column) => column): ReceiptLine[] {
-  const lines: ReceiptLine[] = []
-  const ok = (text: string) => lines.push({ tone: 'ok', text })
-  const warn = (text: string) => lines.push({ tone: 'warn', text })
+export function receiptLines(health: DataHealth, label: (column: string) => string = (column) => column): ReceiptItem[] {
+  const lines: ReceiptItem[] = []
+  const ok = (item: Omit<ReceiptItem, 'tone'>) => lines.push({ tone: 'ok', ...item })
+  const warn = (item: Omit<ReceiptItem, 'tone'>) => lines.push({ tone: 'warn', ...item })
+  const figure = (n: number) => n.toLocaleString('en-IN')
 
-  if (health.skipped_title_rows > 0) ok(`Skipped ${count(health.skipped_title_rows, 'title row')} above the column names.`)
-  if (health.dropped_total_rows > 0) ok(`Dropped ${count(health.dropped_total_rows, 'total row')} so sums are not counted twice.`)
+  if (health.skipped_title_rows > 0) ok({ label: 'Title rows skipped above the column names', amount: figure(health.skipped_title_rows) })
+  if (health.dropped_total_rows > 0) ok({ label: 'Total rows dropped, so sums are not counted twice', amount: figure(health.dropped_total_rows) })
 
   if (health.duplicate_rows > 0) {
-    const duplicates = count(health.duplicate_rows, 'exact duplicate row')
-    if (health.duplicates_removed) ok(`Removed ${duplicates}.`)
-    else warn(`Found ${duplicates} and kept them, because this file has no ID column to prove they are mistakes.`)
+    if (health.duplicates_removed) ok({ label: 'Exact duplicate rows removed', amount: figure(health.duplicate_rows) })
+    else warn({ label: 'Exact duplicate rows kept', amount: figure(health.duplicate_rows), note: 'This file has no ID column to prove they are mistakes.' })
   }
 
-  // Columns with unreadable values get their own warning; clean conversions are grouped by type
-  // so a wide file produces at most one line per type.
+  // Columns with unreadable values get their own line; clean conversions are grouped by type, so a
+  // wide file produces at most one line per type instead of one per column.
   const cleanByType = new Map<ColumnType, string[]>()
   for (const c of health.coercions) {
     if (c.unparseable > 0) {
-      const examples = c.examples.length ? ` (${c.examples.join(', ')})` : ''
-      warn(`${label(c.column)}: parsed ${TYPE_NOUN[c.to_type]}, ${count(c.unparseable, 'unreadable value')} left empty${examples}.`)
+      warn({
+        label: `Unreadable ${TYPE_NOUN[c.to_type]} in ${label(c.column)} left empty`,
+        amount: figure(c.unparseable),
+        note: c.examples.length ? `For example ${c.examples.join(', ')}.` : undefined,
+      })
     } else {
       cleanByType.set(c.to_type, [...(cleanByType.get(c.to_type) ?? []), label(c.column)])
     }
   }
-  for (const [type, columns] of cleanByType) ok(`Read as ${TYPE_NOUN[type]}: ${nameList(columns)}.`)
+  for (const [type, columns] of cleanByType) ok({ label: `Read as ${TYPE_NOUN[type]}`, amount: figure(columns.length), note: nameList(columns) })
 
   if (health.date_format) {
-    if (health.date_format_ambiguous) warn(`Dates read as ${health.date_format}. Some could be read either way, so day first was assumed.`)
-    else ok(`Dates read as ${health.date_format}.`)
+    if (health.date_format_ambiguous) warn({ label: 'Dates read as', amount: health.date_format, note: 'Some could be read either way, so day first was assumed.' })
+    else ok({ label: 'Dates read as', amount: health.date_format })
   }
 
-  if (health.pii_columns.length) ok(`PII columns hidden from the model: ${nameList(health.pii_columns.map(label))}.`)
-  if (health.preserved_id_columns.length) ok(`Kept as text to preserve leading zeros: ${nameList(health.preserved_id_columns.map(label))}.`)
+  if (health.preserved_id_columns.length) {
+    ok({ label: 'Kept as text to preserve leading zeros', amount: figure(health.preserved_id_columns.length), note: nameList(health.preserved_id_columns.map(label)) })
+  }
+  if (health.pii_columns.length) {
+    ok({ label: 'Personal-data columns hidden from the AI', amount: figure(health.pii_columns.length), note: nameList(health.pii_columns.map(label)) })
+  }
 
   for (const [column, fraction] of Object.entries(health.null_hotspots)) {
-    warn(`${label(column)}: ${Math.round(fraction * 100)}% of values are empty.`)
+    warn({ label: `Values left empty in ${label(column)}`, amount: `${Math.round(fraction * 100)}%` })
   }
-  for (const warning of health.warnings) warn(warning)
+  for (const warning of health.warnings) warn({ label: warning })
 
-  if (lines.length === 0) ok('No cleaning was needed. Every value was read as it appears in the file.')
+  if (lines.length === 0) ok({ label: 'No cleaning was needed', note: 'Every value was read as it appears in the file.' })
   return lines
+}
+
+/**
+ * The one sentence beside the amber mark on a file that needs a look: the first thing to check,
+ * and how many others are waiting in the receipt. Null when nothing was flagged.
+ */
+export function needsALook(lines: ReceiptItem[]): string | null {
+  const warnings = lines.filter((line) => line.tone === 'warn')
+  const first = warnings[0]
+  if (!first) return null
+  // Backend warnings arrive as whole sentences; receipt labels do not. Strip the stop either way
+  // so the joined sentence never reads "…left empty., and 2 more".
+  const head = (first.amount ? `${first.label}: ${first.amount}` : first.label).replace(/\.$/, '')
+  return warnings.length === 1 ? `${head}.` : `${head}, and ${warnings.length - 1} more to check.`
+}
+
+/** The line above the tabs: what is loaded, in four counts. Zero counts are left out, not written as "0". */
+export function overviewLine(catalog: Catalog): string {
+  const tables = catalog.tables.filter((table) => !table.is_view)
+  const links = catalog.relationships.filter((link) => link.status !== 'rejected').length
+  const views = catalog.unions.filter((union) => union.status !== 'rejected').length
+  const hidden = tables.reduce((total, table) => total + table.health.pii_columns.length, 0)
+  const parts = [count(tables.length, 'table')]
+  if (links) parts.push(count(links, 'link'))
+  if (views) parts.push(count(views, 'combined view'))
+  if (hidden) parts.push(`${count(hidden, 'personal-data column')} hidden`)
+  return parts.join(', ')
 }
 
 /** Whole percent, rounded down. The epsilon undoes float noise: 0.29 * 100 is 28.999999999999996. */
 const wholePercent = (fraction: number): number => Math.floor(fraction * 100 + 1e-9)
 
-/**
- * The headline match: the better of the two directions, rounded down (showing 100% for 99.6%
- * would overstate the join). Better, not weaker, because that is the side the backend uses to
- * switch a link on, and because in a healthy link every child row finds its parent while many
- * parents have no child: a bonus sheet that covers a quarter of the staff is a sound link, and
- * "25%" beside "In use" reads as a broken one. The explanation still gives both directions.
- */
-export function matchPercent(link: Relationship): number {
-  return wholePercent(Math.max(link.match_left, link.match_right))
-}
-
 /** Turns a SQL table name into what the analyst calls it (the file). Supplied by the caller so this file stays import-free. */
 type TableNamer = (table: string) => string
 
-/** Files, not SQL identifiers: "employees.csv ↔ Salary_Register_2025.xlsx (sheet Register)". */
-export function linkLabel(link: Relationship, name: TableNamer): string {
-  return `${name(link.left_table)} ↔ ${name(link.right_table)}`
+/** A link the analyst can read: the two files for a button's name, and the sentence itself. */
+export interface LinkLine {
+  /** "employees.csv and Salary_Register_2025.xlsx" — for "Remove the link between …". */
+  pair: string
+  sentence: string
 }
 
-/** Says the matching column, the match and the cardinality in words, for readers who have never seen "1:N". */
-export function linkExplanation(link: Relationship, name: TableNamer): string {
+/**
+ * A detected link as one sentence: which files, which column, and how well they match.
+ *
+ * The match quoted is the better of the two directions, because that is the side the backend uses
+ * to switch a link on, and because in a healthy link every child row finds its parent while many
+ * parents have no child: a bonus sheet that covers a quarter of the staff is a sound link, and
+ * "25% match" would read as a broken one. Rounded down, so 99.6% never shows as 100%.
+ */
+export function linkLine(link: Relationship, name: TableNamer): LinkLine {
   const [left, right] = [name(link.left_table), name(link.right_table)]
-  const percent = (fraction: number) => `${wholePercent(fraction)}%`
-  const on = link.left_column === link.right_column ? link.left_column : `${link.left_column} = ${link.right_column}`
-  const match =
-    link.match_left === link.match_right
-      ? `${percent(link.match_left)} of the values match in both directions.`
-      : `${percent(link.match_left)} of the ${link.left_column} values in ${left} are found in ${right}, and ${percent(link.match_right)} the other way.`
-  const shape: Record<Relationship['cardinality'], string> = {
-    '1:1': `Each row in ${left} matches at most one row in ${right}.`,
-    '1:N': `One row in ${left} can match many rows in ${right}.`,
-    'N:1': `Many rows in ${left} can match one row in ${right}.`,
-    'N:M': `Rows repeat on both sides, so totals across this link can be counted more than once.`,
+  const on = link.left_column === link.right_column ? link.left_column : `${link.left_column} and ${link.right_column}`
+  const leftIsBetter = link.match_left >= link.match_right
+  const [from, to] = leftIsBetter ? [left, right] : [right, left]
+  const matched = wholePercent(leftIsBetter ? link.match_left : link.match_right)
+  // Many-to-many is the one shape that can silently double a total, so it is said out loud.
+  const repeats = link.cardinality === 'N:M' ? ' Rows repeat on both sides, so totals across this link can be counted more than once.' : ''
+  return {
+    pair: `${left} and ${right}`,
+    sentence: `${left} and ${right} are linked on ${on}. ${matched}% of rows in ${from} have a match in ${to}.${repeats}`,
   }
-  return `Matched on ${on}. ${match} ${shape[link.cardinality]}`
 }
 
-export function unionLabel(union: UnionView, name: TableNamer): string {
-  return union.tables.map(name).join(' + ')
+/** A combined view as one sentence: nobody uploaded it, so it says where it came from. */
+export function unionLine(union: UnionView, name: TableNamer): LinkLine {
+  const files = union.tables.map(name)
+  const pair = files.length < 2 ? files.join('') : `${files.slice(0, -1).join(', ')} and ${files[files.length - 1]}`
+  return { pair, sentence: `${pair} have the same columns, so a question that spans them reads one combined view.` }
 }
 
 // ponytail: mirrors _MAX_SYNONYMS and _MAX_SYNONYM_CHARS in backend/app/sessions.py. The server is

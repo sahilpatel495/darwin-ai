@@ -2,7 +2,7 @@
 // Run: cd frontend && node --test "src/**/*.test.mjs"   (Node 24 strips the TypeScript types itself)
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { formatDuration, formatShare, formatTick, formatValue, humanize } from '../../lib/format.ts'
+import { axisTicks, formatDuration, formatShare, formatTick, formatValue, humanize } from '../../lib/format.ts'
 
 test('plain numbers use Indian digit grouping', () => {
   assert.equal(formatValue(1234567, 'number'), '12,34,567')
@@ -78,4 +78,25 @@ test('report helpers', () => {
   assert.equal(humanize('avg_ctc'), 'Avg CTC')
   assert.equal(humanize('hr_metrics'), 'HR metrics')
   assert.equal(humanize('paid_leave'), 'Paid leave', 'abbreviations only match whole words')
+})
+
+test('one axis, one unit: the ruler does not change halfway up', () => {
+  // Average salary by department: the largest bar is 1.34 L, so the whole axis stays in rupees
+  // rather than reading "₹70,000, ₹1.1 L".
+  const salary = axisTicks('currency_inr', 134000)
+  assert.equal(salary(0), '₹0')
+  assert.equal(salary(70000), '₹70,000')
+  assert.equal(salary(140000), '₹1,40,000')
+  // Gross pay by month: crore all the way down, including the ticks that are not whole crore.
+  const pay = axisTicks('currency_inr', 47300000)
+  assert.equal(pay(44000000), '₹4.4 Cr')
+  assert.equal(pay(0), '₹0 Cr')
+  // Ten lakh and up without reaching a crore: lakh for every tick.
+  const mid = axisTicks('currency_inr', 2500000)
+  assert.equal(mid(500000), '₹5 L')
+  assert.equal(mid(2500000), '₹25 L')
+  // Plain numbers and percentages are untouched by the unit rule.
+  assert.equal(axisTicks('number', 430)(170), '170')
+  assert.equal(axisTicks('percent', 25)(25), '25%')
+  assert.equal(axisTicks('currency_inr', 134000)(Number.NaN), '')
 })

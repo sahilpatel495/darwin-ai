@@ -4,7 +4,7 @@
 //
 // Only `import type` here: the tests load this file directly with `node --test`.
 
-import type { ClarifyOption, TableProfile } from '../types'
+import type { Answer, ClarifyOption, TableProfile } from '../types'
 
 type Named = Pick<TableProfile, 'name' | 'source_file' | 'sheet'>
 
@@ -33,6 +33,31 @@ export function plainTables(text: string, tables: Named[]): string {
   return text.replace(new RegExp(`(?<![\\w.])(?:${escaped.join('|')})(?!\\w|\\.\\w)`, 'g'), (name) => labelOf(name, tables))
 }
 
+/**
+ * The two pieces of prose a saved answer still shows on the board, with table names already
+ * swapped for file names. The board renders from the project record with no catalog loaded (§6.5),
+ * so a caveat resolved only at render time would print "salary_register" on the one page that
+ * leaves the app. Doing it once, as the turn is stored, is what `tableLabel` would have done
+ * anyway, and running it twice changes nothing — a file name matches no table name.
+ *
+ * The technical name is not lost: How I got this still shows the SQL and the tables it read (§8).
+ */
+export function plainAnswer(answer: Answer, tables: Named[]): Answer {
+  const caveats = answer.work.caveats.map((caveat) => plainTables(caveat, tables))
+  const cross_check = { ...answer.work.cross_check, detail: plainTables(answer.work.cross_check.detail, tables) }
+  return { ...answer, work: { ...answer.work, caveats, cross_check } }
+}
+
+/**
+ * The same swap for a computed tile (§13, §14). Done once, where the tile arrives from the
+ * server, for the same reason as `plainAnswer`: a tile saved to the board is re-read on a page
+ * that has no catalog loaded, and "removed from salary_register_2025_register" is not a sentence
+ * anyone wants to print. The SQL in "View table and SQL" still names the real tables.
+ */
+export function plainTile<T extends { statement: string; caveats: string[] }>(tile: T, tables: Named[]): T {
+  return { ...tile, statement: plainTables(tile.statement, tables), caveats: tile.caveats.map((caveat) => plainTables(caveat, tables)) }
+}
+
 /** "employees.ctc" -> "ctc in employees.csv", using the header as it is written in the file. */
 export function columnLabel(ref: string, tables: TableProfile[]): string {
   const dot = ref.indexOf('.')
@@ -43,12 +68,15 @@ export function columnLabel(ref: string, tables: TableProfile[]): string {
 
 /**
  * The text on a "which one did you mean?" chip. The server writes "Gross pay (salary_register.gross)";
- * the analyst reads "Gross pay · Gross in Salary_Register.xlsx". When the server's words are just
+ * the analyst reads "Gross pay — Gross in Salary_Register.xlsx". When the server's words are just
  * the column name again ("ctc (employees.ctc)") they are not repeated.
+ *
+ * An em dash, not a middle dot: a middle dot is the house style of generated interfaces, and the
+ * two halves here are a meaning and where it lives, which is a sentence break.
  */
 export function optionLabel(option: ClarifyOption, tables: TableProfile[]): string {
   const where = columnLabel(option.value, tables)
   if (where === option.value) return option.label
   const meaning = option.label.replace(/\s*\([^()]*\)\s*$/, '')
-  return where.toLowerCase().startsWith(`${meaning.toLowerCase()} in `) ? where : `${meaning} · ${where}`
+  return where.toLowerCase().startsWith(`${meaning.toLowerCase()} in `) ? where : `${meaning} — ${where}`
 }

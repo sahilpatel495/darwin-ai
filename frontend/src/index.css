@@ -1,37 +1,347 @@
 @import "tailwindcss";
 
-/* Design tokens. Calm enterprise look: slate neutrals, one blue accent, borders over shadows.
-   Every component uses these names (bg-surface, text-ink, border-line, bg-accent ...). */
-@theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+/* =============================================================================
+   Verity — "Clarity". The one stylesheet.
+   Section numbers refer to docs/DESIGN_SYSTEM.md.
+   Components use token classes (bg-wash, text-ink-2, border-line …), never a raw hex.
+   ========================================================================== */
+
+/* --- §4 Motion: keyframes ------------------------------------------------
+   Declared at the top level so they are always emitted, even when only an
+   inline style references them. */
+@keyframes page-enter  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes rise-in     { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes dialog-in   { from { opacity: 0; transform: scale(.96); }      to { opacity: 1; transform: none; } }
+@keyframes popover-in  { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes toast-in    { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes check-pop   { from { opacity: 0; transform: scale(.6); } 60% { transform: scale(1.08); } to { opacity: 1; transform: scale(1); } }
+@keyframes fade-in     { from { opacity: 0; } to { opacity: 1; } }
+/* The sweep travels twice its own width so the highlight leaves the row entirely. */
+@keyframes shimmer     { from { background-position: -150% 0; } to { background-position: 250% 0; } }
+/* The active step's dot: a pulse you can follow without watching a spinner. */
+@keyframes breathe     { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(.8); } }
+
+/* --- §2 Tokens ------------------------------------------------------------
+   `static` so every variable reaches :root. Charts read --color-series-N through
+   var() in TSX, which Tailwind's class scanner cannot see. */
+@theme static {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  --color-canvas: #f6f8fb;      /* page background */
-  --color-surface: #ffffff;     /* cards */
-  --color-sunken: #f1f4f9;      /* code blocks, table headers */
-  --color-line: #e2e8f0;        /* borders */
-  --color-ink: #0f172a;         /* primary text */
-  --color-ink-soft: #475569;    /* secondary text */
-  --color-ink-faint: #64748b;   /* hints and placeholders; 4.8:1 on white (the lighter #94a3b8 was 2.6:1, below AA) */
+  --color-wash: #f0f2f5;         /* page background */
+  --color-surface: #ffffff;      /* cards, dialogs, nav */
+  --color-surface-2: #f7f8fa;    /* inset areas, table header, code, inputs */
+  --color-fill: #e4e6eb;         /* secondary buttons, chips, icon buttons */
+  --color-fill-hover: #d8dadf;
+  --color-line: #ced0d4;         /* dividers, input borders */
+  --color-line-soft: #e4e6eb;    /* card hairlines */
 
-  --color-accent: #1d5bd8;      /* primary actions, links, chart series 1 */
-  --color-accent-soft: #e8f0fe;
-  --color-accent-ink: #123f99;
+  --color-ink: #050505;          /* text */
+  --color-ink-2: #65676b;        /* secondary text — 4.9:1 on surface */
+  --color-ink-3: #8a8d91;        /* hints and disabled only, never body text */
 
-  --color-good: #15803d;   --color-good-soft: #dcfce7;
-  --color-warn: #b45309;   --color-warn-soft: #fef3c7;
-  --color-bad: #b91c1c;    --color-bad-soft: #fee2e2;
+  --color-blue: #0866ff;         /* primary action, links, focus, first series */
+  --color-blue-hover: #0756d6;
+  --color-blue-soft: #ebf5ff;    /* selected, the analyst's question bubble */
+  --color-blue-ink: #0064d1;     /* text on blue-soft */
 
-  --color-series-1: #1d5bd8;
-  --color-series-2: #0e9384;
-  --color-series-3: #b45309;
-  --color-series-4: #7c3aed;
-  --color-series-5: #be185d;
+  --color-green: #31a24c;        /* verified, high confidence */
+  --color-green-soft: #e6f4ea;
+  --color-green-ink: #1f7a37;
+  --color-amber: #f7b928;        /* needs a look, medium, caveats, waiting */
+  --color-amber-soft: #fff4d6;
+  --color-amber-ink: #8a5a00;
+  --color-red: #e41e3f;          /* errors, low confidence, disagreement */
+  --color-red-soft: #fde7ea;
+  --color-red-ink: #b3152f;
 
-  --radius-card: 10px;
+  --color-series-1: #0866ff;
+  --color-series-2: #00a7b5;
+  --color-series-3: #7b61ff;
+  --color-series-4: #f5803e;
+  --color-series-5: #e5468f;
+  --color-series-6: #2fa24b;
+  --color-series-7: #8a8d91;
+
+  --radius-input: 6px;           /* inputs and small buttons */
+  --radius-card: 8px;            /* cards and dialogs */
+  --radius-hero: 12px;           /* the large hero surfaces */
+  --radius-pill: 999px;          /* chips, pills, icon buttons */
+
+  --shadow-1: 0 1px 2px rgb(0 0 0 / .10);
+  --shadow-2: 0 2px 12px rgb(0 0 0 / .12);
+  --shadow-3: 0 12px 28px rgb(0 0 0 / .20), 0 2px 4px rgb(0 0 0 / .10);
+
+  --ease-standard: cubic-bezier(.08,.52,.52,1);
+  --ease-enter: cubic-bezier(.14,1,.34,1);
+  --ease-exit: cubic-bezier(.45,.1,.2,1);
+  --dur-press: 100ms;
+  --dur-pop: 200ms;
+  --dur-card: 280ms;
+  --dur-draw: 400ms;
+
+  --animate-fade: fade-in var(--dur-pop) var(--ease-enter) both;
+  --animate-breathe: breathe 1.4s var(--ease-standard) infinite;
+
 }
 
-html, body, #root { height: 100%; }
-body { background: var(--color-canvas); color: var(--color-ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
-:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+/* --- §2 Light, again -------------------------------------------------------
+   @theme puts the light values on :root, which is enough for the page. This
+   repeats them for any element carrying data-theme="light", so a light frame
+   nested inside a dark page (the #/ui gallery shows both at once) comes back to
+   light instead of inheriting the dark tokens. Keep it in step with @theme.
+   Legacy bridge names are deliberately not repeated: they resolve at :root and
+   are on their way out anyway. */
+[data-theme="light"] {
+  --color-wash: #f0f2f5;
+  --color-surface: #ffffff;
+  --color-surface-2: #f7f8fa;
+  --color-fill: #e4e6eb;
+  --color-fill-hover: #d8dadf;
+  --color-line: #ced0d4;
+  --color-line-soft: #e4e6eb;
+
+  --color-ink: #050505;
+  --color-ink-2: #65676b;
+  --color-ink-3: #8a8d91;
+
+  --color-blue: #0866ff;
+  --color-blue-hover: #0756d6;
+  --color-blue-soft: #ebf5ff;
+  --color-blue-ink: #0064d1;
+
+  --color-green: #31a24c;
+  --color-green-soft: #e6f4ea;
+  --color-green-ink: #1f7a37;
+  --color-amber: #f7b928;
+  --color-amber-soft: #fff4d6;
+  --color-amber-ink: #8a5a00;
+  --color-red: #e41e3f;
+  --color-red-soft: #fde7ea;
+  --color-red-ink: #b3152f;
+
+  --shadow-1: 0 1px 2px rgb(0 0 0 / .10);
+  --shadow-2: 0 2px 12px rgb(0 0 0 / .12);
+  --shadow-3: 0 12px 28px rgb(0 0 0 / .20), 0 2px 4px rgb(0 0 0 / .10);
+
+  color-scheme: light;
+}
+
+/* --- §2 Dark ---------------------------------------------------------------
+   The same names, different values. `data-theme` is stamped on <html> by the
+   inline script in index.html before first paint, so there is no flash. */
+[data-theme="dark"] {
+  --color-wash: #18191a;
+  --color-surface: #242526;
+  --color-surface-2: #3a3b3c;
+  --color-fill: #3a3b3c;
+  --color-fill-hover: #4e4f50;
+  --color-line: #3e4042;
+  --color-line-soft: #2f3031;
+
+  --color-ink: #e4e6eb;
+  --color-ink-2: #b0b3b8;
+  --color-ink-3: #8a8d91;
+
+  --color-blue: #2d88ff;
+  --color-blue-hover: #4599ff;
+  --color-blue-soft: #263951;
+  --color-blue-ink: #75b6ff;
+
+  --color-green: #45bd62;
+  --color-green-soft: #1d3a25;
+  --color-green-ink: #7bd88f;
+  --color-amber: #f7b928;
+  --color-amber-soft: #3d3218;
+  --color-amber-ink: #ffd772;
+  --color-red: #f3425f;
+  --color-red-soft: #3f1d24;
+  --color-red-ink: #ff8a9b;
+
+  /* Dark needs deeper shadows to separate a #242526 card from a #18191a page. */
+  --shadow-1: 0 1px 2px rgb(0 0 0 / .40);
+  --shadow-2: 0 2px 12px rgb(0 0 0 / .48);
+  --shadow-3: 0 12px 28px rgb(0 0 0 / .60), 0 2px 4px rgb(0 0 0 / .40);
+
+  color-scheme: dark;
+}
+
+@layer base {
+  html, body, #root { height: 100%; }
+
+  body {
+    background: var(--color-wash);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 22px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* A link is blue and underlined in running text; nav items and wordmarks carry
+     `no-underline`, because a row of underlined words is not navigation.
+     blue-ink rather than blue: #0866FF is 4.3:1 on the grey wash, just under the
+     4.5:1 floor, and a link is as likely to sit on the page as inside a card. */
+  a {
+    color: var(--color-blue-ink);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+  }
+  a:hover { text-decoration-color: currentColor; }
+
+  ::selection { background: var(--color-blue-soft); color: var(--color-ink); }
+
+  /* §9 One focus ring everywhere, on every kind of control. */
+  :focus-visible {
+    outline: 2px solid var(--color-blue);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  /* Native dialog, styled once so <Dialog> stays small (§5). */
+  dialog {
+    margin: auto;
+    padding: 0;
+    max-width: calc(100vw - 2rem);
+    max-height: calc(100dvh - 3rem);
+    border: none;
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+    color: var(--color-ink);
+    box-shadow: var(--shadow-3);
+  }
+  dialog[open] { animation: dialog-in var(--dur-pop) var(--ease-enter) backwards; }
+  dialog::backdrop { background: rgb(0 0 0 / .45); }
+  dialog[open]::backdrop { animation: fade-in var(--dur-pop) var(--ease-enter) both; }
+
+  /* Scrollbars follow the theme on the browsers that let them. */
+  * { scrollbar-color: var(--color-line) transparent; }
+}
+
+@layer components {
+  /* --- §3 Type roles ------------------------------------------------------
+     One class per row of the table in §3. Plain classes in the components
+     layer, so any utility (text-ink-2, text-right) still wins over them. */
+  .type-hero {
+    font-size: 40px; line-height: 44px; font-weight: 700;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  .type-page { font-size: 22px; line-height: 28px; font-weight: 700; letter-spacing: -0.01em; }
+  @media (min-width: 640px) { .type-page { font-size: 28px; line-height: 34px; } }
+  .type-card { font-size: 20px; line-height: 26px; font-weight: 700; letter-spacing: -0.01em; }
+  .type-section { font-size: 17px; line-height: 22px; font-weight: 600; }
+  .type-body { font-size: 15px; line-height: 22px; font-weight: 400; }
+  .type-small { font-size: 13px; line-height: 18px; font-weight: 400; }
+  .type-micro { font-size: 12px; line-height: 16px; font-weight: 500; }
+  /* SQL only. Never a data label. */
+  .type-code { font-family: var(--font-mono); font-size: 13px; line-height: 20px; font-weight: 400; }
+
+
+  /* Reading measure: under 72 characters (§3). */
+  .measure { max-width: 66ch; }
+  .tnum { font-variant-numeric: tabular-nums lining-nums; }
+
+  /* --- §4 Motion utilities ------------------------------------------------ */
+
+  /* Every entrance animation below fills `backwards`, never `both`. A transform animation that
+     is still filling after it ends keeps its element a containing block for `position: fixed`
+     descendants for ever — which put the tour ring, the toasts and the phone tab bar 72px out,
+     the width of the nav rail. `backwards` covers the delay a staggered child waits through and
+     then lets go; the last keyframe is the element's natural state anyway, so nothing moves. */
+
+  /* The incoming page rises and fades. No exit animation: leaving must feel instant. */
+  .page-enter { animation: page-enter var(--dur-card) var(--ease-enter) backwards; }
+
+  /* Lists and grids: the first eight children rise 40 ms apart, once per mount.
+     Nine onwards appear with the eighth, so a long list never staggers into
+     a slideshow. */
+  .stagger-children > * { animation: rise-in var(--dur-card) var(--ease-enter) backwards; }
+  .stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger-children > *:nth-child(2) { animation-delay: 40ms; }
+  .stagger-children > *:nth-child(3) { animation-delay: 80ms; }
+  .stagger-children > *:nth-child(4) { animation-delay: 120ms; }
+  .stagger-children > *:nth-child(5) { animation-delay: 160ms; }
+  .stagger-children > *:nth-child(6) { animation-delay: 200ms; }
+  .stagger-children > *:nth-child(7) { animation-delay: 240ms; }
+  .stagger-children > *:nth-child(n+8) { animation-delay: 280ms; }
+
+  /* Only a card you can act on moves. A card that is only a container never does. */
+  .card-hover {
+    transition: box-shadow var(--dur-pop) var(--ease-standard), transform var(--dur-pop) var(--ease-standard);
+  }
+  .card-hover:hover { box-shadow: var(--shadow-2); transform: translateY(-1px); }
+
+  /* Every button, chip and tab presses in. :active only, so a hover never shrinks. */
+  .press { transition: transform var(--dur-press) var(--ease-standard), background-color var(--dur-press) var(--ease-standard), color var(--dur-press) var(--ease-standard); }
+  .press:active:not(:disabled) { transform: scale(.97); }
+
+  .dialog-in { animation: dialog-in var(--dur-pop) var(--ease-enter) backwards; }
+  .popover-in { animation: popover-in var(--dur-pop) var(--ease-enter) backwards; }
+  .toast-in { animation: toast-in var(--dur-pop) var(--ease-enter) backwards; }
+  .check-pop { animation: check-pop var(--dur-pop) var(--ease-enter) backwards; }
+
+  /* A light sweep across a placeholder or a running step. The gradient is the
+     animation itself, not decoration — §4 bans decorative gradients, not this. */
+  .shimmer {
+    background-image: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--color-surface) 70%, transparent) 50%, transparent 100%);
+    background-size: 40% 100%;
+    background-repeat: no-repeat;
+    animation: shimmer 1.2s linear infinite;
+  }
+}
+
+/* §4 Reduced motion: everything is instant, and nothing depends on an animation
+   to be understood. Near-zero durations rather than `animation: none`, which
+   would freeze a check at scale .6 — i.e. leave it invisible. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .card-hover:hover, .press:active { transform: none !important; }
+}
+
+/* --- Print: the saved board as a report (§6.5, §15) -----------------------
+   Unlayered and last, so it beats every utility.
+   Controls disappear on their own: every Button, Chip and tab is a <button>,
+   and the composer is a <textarea>. Anything else that is chrome rather than
+   report — the rail, the tab bar, the header, a drawer — carries `print-hide`
+   or data-print="hide". No element-name guessing: the board's own title block
+   is a <header> too. */
+@media print {
+  @page { margin: 16mm; }
+
+  html, body, #root { height: auto; background: #fff; }
+  body { background: #fff; color: #000; font-size: 11pt; line-height: 1.45; }
+
+  .print-hide, [data-print="hide"],
+  nav, button, [role="tablist"], [role="tab"],
+  input, textarea, select, dialog, [hidden] { display: none !important; }
+
+  /* Scroll containers become continuous paper, or they print one screenful. */
+  main, aside, .overflow-y-auto, .overflow-x-auto, .overflow-auto, .overflow-hidden {
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+  }
+
+  /* One statement per block: never split a figure from its proof. */
+  [data-ui="card"], .print-keep, figure, table { break-inside: avoid; page-break-inside: avoid; }
+  [data-ui="card"] { box-shadow: none !important; border: 1px solid #ddd; }
+
+  /* Charts are the evidence — print the ink, not a blank frame. The width cap
+     goes on the responsive container and nowhere inside it: Recharts nests its
+     wrapper in a deliberately zero-width div that the wrapper overflows, so
+     `max-width: 100%` on the wrapper resolves against 0 and every chart prints
+     as an empty box. */
+  *, *::before, *::after { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .recharts-responsive-container { max-width: 100% !important; }
+  svg, .recharts-wrapper, .recharts-surface { break-inside: avoid; page-break-inside: avoid; }
+
+  a { text-decoration: none; color: #000; }
+}
