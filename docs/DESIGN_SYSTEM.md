@@ -1,77 +1,98 @@
-# Verity — UX and design system ("Ledger")
+# Verity — UX and design system ("Clarity")
 
 The contract for everyone touching the frontend. Read it before writing UI. `docs/DESIGN.md` says what the product does; this says how it feels and how a person moves through it.
 
-## 1. Who, and the one idea
+> **Direction changed on 2026-09-20.** The first direction ("Ledger": warm paper, serif figures, ruled rows) read as a copy of Claude's own interface, so it was dropped. Sections 1 to 5 below replace it. The journey, storage contract and component seams (sections 6, 7, 10) still hold, with the amendments marked **v2**. Where an older sentence mentions paper, serif figures, ruled rows, the auditor's tick or the double rule, the rules in sections 1 to 5 win.
 
-**Who:** an HR analyst who must put a number in front of their CHRO, and the hiring panel watching over their shoulder. Neither reads documentation.
+## 1. Who, and the idea
 
-**The idea:** the subject is a payroll ledger, so the interface borrows the vocabulary of accounts: ruled lines, right-aligned tabular figures, the auditor's tick, and the **double rule under a total**. An answer is presented as an *audited statement*: a sentence, a figure, and ticked proof.
+**Who:** an HR analyst who must put a number in front of their CHRO, and a hiring panel watching over their shoulder. Neither reads documentation.
 
-**Where the boldness goes (one place only):** the answer statement: large serif figure, double rule beneath it, ticks that draw in when the answer arrives. Everything else is quiet.
+**The idea:** it should feel like the consumer-grade apps people already use all day, so nobody needs training: a bright grey wash, white cards that lift off it, one confident blue, pill-shaped chips, system type, and motion that is quick and purposeful. The visual language is inspired by the design tokens visible in Facebook's public web CSS (surfaces, blue, radii, shadows, easing curves). No Meta names, logos or trademarks appear anywhere; in code the language is called Clarity.
+
+**Where the boldness goes:** two moments. (1) **Thinking, made visible**: while a question runs the analyst watches each check happen. (2) **The answer card**: a headline, a hero figure, green verified checks, computed insight chips and a chart you can switch. Everything else stays calm so those two carry the product.
+
+**This is a whole product, not a chat box:** Home (projects), Ask, Overview (an automatic dashboard computed with no AI), Analyses (guided, no AI), Saved (a printable board), Trust.
 
 ## 2. Tokens
 
-Defined once in `frontend/src/index.css` under `@theme`; components use the token classes, never raw hex.
+Defined once in `frontend/src/index.css` under `@theme`; components use the token classes, never raw hex. Light is the default; dark is the same names under `[data-theme="dark"]`.
 
-| Token | Hex | Use |
-|---|---|---|
-| `paper` | `#FAF8F3` | page background |
-| `sheet` | `#FFFFFF` | the answer statement, dialogs, the composer |
-| `wash` | `#F3EFE6` | code, table header, hover on paper |
-| `rule` | `#E4DFD3` | hairlines, borders |
-| `rule-strong` | `#C9C2B2` | the double rule, table header rule |
-| `ink` | `#1B1B2F` | text |
-| `ink-soft` | `#54546B` | secondary text |
-| `ink-faint` | `#8C8CA1` | hints, disabled |
-| `indigo` | `#2F3A8F` | actions, links, focus, first chart series |
-| `indigo-soft` | `#E9EBF7` | selected, user's question bubble |
-| `indigo-ink` | `#1F2766` | hover/pressed |
-| `audit` | `#1F7A4D` | ticks, verified, high confidence |
-| `audit-soft` | `#E3F2EA` | |
-| `amber` | `#9A5B00` | needs a look, medium confidence, caveats |
-| `amber-soft` | `#FBF0D9` | |
-| `red` | `#A32A2A` | errors, low confidence, disagreement |
-| `red-soft` | `#F9E3E3` | |
-| chart series | `#2F3A8F` `#1B7F79` `#B07A1E` `#7A3B8F` `#B0435E` | in this order |
+| Token | Light | Dark | Use |
+|---|---|---|---|
+| `wash` | `#F0F2F5` | `#18191A` | page background |
+| `surface` | `#FFFFFF` | `#242526` | cards, dialogs, nav |
+| `surface-2` | `#F7F8FA` | `#3A3B3C` | inset areas, table header, code, inputs |
+| `fill` | `#E4E6EB` | `#3A3B3C` | secondary buttons, chips, icon buttons |
+| `fill-hover` | `#D8DADF` | `#4E4F50` | their hover |
+| `line` | `#CED0D4` | `#3E4042` | dividers, input borders |
+| `line-soft` | `#E4E6EB` | `#2F3031` | card hairlines |
+| `ink` | `#050505` | `#E4E6EB` | text |
+| `ink-2` | `#65676B` | `#B0B3B8` | secondary text |
+| `ink-3` | `#8A8D91` | `#8A8D91` | hints, disabled |
+| `blue` | `#0866FF` | `#2D88FF` | primary action, links, focus, first series |
+| `blue-hover` | `#0756D6` | `#4599FF` | |
+| `blue-soft` | `#EBF5FF` | `#263951` | selected, the analyst's question bubble |
+| `blue-ink` | `#0064D1` | `#75B6FF` | text on blue-soft |
+| `green` / `-soft` / `-ink` | `#31A24C` / `#E6F4EA` / `#1F7A37` | `#45BD62` / `#1D3A25` / `#7BD88F` | verified, high confidence |
+| `amber` / `-soft` / `-ink` | `#F7B928` / `#FFF4D6` / `#8A5A00` | `#F7B928` / `#3D3218` / `#FFD772` | needs a look, medium, caveats, waiting |
+| `red` / `-soft` / `-ink` | `#E41E3F` / `#FDE7EA` / `#B3152F` | `#F3425F` / `#3F1D24` / `#FF8A9B` | errors, low confidence, disagreement |
+| chart series | `#0866FF` `#00A7B5` `#7B61FF` `#F5803E` `#E5468F` `#2FA24B` `#8A8D91` | same | in this order; sequential scale for heatmaps = blue-soft → blue |
 
-Radius: `4px` controls and sheets, `2px` chips, `999px` never. Shadows: none on paper; dialogs and popovers only (`0 12px 32px rgb(27 27 47 / 0.14)`). Hierarchy comes from rules and whitespace, not from cards: sidebar items are **ruled rows**, not boxes. The answer statement is the only white sheet in the thread.
+Radius: `6px` inputs and small buttons, `8px` cards and dialogs, `12px` the large hero surfaces, `999px` chips, pills and icon buttons. Elevation: `shadow-1: 0 1px 2px rgb(0 0 0 / .10)` resting cards; `shadow-2: 0 2px 12px rgb(0 0 0 / .12)` hovered interactive cards, sticky composer; `shadow-3: 0 12px 28px rgb(0 0 0 / .20), 0 2px 4px rgb(0 0 0 / .10)` dialogs, popovers, menus. Spacing on a 4px grid; cards pad 16 (phone) / 20 (desktop); page gutters 16 / 24 / 32.
 
 ## 3. Type
 
-Self-hosted in `frontend/public/fonts` (the app's CSP blocks font CDNs). Declare **both** `latin` and `latin-ext` files with `unicode-range`; the ₹ sign lives only in `latin-ext`.
+The system stack, exactly as the apps people use daily: `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`; code: `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`. No web fonts: delete `frontend/public/fonts` and its preloads (236 KB saved, no layout shift). The ₹ sign renders in every system face.
 
-| Role | Face | Size / line / weight |
-|---|---|---|
-| Figure (the number) | IBM Plex Serif | 48/52, 600, `tabular-nums lining-nums`, `letter-spacing: -0.01em` |
-| Page headline | IBM Plex Serif | 40/46, 600 (28/34 on phones) |
-| Statement headline | IBM Plex Serif | 22/30, 500 |
-| Section title | IBM Plex Sans | 15/22, 600 |
-| Body | IBM Plex Sans | 15/24, 400 |
-| Small | IBM Plex Sans | 13/20, 400 |
-| SQL and code only | IBM Plex Mono | 13/20, 400 |
+| Role | Size / line / weight |
+|---|---|
+| Hero figure | 40/44, 700, `tabular-nums`, `-0.02em` |
+| Page title | 28/34, 700, `-0.01em` (22/28 on phones) |
+| Card title / answer headline | 20/26, 700 |
+| Section heading | 17/22, 600 |
+| Body | 15/22, 400 |
+| Small | 13/18, 400 |
+| Micro (chips, badges, axis) | 12/16, 500 |
 
-Rules: sentence case everywhere; no all-caps labels; no eyebrow labels above headings; no monospace for data labels; no single accented word in a headline; text left-aligned; numerals in tables right-aligned with `tabular-nums`; measure under 72 characters.
+Sentence case everywhere; no all-caps labels; no eyebrow labels; numerals right-aligned and `tabular-nums` in tables; measure under 72 characters.
 
 ## 4. Motion
 
-One orchestrated moment: when an answer arrives, its ticks draw in one after another (SVG `stroke-dashoffset`, 160 ms each, 90 ms stagger) and the double rule extends left to right (240 ms). Step-list items swap their spinner for the same tick. Dialogs and popovers fade in 120 ms. Nothing else animates on its own: no entrance animations on sections, no hover lifts. `prefers-reduced-motion`: everything is instant.
+Motion is part of this direction, and every piece of it explains something. Tokens: `--ease-standard: cubic-bezier(.08,.52,.52,1)`, `--ease-enter: cubic-bezier(.14,1,.34,1)`, `--ease-exit: cubic-bezier(.45,.1,.2,1)`; durations `100ms` (press, hover), `200ms` (popovers, small moves), `280ms` (cards, routes), `400ms` (charts, count-up).
+
+- **Route change:** the incoming page fades in and rises 8px (280ms, enter); no exit animation (it must feel instant).
+- **Lists and grids:** children rise 8px and fade in with a 40ms stagger, first 8 items only, once per mount (Overview tiles, project cards, analysis gallery).
+- **Interactive cards:** `shadow-1` → `shadow-2` and a 1px lift on hover (200ms). Non-interactive cards never move.
+- **Buttons and chips:** press scales to `.97` (100ms). Tabs and segmented controls have a sliding indicator (200ms).
+- **Dialogs** scale `.96 → 1` and fade (200ms enter, 100ms exit); **popovers and menus** slide 6px and fade.
+- **Thinking:** the active step has a breathing dot and a shimmer sweep across its row; a finished step's check pops (`scale .6 → 1`, 200ms); the waiting state turns amber with a countdown.
+- **Answer arrival:** skeleton cross-fades to the card; headline first, then the hero figure counts up (400ms), verified checks pop in sequence (90ms stagger), the chart draws (Recharts animation 400ms, first render only).
+- **Skeletons** shimmer at 1.2s linear. **Toasts** slide up 12px.
+- `prefers-reduced-motion`: every duration becomes 0 and transforms are removed; nothing depends on animation to be understood.
 
 ## 5. Primitives (`frontend/src/components/ui/`)
 
-Built first, used by every screen. Small, typed, accessible, no dependencies.
+Small, typed, accessible, no dependencies. Restyle the existing ones; keep their props where possible so screens keep compiling.
 
-- `Button` (`primary` indigo fill · `secondary` rule border on sheet · `quiet` text only; sizes `md`, `sm`; loading state keeps its width)
-- `Tick` (the hand-drawn auditor's tick as an SVG path; `animate` prop) and `ProofList` (ticked statements, plain text, not pills)
-- `Figure` (big serif number + the double rule; takes the display string and an optional label under it)
-- `Sheet` (white surface with a 1px rule; `as` prop), `RuledRow` (row on paper with a bottom rule)
-- `Tabs` (roving tabindex, arrow keys), `Dialog` (native `<dialog>`, focus trapped, Esc closes, labelled), `Popover` / `WhatsThis` (a small "?" button that opens a two-sentence explanation; click and keyboard, not hover-only)
-- `Banner` (`info`, `warn`, `error`: message + next step + optional action), `Skeleton`, `EmptyState` (one sentence + one action), `Chip` (suggested questions, follow-ups)
-- `Badge` for confidence only: a small square of colour + the words "High confidence"; the reasons open in a Popover
+- `Button` (`primary` blue fill, white text · `secondary` `fill` background · `ghost`; sizes `md` 36px, `sm` 28px; optional `pill`; loading keeps width), `IconButton` (36px circle on `fill`, tooltip required)
+- `Card` (surface, 8px, `shadow-1`; `interactive` adds hover lift and focus ring; `as` prop), `ListRow` (full-width row, `fill` on hover)
+- `NavRail` + `NavItem` (section 6 v2), `Tabs` (sliding underline, roving tabindex), `SegmentedControl` (chart type, chart/table, options)
+- `Dialog` (native `<dialog>`, labelled, focus returns, Esc), `Popover`, `Menu`, `Tooltip`, `WhatsThis`, `Toast`
+- `Banner` (`info`, `warn`, `error`: message, next step, optional action), `Skeleton`, `EmptyState` (one sentence, one action)
+- `Chip` (pill; suggested questions, follow-ups, insight chips; `selected` state), `Badge` (confidence: coloured dot + words; reasons in a Popover)
+- `Check` (animated check in a green circle; replaces the old Tick) and `VerifiedList` (replaces ProofList: checked statements, plain text)
+- `StatTile` (label, hero figure with count-up, optional delta chip and sparkline slot; replaces Figure)
+- `ProgressSteps` (the thinking timeline: step label, live detail, state `pending | active | done | warn | failed | waiting`)
+- `ThemeToggle` (light / dark / system, stored in `localStorage`; ships only if dark passes QA on every screen, otherwise it is removed, not hidden behind a bug)
+
+A gallery at `#/ui` shows every primitive in every state, in light and dark.
 
 ## 6. The journey
 
-Hash routes, no router library: `#/` home · `#/p/<projectId>` workspace · `#/p/<projectId>/board` saved answers · `#/trust` Trust Report.
+Hash routes, no router library: `#/` home · `#/p/<id>` ask · `#/p/<id>/overview` · `#/p/<id>/analyses` · `#/p/<id>/board` saved · `#/trust` Trust Report · `#/ui` gallery.
+
+**v2 navigation.** A left **nav rail** on desktop (72px: icon above a micro label, active item on `blue-soft` with a blue icon) and a **bottom tab bar** on phones: Home, Ask, Overview, Analyses, Saved, Trust. Inside a project the rail shows the project's name at the top; outside one, only Home and Trust are enabled. The files / links / glossary panel stays beside the Ask page as a collapsible side panel (a drawer on phones), opened by a "Data" button in the page header.
 
 ### 6.1 Home (`#/`)
 - **First visit (no projects):** the landing. Left: headline "Ask your spreadsheets. Verify every answer.", two lines of plain description, the drop zone, "Try with sample HR data". Right: a **static sample answer statement built from the real demo numbers** ("Engineering had the highest gross pay in 2025", ₹20.40 Cr, three ticks, three bars). The hero is the product's promise, shown, not described. Below: "How it works" as three numbered steps (it is a real sequence): Upload as-is → Ask in plain English → Check the working.
@@ -209,3 +230,30 @@ export interface BriefingProps { catalog: Catalog; onAsk: (question: string) => 
 | education | `src/components/education/**`, `src/components/upload/Landing.tsx` (the hero), `src/pages/TrustReport.tsx` |
 
 Anchors other owners must place: `data-tour="files"` on the Files tab (workspace), `data-tour="composer"` on the composer and `data-tour="working"` on the first How I got this (answers), `data-tour="trust"` on the Trust Report link (journey). `api.ts` and `types.ts` stay Lead-owned.
+
+
+## 11. v2: Thinking, made visible (owner: answers)
+
+While a question runs, under the analyst's question bubble: a card titled "Working on it" with `ProgressSteps` using these labels: Understanding the question · Writing the query · Checking the query is safe · Running it on your data · Fixing the query (only when a repair happens) · Double-checking with a second AI model · Choosing a chart · Writing the answer. Each active step shows the server's live detail text under its label ("Read-only, 2 tables, 3 columns"), an elapsed timer runs in the card header, and the model's name appears as a chip once known. A `warn` step event whose detail starts with "All the free AI models are busy" puts the step into the amber `waiting` state with the countdown. Stop sits in the card. Below it, a skeleton of the answer card. When the answer arrives the card collapses into one line, "Answered in 3.2 s, 7 checks", which expands to the full timeline.
+
+## 12. v2: The answer card (owner: answers)
+
+Top to bottom: headline sentence (card title style) with the confidence `Badge` beside it → `StatTile` hero figure when the result is one value → `VerifiedList` (lines generated from the answer exactly as in 6.4) → **insight chips** from `answer.insights` (computed by the server, never by a model) → the visual: a `SegmentedControl` of the chart types that fit the result's shape (category + measure: bar, donut when ≤ 6 groups, table · date + measure: line, area, bar, table · two categories + measure: grouped, stacked, heatmap, table · two measures: scatter, table), plus Download CSV and an expand-to-dialog button → "Keep in mind" as an amber-soft banner list → follow-up chips → actions: Save, Copy answer, How I got this.
+
+**How I got this** opens with a small **flow**: Question → Query written by `<model>` → Safety check → Your data (DuckDB) → Second model check → Answer, each node a pill with its status colour and a connecting line; attempts that were repaired show as a loop back on the query node. Under it, the sections that exist today (how I read your question, plan, data used, assumptions, SQL with copy, attempts, what the model saw).
+
+**Charts** (Recharts; load the `dataviz` skill): bars go horizontal when any label is longer than 10 characters; area charts fill from the series colour at 24% to 0%; donut shows the total in the centre and at most 6 slices (the rest as "Other"); histogram bars touch; heatmap is a CSS grid on the `blue-soft → blue` scale with a legend and values on hover; one tooltip card style everywhere (`surface`, `shadow-3`, micro text, tabular numerals); legend as chips; Indian number formatting through `lib/format.ts`; first-render animation only. Every chart has the table one click away.
+
+## 13. v2: Overview, the automatic dashboard (owner: overview)
+
+`#/p/<id>/overview`, data from `getDashboard(sessionId)` (`Dashboard` in `types.ts`; fixture `dashboard.json`). Computed on the server by templates: no AI, instant, identical every time, and it works while the models are rate limited. Say so once, in a quiet line under the title: "Computed from your files. No AI involved."
+
+Layout: page title "Overview", then each `DashboardSection` as a heading with its description and a responsive grid: KPI tiles four across (two on phones), chart tiles two across (one on phones), two-way tiles full width. A tile is a `Card`: title, statement (small, `ink-2`), chart, insight chips, and a menu: "Ask about this" (sends `tile.ask` to the Ask page and navigates there), "Save to board", "View table and SQL" (dialog), "Download CSV". The quality tile is a checklist, not a chart. Loading = a skeleton grid; then tiles stagger in. Files not loaded = the re-attach banner. Empty = "Upload files to see an overview."
+
+## 14. v2: Analyses, guided and AI-free (owner: analyses)
+
+`#/p/<id>/analyses`, data from `getAnalyses` and `runAnalysis` (fixtures `analyses.json`, `tile.json`). Left (top on phones): a gallery of analysis kinds as interactive cards (icon, name, one-line description, example in `ink-2`). Choosing one opens its form: one picker per input (native `<select>` with `<optgroup>` per file, only columns whose kind the input accepts), options as `SegmentedControl`s, a live sentence preview of what will run ("Average Annual CTC by Department"), and Run. The result renders as the same tile card as Overview, with Save to board, Download CSV and "Continue in chat" (sends `tile.ask`). Runs made in this visit are listed under the result as chips to reopen. A 422 from the server shows its sentence in a `Banner` beside the offending picker. A quiet line: "No AI needed: you choose the columns, the database does the rest."
+
+## 15. v2: Home, Saved, sample data (owner: journey)
+
+Home lists projects as interactive cards (name, file chips, "12 questions, 3 saved", last opened) with a primary "New project" button; the sample project card carries "See what's inside" (a dialog listing the files from `GET /api/sample/files` with their one-line descriptions and a download link each) and "Download all (zip)" (`/api/sample/download`). The Saved board accepts both saved answers and saved tiles, reorders with up/down buttons, and prints (`window.print()`): the print stylesheet removes the rail, header and controls and keeps each card whole.
