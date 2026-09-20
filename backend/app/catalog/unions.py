@@ -22,7 +22,8 @@ def quote(identifier: str) -> str:
 
 
 def _literal(text: str) -> str:
-    """A single-quoted SQL string. File names come from the uploader, so they are hostile."""
+    """A single-quoted SQL string. Only member table names go through here now, and those are
+    already normalised; the escaping stays as the second lock, exactly as `quote` does."""
     return "'" + text.replace("'", "''") + "'"
 
 
@@ -70,6 +71,29 @@ def resolve_columns(members: list[TableProfile]) -> dict[str, ColumnProfile] | N
     return resolved
 
 
+def _compatible_parts(members: list[TableProfile]) -> list[list[TableProfile]]:
+    """Split a name-matched group into parts that also agree on every column type.
+
+    Why not all-or-nothing: three monthly exports where one file typed a column differently
+    used to produce no view at all, and a half-year question then answered from one month
+    with nothing on screen to say so. Two that agree are still one dataset; the odd file out
+    stays a table of its own, which is what it is.
+
+    ponytail: first fit, in upload order, so a different order could stack a different pair
+    when more than one split is possible. Real exports differ from each other, not from an
+    order; rank the parts by size if that ever stops being true.
+    """
+    parts: list[list[TableProfile]] = []
+    for member in members:
+        for part in parts:
+            if resolve_columns([*part, member]) is not None:
+                part.append(member)
+                break
+        else:
+            parts.append([member])
+    return parts
+
+
 def _view_name(members: list[str], taken: set[str], fallback_number: int) -> str:
     """attendance_q1 + attendance_q2 -> attendance_all: the leading words they share."""
     shared: list[str] = []
@@ -86,14 +110,11 @@ def _view_name(members: list[str], taken: set[str], fallback_number: int) -> str
 
 
 def detect_unions(tables: list[TableProfile], existing: list[UnionView]) -> list[UnionView]:
-    """Group base tables that share their column names and agree on every type (>= 2 tables).
+    """Group base tables by their column names, then split each group into parts that also
+    agree on every type, and make a view of every part with two or more tables.
 
     view_name is the leading `_`-separated words the table names share plus "_all" (fallback
     "combined_<n>"). New unions are "active"; a union the user rejected stays rejected.
-
-    ponytail: a group is all-or-nothing. Three files where two agree on a type and the third
-    does not produce no view at all, rather than a view of two. Split the group by type if a
-    real export ever looks like that.
 
     ponytail: a union is remembered by its view name, so a rejected "combined_1" could be
     confused with a different unnamed group later. Key it by member set if that ever bites.
@@ -108,23 +129,16 @@ def detect_unions(tables: list[TableProfile], existing: list[UnionView]) -> list
     unions: list[UnionView] = []
     fallbacks = 0
     for members in groups.values():
-        if len(members) < 2 or resolve_columns(members) is None:
-            continue
-        names = [m.name for m in members]
-        name = _view_name(names, taken, fallbacks + 1)
-        fallbacks += name.startswith("combined_")
-        taken.add(name)
-        unions.append(UnionView(id=name, view_name=name, tables=names,
-                                status="rejected" if name in rejected else "active"))
+        for part in _compatible_parts(members):
+            if len(part) < 2:
+                continue  # a file nothing else stacks onto stays a table of its own
+            names = [m.name for m in part]
+            name = _view_name(names, taken, fallbacks + 1)
+            fallbacks += name.startswith("combined_")
+            taken.add(name)
+            unions.append(UnionView(id=name, view_name=name, tables=names,
+                                    status="rejected" if name in rejected else "active"))
     return unions
-
-
-def _source_labels(members: list[TableProfile]) -> list[str]:
-    """What `source_file` says for each member: the file name, plus the sheet when two
-    members come from the same workbook and the file name alone could not tell them apart."""
-    files = [m.source_file for m in members]
-    return [f"{m.source_file} / {m.sheet}" if m.sheet and files.count(m.source_file) > 1 else m.source_file
-            for m in members]
 
 
 def _profile_view(conn: duckdb.DuckDBPyConnection, union: UnionView, members: list[TableProfile],
@@ -195,7 +209,11 @@ def create_union_views(
         resolved = resolve_columns(members)
         if resolved is None:  # only reachable if a caller hand-built a union; detection cannot
             continue
-        labels = _source_labels(members)
+        # `source_file` holds member TABLE names, not the uploaded file names. The prompt
+        # lists this column's values as filter literals, and a file name is text the
+        # uploader chose (DECISIONS 16(b)); a table name is already normalised and is
+        # printed in the schema block anyway, so it tells the parts apart at no cost.
+        labels = [m.name for m in members]
         selects = [_member_select(m, resolved, label) for m, label in zip(members, labels)]
         conn.execute(f"CREATE VIEW {quote(union.view_name)} AS " + " UNION ALL BY NAME ".join(selects))
         profiles.append(_profile_view(conn, union, members, labels, resolved))

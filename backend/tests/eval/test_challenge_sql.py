@@ -104,7 +104,7 @@ HAND_WRITTEN_SQL = {
     "ch-11": """
         SELECT SUM(days_absent) AS days_absent
         FROM attendance_all
-        WHERE source_file = 'attendance_q2.csv'
+        WHERE source_file = 'attendance_q2'
     """,
     "ch-12": """
         SELECT category, date_trunc('month', order_date) AS order_month, AVG(revenue) AS average_order_value

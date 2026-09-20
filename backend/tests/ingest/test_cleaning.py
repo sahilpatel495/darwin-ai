@@ -10,6 +10,8 @@ import duckdb
 import pytest
 
 from app.ingest.cleaning import (
+    MAX_FOLD_DISTINCT,
+    category_counts,
     clean_cell,
     infer_column,
     infer_dayfirst,
@@ -363,9 +365,10 @@ def test_a_tie_goes_to_the_spelling_that_starts_with_a_capital():
     assert spelling_variants(Counter({"sALES": 3, "sales": 3})) == {"sales": "sALES"}
 
 
-def test_inner_space_differences_fold_too():
-    assert spelling_variants(Counter({"Store Manager": 9, "StoreManager": 1})) == {
-        "StoreManager": "Store Manager"
+def test_runs_of_inner_whitespace_collapse_but_the_space_itself_is_kept():
+    """Two spaces or a tab between the same two words is one spelling of one label."""
+    assert spelling_variants(Counter({"Store Manager": 9, "Store  Manager": 1, "Store\tManager": 1})) == {
+        "Store  Manager": "Store Manager", "Store\tManager": "Store Manager"
     }
 
 
@@ -374,9 +377,31 @@ def test_inner_space_differences_fold_too():
     ("Sales", "Sale"),
     ("Sales", "Sales & Marketing"),
     ("Bengaluru", "Bangalore"),
+    # Deleting a space changes the word. "Pre Sales" and "PreSales" are two labels, and a
+    # team called "PreSales" must not be renamed to look like somebody else's team.
+    ("Pre Sales", "PreSales"),
+    ("Store Manager", "StoreManager"),
 ])
 def test_values_that_differ_by_more_than_case_and_space_are_never_folded(pair):
     assert spelling_variants(Counter(dict.fromkeys(pair, 5))) == {}
+
+
+def test_counting_stops_at_the_first_spelling_past_the_cap():
+    """A 217,000-row remarks column is free text and will be left alone, so it must not be
+    counted to the end first. The generator records how far the count actually read."""
+    read: list[int] = []
+
+    def remarks():
+        for i in range(100_000):
+            read.append(i)
+            yield f"remark {i}"
+
+    assert category_counts(remarks()) is None
+    assert len(read) == MAX_FOLD_DISTINCT + 1
+
+
+def test_counting_a_real_category_returns_every_spelling():
+    assert category_counts(["Sales", "sales", "Sales"]) == Counter({"Sales": 2, "sales": 1})
 
 
 def test_a_column_with_many_distinct_values_is_free_text_and_is_left_alone():

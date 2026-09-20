@@ -7,11 +7,15 @@ request cannot reach SQL with anything the catalog did not put there.
 """
 
 import json
+import time
 from pathlib import Path
 
 import pytest
+from app.config import settings
+from app.contracts import ColumnProfile, DataHealth, TableProfile
 from app.insights import analyses
 from app.insights.models import AnalysisRequest
+from app.insights.runner import ROW_CAP
 from tests.fixtures import CANARY_EMAIL, CANARY_NAME, make_session
 
 FIXTURE_JSON = Path(__file__).resolve().parents[3] / "frontend/src/fixtures/analyses.json"
@@ -308,6 +312,20 @@ def test_outliers_never_list_personal_data(session):
     assert "name" not in tile.sql and "email" not in tile.sql
 
 
+def test_outliers_say_nothing_about_groups_because_there_are_none(session):
+    """A listing of rows is not a grouped result. Read as one it called individual salaries
+    "the groups" and offered a percentage of their sum, neither of which is a fact about the
+    outliers. Only the one line that is true of every listing stays."""
+    session.conn.executemany(
+        "INSERT INTO employees VALUES (?,?,?,?,?,?,?,?,?)",
+        [("E009", "Test One", "one@example.com", "Sales", "Pune", "F", "2024-01-01", None, 90_000_000),
+         ("E010", "Test Two", "two@example.com", "HR", "Mumbai", "M", "2024-01-01", None, 80_000_000)])
+    tile = analyses.run(session, REQUESTS["outliers"])
+    assert tile.table.row_count == 2
+    assert tile.insights == [
+        "Unusual is not the same as wrong: these are the rows worth checking."]
+
+
 def test_compare(session):
     """24 L against 12.67 L: a gap of 11.33 L, which is 89.5% of the lower figure."""
     tile = analyses.run(session, REQUESTS["compare"])
@@ -467,3 +485,98 @@ def test_an_identifier_is_refused_as_a_group(session):
     with pytest.raises(ValueError, match="identifies a row"):
         analyses.run(session, AnalysisRequest(
             kind="breakdown", inputs={"measure": "employees.ctc", "by": "employees.emp_id"}))
+
+
+# ---- data that is legal, empty or not a number ----------------------------------------------
+
+
+@pytest.fixture
+def odd(session):
+    """The fixture session with three extra one-column tables: empty, holding a NaN, and
+    holding the two ends of a double. A spreadsheet can produce all three, and each of them
+    used to end a request somewhere other than in a sentence."""
+    for name, rows in (("blank", []),
+                       ("not_a_number", [(1.0,), (float("nan"),), (3.0,)]),
+                       ("enormous", [(-1e308,), (1e308,)])):
+        session.conn.execute(f"CREATE TABLE {name} (v DOUBLE)")
+        if rows:
+            session.conn.executemany(f"INSERT INTO {name} VALUES (?)", rows)
+        session.catalog.tables.append(TableProfile(
+            name=name, source_file=f"{name}.csv", row_count=len(rows),
+            columns=[ColumnProfile(name="v", label="v", type="decimal",
+                                   distinct_count=len(rows),
+                                   null_fraction=0.0 if rows else 1.0)],
+            health=DataHealth(rows=len(rows), columns=1)))
+    return session
+
+
+@pytest.mark.parametrize("table", ["blank", "not_a_number", "enormous"])
+@pytest.mark.parametrize("kind", ["distribution", "outliers"])
+def test_a_column_of_unrankable_numbers_gives_a_sentence_not_a_crash(odd, table, kind):
+    """min/max of a column holding NaN come back empty, and 1e308 minus -1e308 overflows to
+    infinity. Both used to escape as a TypeError or an OverflowError — not a ValueError, so
+    not a refusal either: the analyst got a 500 where a sentence belongs."""
+    tile = analyses.run(odd, AnalysisRequest(kind=kind, inputs={"measure": f"{table}.v"}))
+    assert tile.statement.endswith(".") and "—" not in tile.statement
+
+
+def test_a_change_over_a_table_with_no_dates_says_so(odd):
+    """Zero periods is not one period. The one-period sentence names the period it found, and
+    with no rows at all that name is an em dash."""
+    odd.conn.execute("ALTER TABLE blank ADD COLUMN d DATE")
+    profile = next(t for t in odd.catalog.tables if t.name == "blank")
+    profile.columns.append(ColumnProfile(name="d", label="d", type="date", null_fraction=1.0))
+    tile = analyses.run(odd, AnalysisRequest(
+        kind="change", inputs={"measure": "blank.v", "date": "blank.d"},
+        options={"aggregate": "sum", "grain": "month"}))
+    assert tile.statement == "No row here has a date, so there are no months to compare."
+
+
+def test_compare_on_a_column_that_is_empty_in_every_row_says_that(session):
+    """"Too many different values" was the only refusal here, and for an empty column it names
+    a cause that is the opposite of the truth."""
+    session.conn.execute("CREATE TABLE blank (v DOUBLE, g VARCHAR)")
+    session.catalog.tables.append(TableProfile(
+        name="blank", source_file="blank.csv", row_count=0,
+        columns=[ColumnProfile(name="v", label="v", type="decimal"),
+                 ColumnProfile(name="g", label="g", type="text", values=[])],
+        health=DataHealth(rows=0, columns=2)))
+    with pytest.raises(ValueError, match="empty in every row"):
+        analyses.run(session, AnalysisRequest(
+            kind="compare", inputs={"measure": "blank.v", "by": "blank.g"},
+            options={"group_a": "x", "group_b": "y"}))
+
+
+def test_a_two_hundred_thousand_row_table_stays_inside_the_query_timeout(session):
+    """Every guided analysis runs one or two DuckDB queries with no row limit beyond the
+    chart's. At the size a real payroll export reaches, all of them have to finish."""
+    session.conn.execute(
+        "CREATE TABLE big AS SELECT i AS row_id, ('Dept ' || (i % 7)) AS department,"
+        " make_date(2024, 1 + (i % 12), 1 + (i % 28)) AS order_date,"
+        " (i % 1000) * 137.0 AS revenue, (i % 50) AS units FROM range(200000) t(i)")
+    session.catalog.tables.append(TableProfile(
+        name="big", source_file="big.csv", row_count=200_000, columns=[
+            ColumnProfile(name="row_id", label="row_id", type="integer", is_identifier=True,
+                          is_unique=True, distinct_count=200_000),
+            ColumnProfile(name="department", label="department", type="text", distinct_count=7,
+                          values=[f"Dept {i}" for i in range(7)]),
+            ColumnProfile(name="order_date", label="order_date", type="date", distinct_count=336),
+            ColumnProfile(name="revenue", label="revenue", type="currency", distinct_count=1000),
+            ColumnProfile(name="units", label="units", type="integer", distinct_count=50),
+        ], health=DataHealth(rows=200_000, columns=5)))
+
+    started = time.perf_counter()
+    for request in (
+        AnalysisRequest(kind="breakdown", inputs={"measure": "big.revenue", "by": "big.department"}),
+        AnalysisRequest(kind="distribution", inputs={"measure": "big.revenue"}),
+        AnalysisRequest(kind="outliers", inputs={"measure": "big.revenue"}),
+        AnalysisRequest(kind="correlation", inputs={"measure": "big.revenue",
+                                                    "measure_b": "big.units"}),
+        AnalysisRequest(kind="trend", inputs={"measure": "big.revenue", "date": "big.order_date",
+                                              "by": "big.department"}),
+        AnalysisRequest(kind="change", inputs={"measure": "big.revenue",
+                                               "date": "big.order_date"}),
+    ):
+        tile = analyses.run(session, request)
+        assert tile.statement and tile.table.row_count <= ROW_CAP
+    assert time.perf_counter() - started < settings.query_timeout_s

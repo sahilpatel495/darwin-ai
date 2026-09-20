@@ -54,19 +54,37 @@ def is_null(value: str | None) -> bool:
 MAX_FOLD_DISTINCT = 50  # more spellings than this is free text, not a category
 
 
+def category_counts(values: Iterable[str]) -> Counter[str] | None:
+    """How often each spelling occurs, or None as soon as there are more than
+    MAX_FOLD_DISTINCT of them.
+
+    The early exit is the point: a free-text column of 217,000 remarks is not a category and
+    will be left alone anyway, so counting every distinct value in it is pure cost. Eleven
+    spellings of "Sales" are found in the first few dozen rows either way.
+    """
+    counts: Counter[str] = Counter()
+    for value in values:
+        counts[value] += 1
+        if len(counts) > MAX_FOLD_DISTINCT:
+            return None
+    return counts
+
+
 def spelling_variants(counts: Counter[str]) -> dict[str, str]:
     """Map each spelling of a category value to the one spelling the column will use.
 
-    Two spellings are the same value when they are equal ignoring case and every space:
-    "sales", "SALES" and "Sales " are one department, and a plain
-    `WHERE department = 'Sales'` that returns 158 of 164 people is the kind of quietly
-    wrong answer this product exists to prevent. The winner is the most common spelling;
-    ties go to the one that starts with a capital, then alphabetically, so the result never
-    depends on the order rows happen to arrive in.
+    Two spellings are the same value when they are equal after trimming, collapsing runs of
+    inner whitespace to one space, and ignoring case: "sales", "SALES" and "Sales " are one
+    department, and a plain `WHERE department = 'Sales'` that returns 158 of 164 people is
+    the kind of quietly wrong answer this product exists to prevent. The winner is the most
+    common spelling; ties go to the one that starts with a capital, then alphabetically, so
+    the result never depends on the order rows happen to arrive in.
 
-    Anything that differs by more than case and space is left alone. "Salse" is a typo and
-    "Bangalore" is another name for Bengaluru, but merging either needs a judgement about
-    meaning that ingestion has no right to make silently.
+    Anything that differs by more than case and whitespace is left alone. "Salse" is a typo,
+    "Bangalore" is another name for Bengaluru, and "PreSales" is not "Pre Sales" — deleting
+    a space changes the word, so a team called "PreSales" is never renamed into somebody
+    else's team. Merging any of those needs a judgement about meaning that ingestion has no
+    right to make silently.
 
     Only spellings that change are returned, so an empty result means nothing to report.
     """
@@ -74,7 +92,7 @@ def spelling_variants(counts: Counter[str]) -> dict[str, str]:
         return {}
     groups: dict[str, list[str]] = {}
     for value in counts:
-        groups.setdefault("".join(value.split()).casefold(), []).append(value)
+        groups.setdefault(" ".join(value.split()).casefold(), []).append(value)
     folded: dict[str, str] = {}
     for spellings in groups.values():
         if len(spellings) == 1:

@@ -33,6 +33,7 @@ from app.contracts import (
     StepEvent,
 )
 from app.ingest import IngestError
+from app.insights import dashboard
 from app.insights.routes import router as insights_router
 from app.limits import LimitExceeded, Limits, client_ip
 from app.llm.client import PoolClient
@@ -200,6 +201,7 @@ def delete_session(session_id: str) -> None:
     """"New session" in the UI: the tables, the history and the temp folder are dropped now,
     not when the TTL gets round to it."""
     store.delete(session_id)
+    dashboard.clear_cache(session_id)  # the overview holds display strings computed from the files
 
 
 @app.get("/api/sessions/{session_id}/catalog", response_model=Catalog)

@@ -177,8 +177,20 @@ def _mentions(text: str, phrase: str) -> list[tuple[int, int]]:
 # --------------------------------------------------------------------------
 
 
+def _binds(column: ColumnProfile, role: str) -> bool:
+    """A column can stand for a role only if it has values in it.
+
+    A header with nothing under it is kept as an empty column (ingest says so in the
+    receipt), and "LWD" on the sheet of people who have not left is exactly that. Bound to
+    exit_date it satisfies the attrition metric on paper, and a session holding only that
+    sheet then answers "attrition is 0%" — a refusal turned into a number. Ignored, the
+    metric comes back with exit_date missing and the app refuses and names it.
+    """
+    return column.role == role and column.distinct_count > 0
+
+
 def _column_with_role(table: TableProfile, role: str) -> ColumnProfile | None:
-    return next((c for c in table.columns if c.role == role), None)
+    return next((c for c in table.columns if _binds(c, role)), None)
 
 
 def _resolve(metric: Metric, catalog: Catalog) -> ResolvedMetric:
@@ -273,7 +285,7 @@ def find_ambiguity(
         if (clarification or {}).get(term) in real_columns or not _asks_about(question, term, catalog):
             continue
         candidates = [(role, table, column) for role in roles for table in catalog.tables
-                      if table.name not in stacked for column in table.columns if column.role == role]
+                      if table.name not in stacked for column in table.columns if _binds(column, role)]
         if len({role for role, _, _ in candidates}) < 2:
             continue
         explicit = {phrase for role, _, column in candidates

@@ -22,9 +22,17 @@ from app.catalog.glossary import find_ambiguity, match_metrics
 from app.catalog.prompt_context import build_metric_context, build_schema_context
 from app.config import settings
 from app.contracts import (
-    Answer, AskRequest, Attempt, Catalog, Clarification, ClarifyOption, CrossCheck, StepEvent,
+    Answer,
+    AskRequest,
+    Attempt,
+    Catalog,
+    Clarification,
+    ClarifyOption,
+    CrossCheck,
+    StepEvent,
     Work,
 )
+from app.insights.facts import insight_lines
 from app.llm.client import LLMClient, LLMUnavailable
 from app.query.confidence import Signals, score
 from app.query.executor import ExecResult, QueryError, QueryTimeout, execute
@@ -229,7 +237,8 @@ def _run(session: SessionLike, req: AskRequest, llm: LLMClient, trace: _Trace) -
 
     text = narration.text if result.rows else "No rows matched that question. " + narration.text
     return Answer(id=uuid.uuid4().hex, kind="answer", question=req.question, text=text.strip(), chart=chart,
-                  table=table, work=work, confidence=score(signals), followups=narration.followups[:3])
+                  table=table, work=work, confidence=score(signals), followups=narration.followups[:3],
+                  insights=insight_lines(table, kinds))  # computed from the rows, never model-written
 
 
 def _generate_and_execute(session, req, llm, trace, schema_context, metric_context):

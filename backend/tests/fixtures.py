@@ -87,10 +87,12 @@ def _build_db() -> duckdb.DuckDBPyConnection:
             " 2 - (row_number() OVER (ORDER BY emp_id, m)) % 3 AS days_absent"
             f" FROM employees, (SELECT unnest({list(months)}) AS m)"
         )
+    # source_file holds member TABLE names, as app.catalog.unions writes them: a file name
+    # is text the uploader chose and never reaches a prompt (DECISIONS 16(b)).
     conn.execute(
         "CREATE VIEW attendance_all AS"
-        " SELECT *, 'attendance_q1.csv' AS source_file FROM attendance_q1"
-        " UNION ALL BY NAME SELECT *, 'attendance_q2.csv' AS source_file FROM attendance_q2"
+        " SELECT *, 'attendance_q1' AS source_file FROM attendance_q1"
+        " UNION ALL BY NAME SELECT *, 'attendance_q2' AS source_file FROM attendance_q2"
     )
     return conn
 

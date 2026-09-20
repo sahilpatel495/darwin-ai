@@ -156,8 +156,11 @@ def _spread_lines(shape: _Shape, measure: int, ranked: list[int],
     values = [shape.value(i, measure) for i in ranked]
     kind = shape.kinds[measure]
     addable = kind != "percent" and not shape.table.truncated and all(v >= 0 for v in values)
+    # The mean of a column of averages is still an honest "average across the groups"; a share
+    # of their sum is not, because that sum is not the total of anything.
+    summable = addable and _addable_name(shape, measure)
     lines = []
-    if addable and _addable_name(shape, measure) and len(ranked) > 3 and (total := sum(values)) > 0:
+    if summable and len(ranked) > 3 and (total := sum(values)) > 0:
         top_three = sum(sorted(values, reverse=True)[:3])
         lines.append(f"Top 3 make up {to_display(100 * top_three / total, 'percent')} of the total.")
     low, high = shape.value(bottoms[0], measure), shape.value(tops[0], measure)

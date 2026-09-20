@@ -275,8 +275,14 @@ def test_same_schema_files_get_a_union_view_and_a_hostile_file_name_is_only_ever
 
     view = next(t for t in catalog.tables if t.is_view)
     assert view.row_count == 4
-    rows = session.conn.execute(f'SELECT source_file, sum(CAST(days_absent AS INT)) FROM "{view.name}" GROUP BY 1').fetchall()
-    assert dict(rows) == {"attendance_q1.csv": 1, hostile: 6}
+    # source_file names the member TABLE, never the upload, so the file name is not in the
+    # view at all. The stand-in ingest does not normalise names, so the table name here is
+    # still the hostile text: the literal is escaped, and attendance_q1 is still standing.
+    hostile_table = next(t.name for t in catalog.tables if t.source_file == hostile)
+    rows = dict(session.conn.execute(
+        f'SELECT source_file, sum(CAST(days_absent AS INT)) FROM "{view.name}" GROUP BY 1').fetchall())
+    assert sorted(rows) == sorted(t.name for t in catalog.tables if not t.is_view)
+    assert rows == {"attendance_q1": 1, hostile_table: 6} and hostile not in rows
     assert session.conn.execute("SELECT count(*) FROM attendance_q1").fetchone()[0] == 2  # still there
 
 

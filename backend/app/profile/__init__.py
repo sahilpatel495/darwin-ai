@@ -12,7 +12,13 @@ from collections import Counter
 import pandas as pd
 
 from app.contracts import ColumnProfile, ColumnType, PiiKind, TableProfile
-from app.ingest.cleaning import MAX_EXAMPLE_LENGTH, display_name, shorten, spelling_variants
+from app.ingest.cleaning import (
+    MAX_EXAMPLE_LENGTH,
+    category_counts,
+    display_name,
+    shorten,
+    spelling_variants,
+)
 from app.ingest.types import IngestedTable
 from app.profile.pii import detect_pii
 from app.profile.roles import IDENTIFIER_PATTERN, detect_role
@@ -84,8 +90,10 @@ def _fold_spellings(df: pd.DataFrame, labels: dict[str, str], types: dict[str, C
     for name in df.columns:
         if types[name] != "text" or pii[name] or _is_identifier(name, labels[name], types[name]):
             continue
-        counts = Counter(v for v in df[name] if isinstance(v, str))
-        if folded := spelling_variants(counts):
+        # Stops at the 51st distinct spelling: free text is never folded, so counting the
+        # whole of a 217,000-row remarks column only to throw the counter away is waste.
+        counts = category_counts(v for v in df[name] if isinstance(v, str))
+        if counts is not None and (folded := spelling_variants(counts)):
             folds[name] = folded
             notes += _spelling_notes(display_name(labels[name], name), folded, counts)
     if not folds:

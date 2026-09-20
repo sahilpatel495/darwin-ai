@@ -13,10 +13,13 @@ into the clean ones.
 from __future__ import annotations
 
 import datetime as dt
+import re
 from pathlib import Path
 
+import duckdb
 import pandas as pd
 import pytest
+from app.contracts import Catalog, ColumnProfile, DataHealth, TableProfile
 from app.insights import dashboard as D
 from app.insights.dashboard import MAX_TILES, QUALITY_SECTION, build, clear_cache
 from app.insights.models import Dashboard, InsightTile
@@ -24,7 +27,7 @@ from app.query.guard import validate_sql
 from app.query.presentation import to_display
 from app.query.verify import fan_out_risks
 from app.sessions import SessionStore
-from tests.fixtures import CANARY_EMAIL, CANARY_NAME, make_session
+from tests.fixtures import CANARY_EMAIL, CANARY_NAME, FixtureSession, make_session
 
 ROOT = Path(__file__).resolve().parents[3]
 CLEAN = ROOT / "demo_data" / "_clean"
@@ -382,3 +385,121 @@ def _fake_tile(kind: str, rows: list[list], tile_id: str = "t") -> InsightTile:
                                   for i, v in enumerate(row)] for row in rows],
                         row_count=len(rows))
     return InsightTile(id=tile_id, title="t", kind=kind, statement="Something.", table=table)
+
+
+# ---- one definition of who counts ---------------------------------------------------------
+
+
+@pytest.fixture
+def ragged(tmp_path):
+    """Six employees: one with no joining date, one who has not started yet, one who has left.
+    All three are shapes a real HR export has and the clean sample does not."""
+    csv = tmp_path / "employees.csv"
+    csv.write_text(
+        "emp_id,name,department,date_of_joining,exit_date,ctc\n"
+        "E1,Asha Rao,Engineering,2019-04-01,,2400000\n"
+        "E2,Vikram Shah,Engineering,2024-07-15,,1800000\n"
+        "E3,Meera Iyer,Sales,,,1500000\n"
+        f"E4,Rohan Das,Sales,{TODAY.year + 1}-01-01,,1200000\n"
+        "E5,Kavya Nair,HR,2022-02-14,2025-03-31,900000\n"
+        "E6,Sana Khan,Sales,2021-09-01,,1100000\n", encoding="utf-8")
+    session = SessionStore().create()
+    try:
+        session.add_files([(csv, "employees.csv")])
+        yield session
+    finally:
+        session.close()
+
+
+def test_the_headcount_and_the_bars_beside_it_count_the_same_people(ragged):
+    """The KPI had the "has started" test and the breakdown did not, so a row with no joining
+    date was one person to the bars and nobody to the figure above them. Two numbers on one
+    page that contradict each other is the failure this half of the product exists to avoid."""
+    dashboard = build(ragged)
+    headcount = tile(dashboard, "people-headcount").table.rows[0][0]
+    bars = tile(dashboard, "people-by-department").table.rows
+    assert headcount == 3  # E1, E2, E6: E3 has no start, E4 has not started, E5 has left
+    assert sum(row[1] for row in bars) == headcount
+
+
+def test_an_unknown_joining_date_is_not_ten_years_of_service(ragged):
+    """`CASE WHEN tenure < 1 ... ELSE '10 years or more'` files a NULL under the ELSE, so a
+    missing joining date used to be reported as the company's longest-serving employee."""
+    bands = dict(tile(build(ragged), "people-tenure").table.rows)
+    assert sum(bands.values()) == 3
+    assert bands.get("10 years or more") is None
+
+
+def test_a_year_nobody_joined_in_is_never_a_bar(ragged):
+    """A row with no joining date would become a "—" bar in the joiners series: a gap in the
+    file drawn as a year."""
+    years = [row[0] for row in tile(build(ragged), "people-flow").table.rows]
+    assert None not in years and all(isinstance(year, int) for year in years)
+
+
+# ---- the words on the data-quality cards ----------------------------------------------------
+
+
+def test_a_single_finding_is_not_printed_twice(tmp_path):
+    """The statement and the one insight line under it were the same sentence, which reads as
+    two problems where there is one."""
+    csv = tmp_path / "gaps.csv"
+    csv.write_text("region,revenue\nNorth,\nSouth,\nEast,\n", encoding="utf-8")
+    session = SessionStore().create()
+    try:
+        session.add_files([(csv, "gaps.csv")])
+        card = tile(build(session), "quality-attention")
+        assert card.statement not in card.insights
+        assert card.insights == []
+    finally:
+        session.close()
+
+
+def test_no_count_on_a_quality_card_reads_as_a_plural_of_one(tmp_path):
+    """One file, one row, one personal-data column, one link: every count on the cards that
+    explain how careful we are with the data is a 1. "1 columns hold personal data" there is
+    the first thing a reader stops trusting."""
+    session = SessionStore().create()
+    try:
+        one = tmp_path / "one.csv"
+        one.write_text("emp_id,name,region,revenue\nE1,Asha Rao,North,10\n", encoding="utf-8")
+        session.add_files([(one, "one.csv")])
+        cards = [c for s in build(session).sections if s.title == QUALITY_SECTION for c in s.tiles]
+        assert cards
+        for card in cards:
+            for text in [card.statement, *card.insights]:
+                assert not re.search(r"\b1 (?!to\b)[a-z]+s\b", text), text
+        cleaned = next(c for c in cards if c.id == "quality-cleaned")
+        assert cleaned.statement.startswith("Read and cleaned 1 row across 1 table")
+        privacy = next(c for c in cards if c.id == "quality-privacy")
+        assert privacy.statement == "Personal data found in 1 column, all hidden from the AI."
+    finally:
+        session.close()
+
+
+# ---- scale ---------------------------------------------------------------------------------
+
+
+def test_two_hundred_thousand_rows_still_build_inside_the_budget():
+    """The overview is the first thing drawn after an upload, so its cost has to be bounded by
+    the number of tiles, not by the number of rows."""
+    conn = duckdb.connect(":memory:")
+    conn.execute(
+        "CREATE TABLE big AS SELECT i AS order_id, ('Region ' || (i % 7)) AS region,"
+        " make_date(2024, 1 + (i % 12), 1 + (i % 28)) AS order_date,"
+        " (i % 1000) * 137.0 AS revenue FROM range(200000) t(i)")
+    table = TableProfile(name="big", source_file="big.csv", row_count=200_000, columns=[
+        ColumnProfile(name="order_id", label="order_id", type="integer", is_identifier=True,
+                      is_unique=True, distinct_count=200_000),
+        ColumnProfile(name="region", label="region", type="text", role="region", distinct_count=7),
+        ColumnProfile(name="order_date", label="order_date", type="date", role="date",
+                      distinct_count=336),
+        ColumnProfile(name="revenue", label="revenue", type="currency", role="amount",
+                      distinct_count=1000),
+    ], health=DataHealth(rows=200_000, columns=4))
+    session = FixtureSession(id="big", conn=conn, catalog=Catalog(
+        session_id="big", version=1, fingerprint="big", tables=[table]))
+    dashboard = build(session)
+    assert dashboard.generated_ms < 1500
+    assert 0 < len(every_tile(dashboard)) <= MAX_TILES
+    assert all(card.statement for card in every_tile(dashboard))

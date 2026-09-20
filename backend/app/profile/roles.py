@@ -40,9 +40,15 @@ ROLE_SYNONYMS: dict[str, tuple[str, ...]] = {
                     "empcode", "employee_code", "employee_no", "employee_num", "employee_number",
                     "staff_id", "staff_code", "staff_no", "personnel_no", "personnel_number",
                     "worker_id", "associate_id", "ee_id"),
-    "manager_id": ("manager_id", "manager_code", "manager_emp_id", "manager_emp_code",
-                   "manager_employee_id", "reporting_manager_id", "reporting_manager_code",
-                   "reports_to_id", "supervisor_id", "supervisor_code", "mgr_id", "mgr_code",
+    # The "*_no" spellings are the ones stores.csv uses ("Manager EmpNo" -> manager_emp_no);
+    # "*empno" is for the all-caps MANAGER EMPNO, which no normaliser can find a word break in.
+    "manager_id": ("manager_id", "manager_code", "manager_no", "manager_number",
+                   "manager_emp_id", "manager_emp_code", "manager_emp_no", "manager_empno",
+                   "manager_employee_id", "manager_employee_code", "manager_employee_no",
+                   "reporting_manager_id", "reporting_manager_code", "reporting_manager_no",
+                   "reporting_manager_emp_no", "reporting_manager_empno",
+                   "reports_to_id", "supervisor_id", "supervisor_code", "supervisor_no",
+                   "supervisor_emp_no", "mgr_id", "mgr_code", "mgr_no", "mgr_emp_no",
                    "l1_manager_id", "l1_manager_code"),
     "person_name": ("person_name", "name", "employee_name", "emp_name", "full_name", "staff_name"),
     "department": ("department", "dept", "department_name", "dept_name", "business_unit", "function"),

@@ -155,9 +155,14 @@ def _remember(key: tuple[str, int], dashboard: Dashboard) -> None:
         del _CACHE[next(iter(_CACHE))]  # insertion order: the oldest session goes first
 
 
-def clear_cache() -> None:
-    """Forget every cached overview. For tests and for "new session", which deletes the data."""
-    _CACHE.clear()
+def clear_cache(session_id: str | None = None) -> None:
+    """Forget cached overviews: every one (tests), or one session's when "new session" deletes
+    its data. The cache key starts with the session id."""
+    if session_id is None:
+        _CACHE.clear()
+        return
+    for key in [k for k in _CACHE if k[0] == session_id]:
+        del _CACHE[key]
 
 
 # --------------------------------------------------------------------------- running

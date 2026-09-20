@@ -65,7 +65,10 @@ def _hr_database() -> tuple[duckdb.DuckDBPyConnection, Catalog]:
              "rating": ("integer", "rating"), "days_absent": ("integer", "days_absent"),
              "working_days": ("integer", "working_days"), "lop_days": ("integer", "lop_days"),
              "paid_days": ("integer", "paid_days")}
-    columns = [ColumnProfile(name=n, label=n, type=t, role=r) for n, (t, r) in roles.items()]
+    # distinct_count is read: a role column with no values at all cannot stand for its role.
+    columns = [ColumnProfile(name=n, label=n, type=t, role=r,
+                             distinct_count=conn.execute(f"SELECT count(DISTINCT {n}) FROM people").fetchone()[0])
+               for n, (t, r) in roles.items()]
     table = TableProfile(name="people", source_file="people.csv", row_count=4, columns=columns,
                          health=DataHealth(rows=4, columns=len(columns)))
     return conn, Catalog(session_id="s", version=1, fingerprint="f", tables=[table], glossary=list(DEFAULT_GLOSSARY))
@@ -123,6 +126,25 @@ def test_a_metric_with_missing_roles_is_returned_without_a_hint(catalog):
     assert resolved.bindings == {"join_date": "employees.date_of_joining"}
 
 
+def test_a_role_column_with_no_values_at_all_is_a_missing_role_not_a_zero(catalog):
+    """The Active sheet of a staff workbook keeps its empty LWD column, so a session holding
+    only that sheet has an exit_date column with nothing in it. Bound, the attrition pattern
+    runs and answers 0%: nobody left. Unbound, the app refuses and names what is missing."""
+    exit_date = next(c for t in catalog.tables for c in t.columns if c.role == "exit_date")
+    exit_date.distinct_count, exit_date.null_fraction = 0, 1.0
+    (resolved,) = match_metrics("What is the attrition rate for FY25?", catalog)
+    assert resolved.missing_roles == ["exit_date"] and resolved.sql_hint == ""
+
+
+def test_the_empty_column_is_ignored_for_ambiguity_chips_too(catalog):
+    """A pay column with no values is not a choice worth offering, and offering it is how a
+    one-click clarification leads to a column that can only answer NULL."""
+    net = next(c for t in catalog.tables for c in t.columns if c.role == "net")
+    net.distinct_count, net.null_fraction = 0, 1.0
+    values = [o.value for o in find_ambiguity("average salary by department", catalog, None).options]
+    assert values and not any(v.endswith(".net") for v in values)
+
+
 @pytest.mark.parametrize(("question", "keys"), [
     ("what's our ATTRITION this year", ["attrition_rate"]),
     ("Show employee turnover by department", ["attrition_rate"]),
@@ -144,7 +166,8 @@ def test_matching_is_by_whole_phrase(catalog, question, keys):
 def test_when_several_tables_have_the_roles_the_union_view_is_preferred(catalog):
     for table in catalog.tables:
         if table.name.startswith("attendance"):
-            table.columns.append(ColumnProfile(name="working_days", label="Working Days", type="integer", role="working_days"))
+            table.columns.append(ColumnProfile(name="working_days", label="Working Days", type="integer",
+                                               role="working_days", distinct_count=1))
     (resolved,) = match_metrics("absenteeism rate in Q1", catalog)
     assert resolved.bindings == {"days_absent": "attendance_all.days_absent", "working_days": "attendance_all.working_days"}
 
@@ -243,8 +266,8 @@ def test_a_file_called_salary_does_not_switch_the_question_off(catalog):
 def test_union_members_are_not_offered_twice(catalog):
     for table in catalog.tables:
         if table.name.startswith("attendance"):
-            table.columns += [ColumnProfile(name="gross", label="Gross", type="currency", role="gross"),
-                              ColumnProfile(name="net", label="Net", type="currency", role="net")]
+            table.columns += [ColumnProfile(name="gross", label="Gross", type="currency", role="gross", distinct_count=8),
+                              ColumnProfile(name="net", label="Net", type="currency", role="net", distinct_count=8)]
     _without(catalog, "ctc")
     for table in catalog.tables:
         if table.name == "salary_register":

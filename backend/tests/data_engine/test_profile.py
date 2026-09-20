@@ -134,6 +134,10 @@ def test_an_empty_column_is_not_pii():
         # camelCase is a word break everywhere, not only in the header above.
         ("JoinDate", "date", "join_date"), ("GrossPay", "currency", "gross"),
         ("manager_id", "text", "manager_id"), ("reporting_manager_code", "text", "manager_id"),
+        # stores.csv keys its manager by "Manager EmpNo"; without the role the link to the
+        # staff master is only ever a suggestion, because the headers do not agree.
+        ("Manager EmpNo", "text", "manager_id"), ("manager_emp_no", "text", "manager_id"),
+        ("Reporting Manager Code", "text", "manager_id"), ("MANAGER EMPNO", "text", "manager_id"),
         ("CTC", "currency", "ctc"), ("annual_ctc", "currency", "ctc"), ("cost_to_company", "decimal", "ctc"),
         ("gross", "currency", "gross"), ("gross_pay", "currency", "gross"), ("gross_salary", "integer", "gross"),
         ("Gross (₹)", "currency", "gross"),
