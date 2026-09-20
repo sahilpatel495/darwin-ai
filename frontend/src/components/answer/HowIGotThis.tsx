@@ -90,9 +90,9 @@ function Flow({ nodes }: { nodes: FlowNode[] }) {
 // `data-*` is spelled out because HTMLAttributes only allows it on JSX itself, not on a prop type.
 type SectionProps = { title: string; children: ReactNode } & HTMLAttributes<HTMLElement> & { [key: `data-${string}`]: string }
 
-function Section({ title, children, ...rest }: SectionProps) {
+function Section({ title, children, className, ...rest }: SectionProps) {
   return (
-    <section className="border-t border-hairline-soft py-4 first:border-t-0 first:pt-0" {...rest}>
+    <section className={className ?? 'border-t border-hairline-soft py-4 first:border-t-0 first:pt-0'} {...rest}>
       <h4 className="mb-1.5 text-body-sm font-bold text-ink-deep">{title}</h4>
       <div className="text-body-sm text-slate">{children}</div>
     </section>
@@ -245,8 +245,16 @@ export default function HowIGotThis({ work, tables }: { work: Work; tables: Tabl
           // The verified line "No rows or personal data were sent to the AI" links straight here,
           // so this section takes focus when it does: data-section is that anchor, tabIndex lets
           // it hold focus.
-          <Section title="What the model saw" data-section="payloads" tabIndex={-1}>
-            <p className="mb-2 font-medium text-ink-deep">
+          // The one section that is a promise rather than a detail, so it is the one that gets a
+          // panel of its own: everything above it says how the number was made, this says what
+          // left the building.
+          <Section
+            title="What the model saw"
+            data-section="payloads"
+            tabIndex={-1}
+            className="mt-2 rounded-xl border border-success/20 bg-success-soft/50 p-4 sm:p-5"
+          >
+            <p className="mb-3 text-body-md font-medium text-ink-deep">
               Column names, types, statistics and short lists of category values (such as department names) were sent. No rows, and nothing from a personal data column.
             </p>
             <div>
@@ -258,7 +266,7 @@ export default function HowIGotThis({ work, tables }: { work: Work; tables: Tabl
         )}
 
         {(work.cached || totalMs > 0) && (
-          <p className="border-t border-hairline-soft pt-4 text-body-sm text-steel">
+          <p className="mt-4 border-t border-hairline-soft pt-4 text-body-sm text-steel">
             {work.cached ? 'Same question on the same data as before, so the saved answer was returned.' : `Answered in ${formatDuration(totalMs)}.`}
           </p>
         )}
