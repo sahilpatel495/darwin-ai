@@ -1,7 +1,12 @@
-# Verity
+# DarwinLens
 
-Verity is a web app for asking questions of messy spreadsheets: upload CSV or Excel files, ask in
-plain English, and get an answer with a chart, a confidence level with its reasons, and a panel
+*See your HR data clearly. Verify every answer.*
+
+> Independent prototype for the Darwinbox FDE assignment. Not affiliated with or endorsed by
+> Darwinbox.
+
+DarwinLens is a web app for asking questions of messy spreadsheets: upload CSV or Excel files, ask
+in plain English, and get an answer with a chart, a confidence level with its reasons, and a panel
 showing the SQL, the data it touched and the exact prompts the model was sent. It was built as a
 take-home for a Forward Deployed Engineer role, with messy Indian HR exports as the worked example;
 nothing in the engine is specific to HR, and the sample data includes a sales file to show it.
@@ -110,7 +115,7 @@ so a customer can trust the answer on their own data.
 
 ## Quick start
 
-Verity needs one free API key to answer questions. A Groq key takes a minute and no card:
+DarwinLens needs one free API key to answer questions. A Groq key takes a minute and no card:
 <https://console.groq.com/keys>. Without any key the app still starts, loads the sample data, and
 **the Overview and Analyses screens work in full**, because they call no model; asking a question
 then replies that no AI model is configured.
@@ -120,7 +125,7 @@ then replies that no AI model is configured.
 Needs Docker Desktop, or Docker Engine with Compose 2.24 or newer (`docker compose version`).
 
 ```bash
-git clone <repo-url> verity && cd verity
+git clone <repo-url> darwinlens && cd darwinlens
 cp .env.example .env        # then open .env and paste your key after GROQ_API_KEY=
 docker compose up --build   # or: make up
 ```
@@ -166,8 +171,8 @@ with one in a different column order and one with a BOM, US-format dates, rent w
 and four files in `edge_cases/` that must be refused.
 
 - [`test_files/EXPECTED.md`](test_files/EXPECTED.md) is the answer key, computed with pandas from
-  the clean frames **before** the mess was injected. If Verity disagrees with a number in it,
-  Verity is wrong.
+  the clean frames **before** the mess was injected. If DarwinLens disagrees with a number in it,
+  DarwinLens is wrong.
 - [`test_files/README.md`](test_files/README.md) has a fifteen-minute test script, what the Data
   Health receipt should say for each file, and — under "Still wrong" — the defects that are still
   open. `uv run python test_files/generate.py` regenerates all of it byte-identically.
@@ -185,13 +190,13 @@ git.
 3. Click **New +**, then **Blueprint**.
 4. If your repositories are not listed, click **Connect GitHub** and give Render access to this
    one. Click **Connect** next to the repository.
-5. Blueprint name: `verity`. Branch: `main`. Leave the Blueprint path as `render.yaml`.
-6. Render lists one service, `verity`, and asks for the four API keys marked `sync: false`. Paste
+5. Blueprint name: `darwinlens`. Branch: `main`. Leave the Blueprint path as `render.yaml`.
+6. Render lists one service, `darwinlens`, and asks for the four API keys marked `sync: false`. Paste
    `GROQ_API_KEY`; fill in the others only if you have them. One key is enough: the app treats a
    missing or empty key as "skip this provider". Keys can be added or changed later under the
    service's **Environment** tab.
 7. Click **Deploy Blueprint**. When the service shows **Live**, copy its URL from the top of the
-   service page (`https://verity.onrender.com`, or with a suffix if the name is taken) and open
+   service page (`https://darwinlens.onrender.com`, or with a suffix if the name is taken) and open
    `<url>/healthz`: it replies `{"status":"ok"}`.
 8. Keep it awake. In GitHub open **Settings > Secrets and variables > Actions > Variables > New
    repository variable**, name `APP_URL`, value the URL from step 7.
@@ -216,7 +221,7 @@ A variable left empty counts as unset. A test fails if `config.py` reads a varia
 
 ### Provider failover chains
 
-Verity talks to any OpenAI-compatible endpoint and runs on free tiers, so reliability comes from
+DarwinLens talks to any OpenAI-compatible endpoint and runs on free tiers, so reliability comes from
 **chains**: an ordered, comma-separated list of `provider:model`. Providers with no key are
 skipped. If a provider is rate-limited, down, slow (30 s) or rejects the request, the next entry
 is tried. An entry that fails goes on a cooldown — the provider's own retry hint for a 429
@@ -265,7 +270,7 @@ ollama pull gpt-oss:20b
 LLM_SQL_CHAIN=ollama:gpt-oss:20b
 LLM_NARRATE_CHAIN=ollama:gpt-oss:20b
 CROSSCHECK=off
-# only when Verity itself runs in Docker (Compose maps this name to the host, on Linux too):
+# only when DarwinLens itself runs in Docker (Compose maps this name to the host, on Linux too):
 OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
 ```
 
@@ -435,7 +440,7 @@ Every number above, and the full failure table, is in [`eval/REPORT.md`](eval/RE
 | Browser-side | CSP `default-src 'self'`, `frame-ancestors 'none'`, `nosniff`, `no-referrer`, HSTS. The session id is 128 random bits in the URL path, kept in `sessionStorage`, not a cookie |
 
 Not included, on purpose: login and multi-tenancy. The session id is the only credential. Put
-Verity behind the customer's single sign-on proxy before giving it real data on a shared network.
+DarwinLens behind the customer's single sign-on proxy before giving it real data on a shared network.
 
 ## Deliberate cuts and known limits
 

@@ -1,3 +1,5 @@
+> Written when the product was called Verity. It is now **DarwinLens**; the plan below is left as it was written.
+
 # Verity Implementation Plan
 
 > **For agentic workers:** each task below is a self-contained brief for one build agent, followed by an independent reviewer. Interfaces are real code: the typed stubs already in the repo are the contract. Work test-first: write the listed cases as failing tests, then implement.

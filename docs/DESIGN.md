@@ -1,4 +1,4 @@
-# Verity — Design Spec
+# DarwinLens — Design Spec
 
 *Plain-English questions over messy spreadsheets, with answers you can verify.*
 
@@ -59,7 +59,7 @@ Multi-file upload (CSV, XLSX, multi-sheet) · cleaning + profiling · per-sessio
 10. Golden eval (40 questions, dev/holdout split) + in-app Trust Report page
 11. Abuse limits: per-IP rate limit, global daily LLM budget
 12. A whole-app journey, local-first: projects, previous questions and a printable saved-answers board live in the browser; the server keeps no customer data (`docs/DESIGN_SYSTEM.md` §6–7)
-13. Learning the product: first-run tour, a "How Verity works" explainer, "What's this?" on every trust signal
+13. Learning the product: first-run tour, a "How DarwinLens works" explainer, "What's this?" on every trust signal
 
 **P1.5 — not planned at 13:00, built because the day found the need**
 14. **The no-AI half** (`backend/app/insights/`): an automatic Overview of computed tiles, and guided analyses (ten published, nine runnable — the tenth is an open item in `docs/PENDING.md`). No model call anywhere in it; same guard, executor, formatter and chart rules as an answer. Reasons in `DECISIONS.md` 27.

@@ -1,4 +1,4 @@
-# Verity: one-page write-up
+# DarwinLens: one-page write-up
 
 Sahil Patel · Forward Deployed Engineer take-home · demo: <!-- DEPLOY_URL -->
 

@@ -60,6 +60,16 @@ If the numbers move, the four places to update are `README.md` ("Results"), `WRI
   say that nine of the ten in the picker run and name this one as unfinished — they do not claim
   nine exist, because the analyst can see ten cards.
 
+- **Four files still say "Verity".** The rename to DarwinLens (`DECISIONS.md` 31) skipped the
+  files that were being edited for accounts at the time, so the old name survives in
+  `backend/app/main.py` (the FastAPI `title=` and `logging.getLogger("verity")`, plus one error
+  sentence), `backend/app/config.py` (the `WORK_DIR` default `/tmp/verity`, which `auth_db_path`
+  builds on — the Dockerfile already sets `/tmp/darwinlens`), `render.yaml` (`name: verity`, which
+  `README.md` step 6 already calls `darwinlens`) and `.env.example` (the header line and the two
+  `/tmp/verity` comments). `backend/app/auth.py`'s docstrings mention both the old storage-key
+  prefix and `/tmp/verity`. None of it changes behaviour; all of it is visible to a reader. Do it
+  in one pass when the accounts work lands, and re-run `uv run pytest backend/tests .github/scripts`.
+
 ## 4. Correctness (highest value next)
 
 - **A window wider than the question's period.** The one challenge-set failure (`ch-06`). The
