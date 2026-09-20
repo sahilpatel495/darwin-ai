@@ -1,22 +1,34 @@
 // Draws the chart the backend's rules chose. The model never picks or styles a chart: the spec
 // is plain data, and chartData.ts has already turned anything that does not fit into a table.
+//
+// Ledger styling (§2): series colours in token order, no frame around the plot, a hairline grid
+// in the rule colour, and every number in the small type with tabular figures — the axis, the
+// tooltip and the label beside a bar all read like the table under them.
 import { Bar, BarChart, CartesianGrid, LabelList, Legend, Line, LineChart, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, type LabelProps } from 'recharts'
 import type { ChartSpec } from '../../types'
 import { formatTick, formatValue, humanize } from '../../lib/format'
 import type { ChartData, Point, ScatterPoint } from './chartData'
 
-type Plotted = Exclude<ChartData, { kind: 'table' }>
+type Plotted = Exclude<ChartData, { kind: 'table' | 'kpi' }>
 type Series = Extract<ChartData, { kind: 'bar' | 'line' | 'grouped_bar' }>
 
 // Written out in full so Tailwind sees each token in the source and keeps it in the CSS.
 const SERIES_COLORS = ['var(--color-series-1)', 'var(--color-series-2)', 'var(--color-series-3)', 'var(--color-series-4)', 'var(--color-series-5)']
 
-const TICK = { fill: 'var(--color-ink-soft)', fontSize: 12 }
-const GRID = 'var(--color-line)'
-const TOOLTIP_BOX = { border: '1px solid var(--color-line)', borderRadius: 8, fontSize: 12, color: 'var(--color-ink)', boxShadow: 'none' }
+const TICK = { fill: 'var(--color-ink-soft)', fontSize: 13 }
+const GRID = 'var(--color-rule)'
+// A tooltip floats, so it is the one thing here that casts a shadow.
+const TOOLTIP_BOX = {
+  background: 'var(--color-sheet)',
+  border: '1px solid var(--color-rule)',
+  borderRadius: 4,
+  fontSize: 13,
+  color: 'var(--color-ink)',
+  boxShadow: 'var(--shadow-float)',
+}
 const shorten = (label: string): string => (label.length > 20 ? `${label.slice(0, 19)}…` : label) // full name is in the tooltip and table
 // Legend text stays in ink: colour identifies the mark, never the words.
-const legendText = (name: string) => <span className="text-xs text-ink-soft">{name}</span>
+const legendText = (name: string) => <span className="type-small text-ink-soft">{name}</span>
 
 interface Props {
   chart: ChartSpec
@@ -24,44 +36,31 @@ interface Props {
 }
 
 export default function ResultChart({ chart, data }: Props) {
-  if (data.kind === 'kpi') return <KpiTile title={chart.title} data={data} />
   const count = data.points.length
   const label = `${chart.title}. ${CHART_NAMES[data.kind]} with ${count} ${count === 1 ? 'point' : 'points'}. Switch to the table for exact values.`
+  const omitted = data.kind === 'scatter' ? 0 : data.omitted
   return (
     <figure className="m-0">
-      <figcaption className="mb-2 text-sm font-medium text-ink">{chart.title}</figcaption>
-      <div role="img" aria-label={label}>
+      <figcaption className="mb-3 type-small text-ink-soft">{chart.title}</figcaption>
+      {/* tabular-nums is set once here and inherited by every <text> the chart draws. */}
+      <div role="img" aria-label={label} className="tabular-nums">
         {data.kind === 'scatter' ? <ScatterPlot data={data} /> : data.kind === 'line' ? <LinePlot chart={chart} data={data} /> : <BarPlot chart={chart} data={data} />}
       </div>
-      {chart.note && <p className="mt-2 text-xs text-ink-soft">{chart.note}</p>}
+      {omitted > 0 && (
+        <p className="mt-3 type-small text-ink-soft">
+          The first {count} of {count + omitted} rows are drawn. The table has all of them.
+        </p>
+      )}
+      {chart.note && <p className="mt-2 type-small text-ink-soft">{chart.note}</p>}
     </figure>
   )
 }
 
-const CHART_NAMES: Record<Exclude<Plotted['kind'], 'kpi'>, string> = {
+const CHART_NAMES: Record<Plotted['kind'], string> = {
   bar: 'Bar chart',
   grouped_bar: 'Grouped bar chart',
   line: 'Line chart',
   scatter: 'Scatter chart',
-}
-
-function KpiTile({ title, data }: { title: string; data: Extract<ChartData, { kind: 'kpi' }> }) {
-  return (
-    <div className="rounded-card border border-line bg-sunken px-5 py-4">
-      <p className="text-sm text-ink-soft">{title}</p>
-      <p className="mt-1 text-4xl font-semibold tracking-tight text-ink tabular-nums break-words">{data.value}</p>
-      {data.supporting.length > 0 && (
-        <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
-          {data.supporting.map((s) => (
-            <div key={s.label} className="flex gap-1.5">
-              <dt className="text-ink-soft">{humanize(s.label)}</dt>
-              <dd className="m-0 font-medium text-ink tabular-nums">{s.value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-    </div>
-  )
 }
 
 /** Series names of a grouped bar are the customer's own values; column names get tidied. */
@@ -77,7 +76,7 @@ export const barEndLabel = (format: ChartSpec['value_format']) => ({ x, y, width
   if (typeof value !== 'number') return null
   const rightEdge = Math.max(Number(x), Number(x) + Number(width))
   return (
-    <text x={rightEdge + 6} y={Number(y) + Number(height) / 2} dominantBaseline="central" fontSize={12} fill="var(--color-ink)">
+    <text x={rightEdge + 6} y={Number(y) + Number(height) / 2} dominantBaseline="central" fontSize={13} fill="var(--color-ink)">
       {formatValue(value, format)}
     </text>
   )
@@ -95,10 +94,11 @@ function BarPlot({ chart, data }: { chart: ChartSpec; data: Series }) {
         <CartesianGrid horizontal={false} stroke={GRID} />
         <XAxis type="number" tick={TICK} tickLine={false} axisLine={false} tickFormatter={(v: number) => formatTick(v, format)} />
         <YAxis type="category" dataKey="x" width="auto" tick={TICK} tickLine={false} axisLine={{ stroke: GRID }} tickFormatter={shorten} interval={0} />
-        <Tooltip cursor={{ fill: 'var(--color-sunken)' }} contentStyle={TOOLTIP_BOX} formatter={tooltipValue(format)} isAnimationActive={false} />
+        <Tooltip cursor={{ fill: 'var(--color-wash)' }} contentStyle={TOOLTIP_BOX} formatter={tooltipValue(format)} isAnimationActive={false} />
         {!single && <Legend iconType="square" formatter={legendText} />}
         {data.series.map((_, i) => (
-          <Bar key={i} name={seriesLabel(data, i)} dataKey={(p: Point) => p.values[i]} fill={SERIES_COLORS[i]} radius={[0, 4, 4, 0]} maxBarSize={22} isAnimationActive={false}>
+          // 2px corners: a bar is a ruled block, not a lozenge.
+          <Bar key={i} name={seriesLabel(data, i)} dataKey={(p: Point) => p.values[i]} fill={SERIES_COLORS[i]} radius={[0, 2, 2, 0]} maxBarSize={22} isAnimationActive={false}>
             {single && <LabelList content={barEndLabel(format)} />}
           </Bar>
         ))}
@@ -146,8 +146,8 @@ function ScatterPlot({ data }: { data: Extract<ChartData, { kind: 'scatter' }> }
     <ResponsiveContainer width="100%" height={300}>
       <ScatterChart margin={{ top: 8, right: 16, bottom: 20, left: 8 }}>
         <CartesianGrid stroke={GRID} />
-        <XAxis {...axis} dataKey="x" name={xLabel} axisLine={{ stroke: GRID }} label={{ value: xLabel, position: 'insideBottom', offset: -12, fontSize: 12, fill: 'var(--color-ink-soft)' }} />
-        <YAxis {...axis} dataKey="y" name={yLabel} width={64} axisLine={false} label={{ value: yLabel, angle: -90, position: 'insideLeft', fontSize: 12, fill: 'var(--color-ink-soft)' }} />
+        <XAxis {...axis} dataKey="x" name={xLabel} axisLine={{ stroke: GRID }} label={{ value: xLabel, position: 'insideBottom', offset: -12, fontSize: 13, fill: 'var(--color-ink-soft)' }} />
+        <YAxis {...axis} dataKey="y" name={yLabel} width={64} axisLine={false} label={{ value: yLabel, angle: -90, position: 'insideLeft', fontSize: 13, fill: 'var(--color-ink-soft)' }} />
         <Tooltip
           cursor={{ stroke: GRID }}
           isAnimationActive={false}
@@ -155,8 +155,8 @@ function ScatterPlot({ data }: { data: Extract<ChartData, { kind: 'scatter' }> }
             const point = payload?.[0]?.payload as ScatterPoint | undefined
             if (!active || !point) return null
             return (
-              <div className="rounded-lg border border-line bg-surface px-3 py-2 text-xs text-ink">
-                {point.label && <p className="mb-1 font-medium">{point.label}</p>}
+              <div className="rounded-control border border-rule bg-sheet px-3 py-2 type-small text-ink shadow-float">
+                {point.label && <p className="font-medium">{point.label}</p>}
                 <p>{xLabel}: {point.xDisplay}</p>
                 <p>{yLabel}: {point.yDisplay}</p>
               </div>

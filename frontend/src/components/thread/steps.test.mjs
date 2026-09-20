@@ -52,8 +52,8 @@ test('folding never mutates the previous list (React state)', () => {
   assert.deepEqual(before, [step('generate', 'started')])
 })
 
-test('summary counts steps and names problems in plain words', () => {
-  assert.equal(summarizeSteps(fold(fixtureSteps)), '9 steps, 1 warning')
-  assert.equal(summarizeSteps([step('guard', 'ok')]), '1 step')
-  assert.equal(summarizeSteps([step('guard', 'warn'), step('execute', 'failed'), step('verify', 'warn')]), '3 steps, 2 warnings, 1 failed')
+test('the collapsed line says what was done, and names problems in plain words', () => {
+  assert.equal(summarizeSteps(fold(fixtureSteps)), 'Worked through 9 steps, 1 warning')
+  assert.equal(summarizeSteps([step('guard', 'ok')]), 'Worked through 1 step')
+  assert.equal(summarizeSteps([step('guard', 'warn'), step('execute', 'failed'), step('verify', 'warn')]), 'Worked through 3 steps, 2 warnings, 1 failed')
 })

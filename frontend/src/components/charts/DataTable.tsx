@@ -1,10 +1,13 @@
 // The exact values behind every answer. Cells show the backend's display strings, so the table,
 // the answer text and the chart tooltips all quote the same figure.
+//
+// Ruled, not boxed (§2): a strong rule under the header, a hairline under every row, figures
+// right-aligned with tabular numerals so the columns line up like a register.
 import type { ResultTable } from '../../types'
 import { humanize } from '../../lib/format'
 
 // ponytail: the server caps a result at 5,000 rows; drawing them all stalls a phone. Show the
-// first 200 and say so; "Download CSV" under an answer's table has every row. Add paging if
+// first 200 and say so; "Download CSV" above an answer's table has every row. Add paging if
 // analysts need to read further on screen.
 const MAX_RENDERED_ROWS = 200
 
@@ -25,20 +28,24 @@ interface DataTableProps {
 }
 
 export default function DataTable({ table, caption, cutNote }: DataTableProps) {
-  if (table.rows.length === 0) return <p className="text-sm text-ink-soft">The query ran and returned no rows.</p>
+  if (table.rows.length === 0) return <p className="type-body text-ink-soft">The query ran and returned no rows.</p>
   const numeric = numericColumns(table)
   const shown = table.rows.slice(0, MAX_RENDERED_ROWS)
   const cut = shown.length < table.rows.length || table.truncated
   return (
     <div>
-      {/* ~12 rows tall, then it scrolls inside the card; wide results scroll sideways on a phone. */}
-      <div className="max-h-[26.5rem] overflow-auto rounded-lg border border-line" tabIndex={0} role="region" aria-label={`${caption}, table`}>
-        <table className="w-full border-collapse text-sm">
+      {/* ~12 rows tall, then it scrolls in place; wide results scroll sideways on a phone. */}
+      <div className="max-h-[26.5rem] overflow-auto" tabIndex={0} role="region" aria-label={`${caption}, table`}>
+        <table className="w-full border-collapse type-small">
           <caption className="sr-only">{caption}</caption>
           <thead>
             <tr>
               {table.columns.map((name, c) => (
-                <th key={c} scope="col" className={`sticky top-0 border-b border-line bg-sunken px-3 py-2 font-medium whitespace-nowrap text-ink-soft ${numeric[c] ? 'text-right' : 'text-left'}`}>
+                <th
+                  key={c}
+                  scope="col"
+                  className={`sticky top-0 border-b border-rule-strong bg-wash px-3 py-2 font-semibold whitespace-nowrap text-ink ${numeric[c] ? 'text-right' : 'text-left'}`}
+                >
                   {humanize(name)}
                 </th>
               ))}
@@ -46,7 +53,8 @@ export default function DataTable({ table, caption, cutNote }: DataTableProps) {
           </thead>
           <tbody>
             {shown.map((row, r) => (
-              <tr key={r} className="border-b border-line last:border-b-0">
+              // The last row keeps its rule: it is what closes the column.
+              <tr key={r} className="border-b border-rule">
                 {row.map((cell, c) => (
                   <td key={c} className={`max-w-xs truncate px-3 py-1.5 text-ink ${numeric[c] ? 'text-right tabular-nums' : 'text-left'}`} title={table.display[r]?.[c]}>
                     {table.display[r]?.[c] ?? String(cell ?? '—')}
@@ -58,7 +66,7 @@ export default function DataTable({ table, caption, cutNote }: DataTableProps) {
         </table>
       </div>
       {cut && (
-        <p className="mt-2 text-xs text-ink-soft">
+        <p className="mt-3 type-small text-ink-soft">
           {cutNote ?? `Showing the first ${shown.length.toLocaleString('en-IN')} rows. The full result is longer. Add a filter or a grouping to your question to narrow it down.`}
         </p>
       )}

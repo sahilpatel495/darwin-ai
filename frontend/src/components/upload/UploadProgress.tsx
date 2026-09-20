@@ -1,9 +1,11 @@
-// What the analyst sees while files travel and are cleaned: a progress bar, one sentence saying
-// which stage we are in, and skeleton cards standing in for the file cards to come.
-// The bar is two divs rather than <progress>: the native element ignores the design tokens and
-// draws a heavy grey track on macOS.
+// What the analyst sees while files travel and are cleaned: one sentence saying which stage we are
+// in and a bar for the part that has a known length. The bar is two divs rather than <progress>:
+// the native element ignores the tokens and draws a heavy grey track on macOS.
 
-/** The one long-running action the shell can be in. `fraction` is 0..1 of bytes sent. */
+import { useEffect, useState } from 'react'
+import { cx } from '../ui'
+
+/** The one long-running action a screen can be in. `fraction` is 0..1 of bytes sent. */
 export type Busy = { kind: 'upload'; files: number; fraction: number } | { kind: 'sample' }
 
 function sentence(busy: Busy): string {
@@ -13,26 +15,28 @@ function sentence(busy: Busy): string {
   return busy.fraction < 1 ? `Uploading ${files}… ${Math.round(busy.fraction * 100)}%` : `Reading and cleaning ${files}…`
 }
 
-export default function UploadProgress({ busy }: { busy: Busy }) {
-  // Only the byte transfer has a known length. Everything else pulses to say "working".
+export default function UploadProgress({ busy, className }: { busy: Busy; className?: string }) {
+  // The hosted demo sleeps when idle and takes about a minute to wake. A bar that just sits there
+  // looks broken long before that, so after six seconds the wait is explained in words.
+  const [slow, setSlow] = useState(false)
+  useEffect(() => {
+    const timer = setTimeout(() => setSlow(true), 6000)
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Only the byte transfer has a known length. Everything else fills the bar and pulses.
   const percent = busy.kind === 'upload' && busy.fraction < 1 ? Math.round(busy.fraction * 100) : null
+
   return (
-    <div role="status" aria-live="polite" className="space-y-3">
-      <p className="text-sm font-medium text-ink">{sentence(busy)}</p>
-      <div role="progressbar" aria-label="Progress" aria-valuenow={percent ?? undefined} className="h-2 overflow-hidden rounded-full bg-accent-soft">
+    <div role="status" aria-live="polite" className={cx('space-y-2', className)}>
+      <p className="type-body text-ink">{sentence(busy)}</p>
+      <div role="progressbar" aria-label="Progress" aria-valuenow={percent ?? undefined} className="h-1 overflow-hidden rounded-chip bg-wash">
         <div
-          className={`h-full rounded-full bg-accent transition-[width] ${percent === null ? 'animate-pulse' : ''}`}
+          className={cx('h-full bg-indigo transition-[width] duration-200', percent === null && 'animate-pulse')}
           style={{ width: `${percent ?? 100}%` }}
         />
       </div>
-      <div aria-hidden className="space-y-2">
-        {[0, 1].map((i) => (
-          <div key={i} className="animate-pulse space-y-2 rounded-card border border-line bg-surface p-3">
-            <div className="h-3 w-2/3 rounded bg-sunken" />
-            <div className="h-3 w-1/3 rounded bg-sunken" />
-          </div>
-        ))}
-      </div>
+      {slow && <p className="type-small text-ink-soft">The server sleeps when nobody is using it, so the first load can take about a minute.</p>}
     </div>
   )
 }

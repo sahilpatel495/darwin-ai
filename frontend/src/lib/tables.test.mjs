@@ -1,7 +1,7 @@
 // Run from frontend/: node --test "src/**/*.test.mjs"
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { columnLabel, labelOf, optionLabel, plainTables } from './tables.ts'
+import { columnLabel, labelOf, optionLabel, plainAnswer, plainTables } from './tables.ts'
 
 const column = (name, label) => ({ name, label })
 const tables = [
@@ -41,7 +41,25 @@ test('a column reference reads as "header in file"; an unknown one is shown as i
 
 test('a clarify chip drops the SQL reference and does not say the column name twice', () => {
   const gross = { label: 'Gross pay (salary_register_2025_register.gross)', value: 'salary_register_2025_register.gross' }
-  assert.equal(optionLabel(gross, tables), 'Gross pay · Gross in Salary_Register_2025.xlsx (sheet Register)')
+  assert.equal(optionLabel(gross, tables), 'Gross pay — Gross in Salary_Register_2025.xlsx (sheet Register)')
   assert.equal(optionLabel({ label: 'ctc (employees.ctc)', value: 'employees.ctc' }, tables), 'ctc in employees.csv')
   assert.equal(optionLabel({ label: 'Something else', value: 'not a column' }, tables), 'Something else')
+})
+
+test('a stored answer already speaks file names, so the board needs no catalog', () => {
+  const answer = {
+    id: 'a1',
+    work: {
+      caveats: ['6 exact duplicate rows in salary_register_2025_register were excluded.'],
+      cross_check: { status: 'disagreed', detail: 'The second query read performance_reviews instead.' },
+      sql: 'select * from salary_register_2025_register', // the technical name stays in the working
+    },
+  }
+  const stored = plainAnswer(answer, tables)
+  assert.equal(stored.work.caveats[0], '6 exact duplicate rows in Salary_Register_2025.xlsx (sheet Register) were excluded.')
+  assert.equal(stored.work.cross_check.detail, 'The second query read performance_reviews.xlsx instead.')
+  assert.equal(stored.work.cross_check.status, 'disagreed')
+  assert.equal(stored.work.sql, answer.work.sql)
+  // Idempotent: the thread substitutes at render time too, and a file name matches no table name.
+  assert.deepEqual(plainAnswer(stored, tables), stored)
 })

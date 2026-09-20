@@ -34,7 +34,8 @@ export interface ScatterPoint {
 
 export type ChartData =
   | { kind: 'kpi'; value: string; supporting: { label: string; value: string }[] }
-  | { kind: 'bar' | 'line' | 'grouped_bar'; points: Point[]; series: string[] }
+  /** `omitted`: rows past the first 12 of a long breakdown. The chart says so; the table has them all. */
+  | { kind: 'bar' | 'line' | 'grouped_bar'; points: Point[]; series: string[]; omitted: number }
   | { kind: 'scatter'; points: ScatterPoint[]; xLabel: string; yLabel: string }
   | { kind: 'table'; reason: string | null }
 
@@ -102,12 +103,13 @@ export function buildChartData(chart: ChartSpec, table: ResultTable): ChartData 
     if (series.length > MAX_SERIES || byX.size > MAX_GROUPS) return fallback(TOO_MANY_GROUPS)
     // Fill the gaps so every point has one slot per series (a missing combination stays empty).
     const points = [...byX.values()].map((p) => ({ x: p.x, values: series.map((_, s) => p.values[s] ?? null) }))
-    return hasNumber(points) ? { kind: 'grouped_bar', points, series } : fallback()
+    return hasNumber(points) ? { kind: 'grouped_bar', points, series, omitted: 0 } : fallback()
   }
 
   // bar and line: one point per row, one series per measured column.
   if (yCols.length > MAX_SERIES) return fallback(TOO_MANY_GROUPS)
   const rows = chart.type === 'bar' ? table.rows.slice(0, MAX_GROUPS) : table.rows
   const points = rows.map((row, r) => ({ x: display(r, xCol), values: yCols.map((c) => numberOrNull(row[c])) }))
-  return hasNumber(points) ? { kind: chart.type, points, series: yCols.map((c) => table.columns[c]) } : fallback()
+  const omitted = table.rows.length - rows.length
+  return hasNumber(points) ? { kind: chart.type, points, series: yCols.map((c) => table.columns[c]), omitted } : fallback()
 }

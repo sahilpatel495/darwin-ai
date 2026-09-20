@@ -23,11 +23,16 @@ test('bar: labels come from display strings, values stay raw numbers', () => {
   assert.equal(data.points.length, 3)
 })
 
-test('bar: only the first 12 groups are drawn', () => {
+test('bar: only the first 12 groups are drawn, and the chart is told how many it left out', () => {
   const rows = Array.from({ length: 15 }, (_, i) => [`Dept ${i}`, 100 - i])
   const data = buildChartData(spec({ x: 'dept', y: ['n'] }), table(['dept', 'n'], rows))
   assert.equal(data.points.length, 12)
   assert.equal(data.points[11].x, 'Dept 11')
+  assert.equal(data.omitted, 3)
+  // A line is never trimmed: a trend with a missing tail is a different trend.
+  const line = buildChartData(spec({ type: 'line', x: 'dept', y: ['n'] }), table(['dept', 'n'], rows))
+  assert.equal(line.points.length, 15)
+  assert.equal(line.omitted, 0)
 })
 
 test('kpi: the big value is the display string of the measured column, the rest is supporting', () => {

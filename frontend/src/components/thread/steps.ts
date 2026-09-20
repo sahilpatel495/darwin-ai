@@ -36,9 +36,10 @@ export const tidyDetail = (detail: string): string =>
 
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`
 
-/** One line for the collapsed step list: "9 steps, 1 warning". */
+/** The one line the step list folds into once the answer has arrived (§6.4):
+ *  "Worked through 9 steps", and what went wrong when something did. */
 export function summarizeSteps(steps: StepEvent[]): string {
   const warnings = steps.filter((s) => s.status === 'warn').length
   const failed = steps.filter((s) => s.status === 'failed').length
-  return [plural(steps.length, 'step'), warnings > 0 && plural(warnings, 'warning'), failed > 0 && `${failed} failed`].filter(Boolean).join(', ')
+  return [`Worked through ${plural(steps.length, 'step')}`, warnings > 0 && plural(warnings, 'warning'), failed > 0 && `${failed} failed`].filter(Boolean).join(', ')
 }

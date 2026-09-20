@@ -1,64 +1,71 @@
 // Chart with a table always one click away: a chart is for the shape, the table is for the
 // figure someone will quote. When the result does not fit a chart we show the table and say why.
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
+import { Button } from '../ui'
 import { csvFileName, downloadCsv, toCsv } from '../../lib/csv'
 import type { ChartSpec, ResultTable } from '../../types'
-import { buildChartData } from './chartData'
+import type { ChartData } from './chartData'
 import DataTable from './DataTable'
 import ResultChart from './ResultChart'
 
-const toggle = (active: boolean): string =>
-  `px-3 py-1 text-sm first:rounded-l-md last:rounded-r-md border border-line -ml-px first:ml-0 ${active ? 'bg-accent-soft text-accent-ink font-medium' : 'bg-surface text-ink-soft hover:bg-sunken'}`
+const view = (active: boolean): string =>
+  `-mb-px border-b-2 pb-2 type-title transition-colors duration-100 ${active ? 'border-indigo text-ink' : 'border-transparent text-ink-soft hover:text-ink'}`
 
 interface ResultViewProps {
   chart: ChartSpec | null
   table: ResultTable
+  /** Already built by the statement, so the spec is read once per answer. */
+  data: ChartData | null
   /** Names the downloaded file, so a folder of exports still says what each one answers. */
   question: string
+  /** The board prints one view and no controls (§6.5). */
+  board?: boolean
 }
 
-export default function ResultView({ chart, table, question }: ResultViewProps) {
-  const data = useMemo(() => (chart ? buildChartData(chart, table) : null), [chart, table])
-  const [view, setView] = useState<'chart' | 'table'>('chart')
+export default function ResultView({ chart, table, data, question, board = false }: ResultViewProps) {
+  const [shown, setShown] = useState<'chart' | 'table'>('chart')
   const caption = chart?.title || 'Result'
+  // kpi is drawn as the statement's Figure, never here; if one reaches this far, the table is right.
+  const plotted = data && data.kind !== 'table' && data.kind !== 'kpi' ? data : null
 
-  // The table with its way out to Excel. The file holds the raw values (full precision, ISO dates)
-  // of every row the answer has, not only the rows drawn on screen.
   const tableView = (
     <>
+      {data?.kind === 'table' && data.reason && <p className="mb-3 type-small text-ink-soft">{data.reason}</p>}
       <DataTable table={table} caption={caption} />
-      {table.rows.length > 0 && (
-        <button
-          type="button"
-          onClick={() => downloadCsv(csvFileName(question), toCsv(table.columns, table.rows))}
-          className="mt-2 rounded-md border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink hover:bg-sunken"
-        >
-          Download CSV ({table.rows.length.toLocaleString('en-IN')} {table.rows.length === 1 ? 'row' : 'rows'})
-        </button>
-      )}
+      {!plotted && chart?.note && <p className="mt-3 type-small text-ink-soft">{chart.note}</p>}
     </>
   )
 
-  if (!chart || !data || data.kind === 'table') {
-    return (
-      <div>
-        {data?.kind === 'table' && data.reason && <p className="mb-2 text-xs text-ink-soft">{data.reason}</p>}
-        {tableView}
-        {chart?.note && <p className="mt-2 text-xs text-ink-soft">{chart.note}</p>}
-      </div>
-    )
-  }
+  if (board) return <div>{plotted && chart ? <ResultChart chart={chart} data={plotted} /> : tableView}</div>
+
+  // An empty result is one sentence. A rule with a toggle over it would be furniture around nothing.
+  if (table.rows.length === 0) return <div>{tableView}</div>
+
   return (
     <div>
-      <div role="group" aria-label="Show the result as" className="mb-3 flex justify-end">
-        <button type="button" aria-pressed={view === 'chart'} onClick={() => setView('chart')} className={toggle(view === 'chart')}>
-          Chart
-        </button>
-        <button type="button" aria-pressed={view === 'table'} onClick={() => setView('table')} className={toggle(view === 'table')}>
-          Table
-        </button>
+      <div className="flex flex-wrap items-end gap-x-6 gap-y-1 border-b border-rule">
+        {plotted ? (
+          <div role="group" aria-label="Show the result as" className="flex gap-5">
+            <button type="button" aria-pressed={shown === 'chart'} onClick={() => setShown('chart')} className={view(shown === 'chart')}>
+              Chart
+            </button>
+            <button type="button" aria-pressed={shown === 'table'} onClick={() => setShown('table')} className={view(shown === 'table')}>
+              Table
+            </button>
+          </div>
+        ) : (
+          chart?.title && <p className="pb-2 type-title text-ink">{chart.title}</p>
+        )}
+        {/* The file holds the raw values (full precision, ISO dates) of every row the answer has,
+            not only the rows drawn on screen. */}
+        <div className="ml-auto pb-1.5">
+          <Button variant="quiet" size="sm" onClick={() => downloadCsv(csvFileName(question), toCsv(table.columns, table.rows))}>
+            Download CSV
+          </Button>
+        </div>
       </div>
-      {view === 'chart' ? <ResultChart chart={chart} data={data} /> : tableView}
+
+      <div className="mt-4">{plotted && chart && shown === 'chart' ? <ResultChart chart={chart} data={plotted} /> : tableView}</div>
     </div>
   )
 }

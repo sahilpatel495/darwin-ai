@@ -1,21 +1,24 @@
-// Drag-and-drop plus click-to-choose, used large on the landing page and compact in the sidebar.
+// Drag-and-drop plus click-to-choose, used large on the first screen and compact everywhere else.
 // The real control is a native <input type="file">: the button opens it, so keyboard and screen
 // reader users get the browser's own file picker. The input sits outside the clickable area so its
-// own click event cannot bubble back and re-open the picker. While an upload runs the shell
+// own click event cannot bubble back and re-open the picker. While an upload runs the caller
 // renders UploadProgress in this component's place, so there is no disabled state to manage.
 
 import { useRef, useState } from 'react'
 import type { DragEvent } from 'react'
-import { UploadIcon } from '../shell/icons'
+import { Button, cx } from '../ui'
 import { ACCEPT_ATTRIBUTE } from './files'
 
 interface DropZoneProps {
   onFiles: (files: File[]) => void
-  /** Sidebar variant: one line, labelled "Add more files". */
+  /** One line instead of the full invitation: in a sidebar, or above the composer. */
   compact?: boolean
+  /** The button's words, when "Choose files" is not what happens next. */
+  label?: string
+  className?: string
 }
 
-export default function DropZone({ onFiles, compact = false }: DropZoneProps) {
+export default function DropZone({ onFiles, compact = false, label, className }: DropZoneProps) {
   const input = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
 
@@ -25,7 +28,6 @@ export default function DropZone({ onFiles, compact = false }: DropZoneProps) {
     if (e.dataTransfer.files.length) onFiles([...e.dataTransfer.files])
   }
 
-  const frame = dragging ? 'border-accent bg-accent-soft' : 'border-line bg-surface hover:border-accent'
   return (
     <>
       <div
@@ -36,25 +38,25 @@ export default function DropZone({ onFiles, compact = false }: DropZoneProps) {
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
-        className={`cursor-pointer rounded-card border-2 border-dashed text-center transition-colors ${frame} ${compact ? 'p-3' : 'px-4 py-6 sm:px-6 sm:py-10'}`}
-      >
-        {!compact && (
-          <div className="mb-3 flex justify-center text-accent">
-            <UploadIcon />
-          </div>
+        className={cx(
+          'cursor-pointer rounded-control border border-dashed text-center transition-colors duration-100',
+          dragging ? 'border-indigo bg-indigo-soft' : 'border-rule-strong bg-sheet hover:border-indigo',
+          compact ? 'px-3 py-3' : 'px-4 py-8 sm:px-6',
+          className,
         )}
-        {!compact && <p className="text-base font-medium text-ink">Drop your CSV or Excel files here</p>}
-        {/* No onClick of its own: the click bubbles to the frame above, which opens the picker once. */}
-        <button
-          type="button"
-          className={compact ? 'text-sm font-medium text-accent' : 'mt-4 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-ink'}
-        >
-          {compact ? 'Add more files' : 'Choose files'}
-        </button>
-        <p className={`text-ink-soft ${compact ? 'text-xs' : 'mt-3 text-sm'}`}>
+      >
+        {!compact && <p className="type-statement text-ink">Drop your CSV or Excel files here</p>}
+        {/* The keyboard control. No onClick of its own: the click bubbles to the frame above,
+            which opens the picker once. */}
+        <Button variant={compact ? 'quiet' : 'primary'} size={compact ? 'sm' : 'md'} className={compact ? '' : 'mt-4'}>
+          {label ?? (compact ? 'Add more files' : 'Choose files')}
+        </Button>
+        <p className={cx('text-ink-soft', compact ? 'type-small' : 'mt-3 type-small')}>
           {compact ? 'or drop them here' : 'Several files at once is fine: .csv, .tsv, .xlsx or .xlsm.'}
         </p>
       </div>
+      {/* Hidden from the tab order and from screen readers: the button above is the control people
+          reach, and it opens this picker. Two stops for one action would only confuse. */}
       <input
         ref={input}
         type="file"

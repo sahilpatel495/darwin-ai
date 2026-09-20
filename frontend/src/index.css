@@ -1,37 +1,252 @@
 @import "tailwindcss";
 
-/* Design tokens. Calm enterprise look: slate neutrals, one blue accent, borders over shadows.
-   Every component uses these names (bg-surface, text-ink, border-line, bg-accent ...). */
-@theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+/* =============================================================================
+   Verity — "Ledger". The one stylesheet.
+   Section numbers below refer to docs/DESIGN_SYSTEM.md.
+   Components use token classes (bg-paper, text-ink, border-rule …), never raw hex.
+   ========================================================================== */
 
-  --color-canvas: #f6f8fb;      /* page background */
-  --color-surface: #ffffff;     /* cards */
-  --color-sunken: #f1f4f9;      /* code blocks, table headers */
-  --color-line: #e2e8f0;        /* borders */
-  --color-ink: #0f172a;         /* primary text */
-  --color-ink-soft: #475569;    /* secondary text */
-  --color-ink-faint: #64748b;   /* hints and placeholders; 4.8:1 on white (the lighter #94a3b8 was 2.6:1, below AA) */
+/* --- §3 Type: self-hosted faces ------------------------------------------
+   The app's CSP blocks font CDNs, so the files live in public/fonts.
+   Every weight is declared twice. The rupee sign (U+20B9) exists only in the
+   latin-ext subset, so a latin-only face would drop every ₹ amount — the most
+   important glyph in the product — into a fallback serif.
+   font-display: swap so a figure is never invisible while a face loads. */
 
-  --color-accent: #1d5bd8;      /* primary actions, links, chart series 1 */
-  --color-accent-soft: #e8f0fe;
-  --color-accent-ink: #123f99;
+@font-face { font-family: "IBM Plex Serif"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url("/fonts/ibm-plex-serif-latin-500.woff2") format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "IBM Plex Serif"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url("/fonts/ibm-plex-serif-latin-ext-500.woff2") format("woff2");
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: "IBM Plex Serif"; font-style: normal; font-weight: 600; font-display: swap;
+  src: url("/fonts/ibm-plex-serif-latin-600.woff2") format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "IBM Plex Serif"; font-style: normal; font-weight: 600; font-display: swap;
+  src: url("/fonts/ibm-plex-serif-latin-ext-600.woff2") format("woff2");
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
 
-  --color-good: #15803d;   --color-good-soft: #dcfce7;
-  --color-warn: #b45309;   --color-warn-soft: #fef3c7;
-  --color-bad: #b91c1c;    --color-bad-soft: #fee2e2;
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("/fonts/ibm-plex-sans-latin-400.woff2") format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("/fonts/ibm-plex-sans-latin-ext-400.woff2") format("woff2");
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url("/fonts/ibm-plex-sans-latin-500.woff2") format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url("/fonts/ibm-plex-sans-latin-ext-500.woff2") format("woff2");
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 600; font-display: swap;
+  src: url("/fonts/ibm-plex-sans-latin-600.woff2") format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 600; font-display: swap;
+  src: url("/fonts/ibm-plex-sans-latin-ext-600.woff2") format("woff2");
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
 
-  --color-series-1: #1d5bd8;
-  --color-series-2: #0e9384;
-  --color-series-3: #b45309;
-  --color-series-4: #7c3aed;
-  --color-series-5: #be185d;
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("/fonts/ibm-plex-mono-latin-400.woff2") format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("/fonts/ibm-plex-mono-latin-ext-400.woff2") format("woff2");
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
 
-  --radius-card: 10px;
+/* --- §4 Motion: the one orchestrated moment ------------------------------
+   Declared at the top level (not inside @theme) so the keyframes are always
+   emitted, even when only referenced from an inline style. */
+@keyframes tick-draw   { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes rule-extend { from { transform: scaleX(0); }  to { transform: scaleX(1); } }
+@keyframes fade-in     { from { opacity: 0; }            to { opacity: 1; } }
+
+/* --- §2 Tokens ------------------------------------------------------------
+   `static` so every variable reaches :root. Charts read --color-series-N
+   through var() in TSX, which Tailwind's class scanner cannot see. */
+@theme static {
+  --font-serif: "IBM Plex Serif", ui-serif, Georgia, "Times New Roman", serif;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --color-paper: #faf8f3;        /* page background */
+  --color-sheet: #ffffff;        /* the answer statement, dialogs, the composer */
+  --color-wash: #f3efe6;         /* code, table header, hover on paper */
+  --color-rule: #e4dfd3;         /* hairlines, borders */
+  --color-rule-strong: #c9c2b2;  /* the double rule, table header rule */
+
+  --color-ink: #1b1b2f;          /* text */
+  --color-ink-soft: #54546b;     /* secondary text — 7.0:1 on paper */
+  --color-ink-faint: #8c8ca1;    /* hints and disabled only: 3.2:1, never for body text */
+
+  --color-indigo: #2f3a8f;       /* actions, links, focus, first chart series */
+  --color-indigo-soft: #e9ebf7;  /* selected, the question bubble */
+  --color-indigo-ink: #1f2766;   /* hover and pressed */
+
+  --color-audit: #1f7a4d;        /* ticks, verified, high confidence */
+  --color-audit-soft: #e3f2ea;
+  --color-amber: #9a5b00;        /* needs a look, medium confidence, caveats */
+  --color-amber-soft: #fbf0d9;
+  --color-red: #a32a2a;          /* errors, low confidence, disagreement */
+  --color-red-soft: #f9e3e3;
+
+  --color-series-1: #2f3a8f;
+  --color-series-2: #1b7f79;
+  --color-series-3: #b07a1e;
+  --color-series-4: #7a3b8f;
+  --color-series-5: #b0435e;
+
+  --radius-control: 4px;         /* buttons, inputs, sheets, dialogs */
+  --radius-chip: 2px;            /* chips, badges, skeletons */
+
+  /* Paper casts no shadow. Only things that float above it do. */
+  --shadow-float: 0 12px 32px rgb(27 27 47 / 0.14);
+
+  --animate-tick: tick-draw 160ms ease-out both;
+  --animate-rule: rule-extend 240ms ease-out both;
+  --animate-fade: fade-in 120ms ease-out both;
 }
 
-html, body, #root { height: 100%; }
-body { background: var(--color-canvas); color: var(--color-ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
-:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+@layer base {
+  html, body, #root { height: 100%; }
+
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 24px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* A ledger is ruled, not boxed: links carry a hairline until you touch them. */
+  a {
+    color: var(--color-indigo);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-color: var(--color-rule-strong);
+  }
+  a:hover { text-decoration-color: currentColor; }
+
+  ::selection { background: var(--color-indigo-soft); }
+
+  /* §9 One focus ring everywhere, on every kind of control. */
+  :focus-visible {
+    outline: 2px solid var(--color-indigo);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* Native dialog, styled once so <Dialog> stays small (§5). */
+  dialog {
+    margin: auto;
+    padding: 0;
+    max-width: calc(100vw - 2rem);
+    max-height: calc(100dvh - 3rem);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-control);
+    background: var(--color-sheet);
+    color: var(--color-ink);
+    box-shadow: var(--shadow-float);
+  }
+  dialog[open] { animation: var(--animate-fade); }
+  dialog::backdrop { background: rgb(27 27 47 / 0.32); }
+  dialog[open]::backdrop { animation: var(--animate-fade); }
+}
+
+/* --- §3 Type roles -------------------------------------------------------
+   Seven classes, one per row of the table in the design system. Plain classes
+   in the components layer, so any utility (text-ink-soft, text-right) still
+   wins over them. */
+@layer components {
+  .type-figure {
+    font-family: var(--font-serif);
+    font-size: 48px; line-height: 52px; font-weight: 600;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  /* Page headline: 28/34 on phones, 40/46 from the tablet breakpoint up. */
+  .type-headline {
+    font-family: var(--font-serif);
+    font-size: 28px; line-height: 34px; font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  @media (min-width: 768px) {
+    .type-headline { font-size: 40px; line-height: 46px; }
+  }
+  .type-statement {
+    font-family: var(--font-serif);
+    font-size: 22px; line-height: 30px; font-weight: 500;
+  }
+  .type-title {
+    font-family: var(--font-sans);
+    font-size: 15px; line-height: 22px; font-weight: 600;
+  }
+  .type-body {
+    font-family: var(--font-sans);
+    font-size: 15px; line-height: 24px; font-weight: 400;
+  }
+  .type-small {
+    font-family: var(--font-sans);
+    font-size: 13px; line-height: 20px; font-weight: 400;
+  }
+  /* SQL only. Never a data label. */
+  .type-code {
+    font-family: var(--font-mono);
+    font-size: 13px; line-height: 20px; font-weight: 400;
+  }
+
+  /* Reading measure: under 72 characters (§3). */
+  .measure { max-width: 64ch; }
+}
+
+/* §4 Reduced motion: everything is instant. Durations rather than
+   `animation: none`, which would freeze a tick at stroke-dashoffset 1 —
+   i.e. leave it invisible — instead of landing it on its finished state. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* --- Print: the saved-answers board as a report (§6.5) --------------------
+   Unlayered and last, so it beats every utility.
+   Controls disappear on their own: every <Button>, <Chip> and tab is a
+   <button>, and the composer is a <textarea>. Anything else that is chrome
+   rather than report — the header, the sidebar, a drawer — carries
+   `print-hide` or data-print="hide"; there is no element-name guessing here,
+   because the board's own title block is a <header> too. */
+@media print {
+  @page { margin: 16mm; }
+
+  html, body, #root { height: auto; background: #fff; }
+  body { background: #fff; font-size: 11pt; line-height: 1.45; }
+
+  .print-hide, [data-print="hide"],
+  button, [role="tablist"], [role="tab"],
+  input, textarea, select, dialog, [hidden] { display: none !important; }
+
+  /* Scroll containers become continuous paper, or they print one screenful. */
+  main, aside, .overflow-y-auto, .overflow-x-auto, .overflow-auto, .overflow-hidden {
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+  }
+
+  /* One statement per block: never split a figure from its proof. */
+  [data-ui="sheet"], .print-keep, figure, table { break-inside: avoid; page-break-inside: avoid; }
+  [data-ui="sheet"] { box-shadow: none; }
+
+  /* Charts are the evidence — print the ink, not a blank frame.
+     The width cap goes on the responsive container and nowhere inside it: Recharts nests its
+     wrapper in a deliberately zero-width div that the wrapper overflows, so `max-width: 100%`
+     on the wrapper resolves against 0 and every chart prints as an empty box. */
+  *, *::before, *::after { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .recharts-responsive-container { max-width: 100% !important; }
+  svg, .recharts-wrapper, .recharts-surface { break-inside: avoid; page-break-inside: avoid; }
+
+  a { text-decoration: none; color: var(--color-ink); }
+}
