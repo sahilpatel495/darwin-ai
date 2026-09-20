@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 from types import SimpleNamespace
 
 import openai
@@ -23,19 +24,24 @@ SCHEMA = {"title": "Thing", "type": "object", "properties": {"a": {"type": "inte
 
 
 class FakeOpenAI:
-    """Looks like openai.OpenAI for the one call we make; plays back replies or raises."""
+    """Looks like openai.OpenAI for the one call we make (the raw-response form, which is how
+    the pool reads rate-limit headers); plays back replies or raises. `headers` ride along
+    with every successful reply."""
 
-    def __init__(self, *script: str | list | None | Exception):
+    def __init__(self, *script: str | list | None | Exception, headers: dict | None = None):
         self.script = list(script)
+        self.headers = headers or {}
         self.requests: list[dict] = []
-        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+        raw = SimpleNamespace(create=self._create)
+        self.chat = SimpleNamespace(completions=SimpleNamespace(with_raw_response=raw))
 
     def _create(self, **kwargs):
         self.requests.append(kwargs)
         item = self.script.pop(0)
         if isinstance(item, Exception):
             raise item
-        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=item))])
+        reply = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=item))])
+        return SimpleNamespace(headers=self.headers, parse=lambda: reply)
 
 
 def status_error(cls, status: int, message: str, headers: dict | None = None, **more_body):
@@ -53,18 +59,22 @@ def rate_limited(headers: dict | None = None):
 
 @pytest.fixture(autouse=True)
 def two_providers(monkeypatch):
-    """A two-entry chain through the real app.config.chain, a fresh budget, no real sleeping."""
+    """A two-entry chain through the real app.config.chain, a fresh budget and no cooldowns
+    left over from the previous test (both are process-wide on purpose)."""
     monkeypatch.setenv("LLM_SQL_CHAIN", "groq:model-a,nvidia:model-b")
     monkeypatch.setenv("GROQ_API_KEY", GROQ_KEY)
     monkeypatch.setenv("NVIDIA_API_KEY", NVIDIA_KEY)
     monkeypatch.setattr(config, "settings", dataclasses.replace(config.settings, llm_cache_dir=""))
     monkeypatch.setattr(client_module, "_budget", {"day": "", "calls": 0})
-    monkeypatch.setattr(client_module.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(client_module, "_health", {})
 
 
 def pool(**fakes: FakeOpenAI) -> PoolClient:
-    """fakes are keyed a/b for model-a/model-b."""
-    return PoolClient(client_factory=lambda pm: fakes[pm.model.removeprefix("model-")])
+    """fakes are keyed a/b for model-a/model-b. Sleeping is a no-op: waits are tested with a
+    fake clock in test_pool_resilience.py."""
+    return PoolClient(
+        client_factory=lambda pm: fakes[pm.model.removeprefix("model-")], sleep=lambda s: None
+    )
 
 
 def test_rate_limit_on_the_first_provider_fails_over_and_the_result_names_the_second():
@@ -154,6 +164,7 @@ def test_a_400_that_only_quotes_the_models_failed_output_does_not_step_the_forma
 
 def test_a_provider_that_breaks_in_an_unexpected_way_fails_over_without_quoting_it(caplog):
     # A 200 with a body that is not JSON leaves the SDK as a bare JSONDecodeError.
+    caplog.set_level(logging.INFO)  # routine failovers are info, not warnings
     broken = ValueError(f"Expecting value near Bearer {GROQ_KEY}")
     result = pool(a=FakeOpenAI(broken), b=FakeOpenAI("ok")).complete(role="sql", messages=MESSAGES)
     assert result.provider == "nvidia"
@@ -248,15 +259,17 @@ def test_the_budget_is_shared_by_every_client_and_resets_on_a_new_day(monkeypatc
     assert pool(a=FakeOpenAI("three")).complete(role="sql", messages=MESSAGES).content == "three"
 
 
-def test_all_providers_failing_lists_names_and_reasons_but_never_keys(caplog):
+def test_all_providers_failing_tells_the_user_nothing_about_providers_and_the_log_everything(caplog):
+    caplog.set_level(logging.INFO)
     leaky = status_error(openai.AuthenticationError, 401, f"Incorrect API key provided: {GROQ_KEY}")
     down = status_error(openai.InternalServerError, 502, "bad gateway")
     a, b = FakeOpenAI(leaky), FakeOpenAI(down)
     with pytest.raises(LLMUnavailable) as raised:
         pool(a=a, b=b).complete(role="sql", messages=MESSAGES)
     text = str(raised.value)
-    assert "groq" in text and "model-a" in text and "401" in text
-    assert "nvidia" in text and "model-b" in text and "502" in text
+    assert text.startswith("All the free AI models are busy right now.")
+    for detail in ("groq", "nvidia", "model-a", "model-b", "401", "502"):
+        assert detail not in text and detail in caplog.text  # the operator still gets the reasons
     for secret in (GROQ_KEY, NVIDIA_KEY):
         assert secret not in text and secret not in caplog.text
 
@@ -268,22 +281,7 @@ def test_no_configured_provider_says_what_to_do(monkeypatch):
         pool().complete(role="sql", messages=MESSAGES)
 
 
-def test_a_short_retry_after_is_honoured_once_when_the_whole_chain_failed(monkeypatch):
-    naps: list[float] = []
-    monkeypatch.setattr(client_module.time, "sleep", naps.append)
-    a = FakeOpenAI(rate_limited({"retry-after": "2"}), "second time lucky")
-    b = FakeOpenAI(rate_limited({"retry-after": "120"}))
-    result = pool(a=a, b=b).complete(role="sql", messages=MESSAGES)
-    assert naps == [2.0] and result.provider == "groq" and result.content == "second time lucky"
-
-
-def test_a_long_retry_after_is_not_waited_for(monkeypatch):
-    naps: list[float] = []
-    monkeypatch.setattr(client_module.time, "sleep", naps.append)
-    a, b = FakeOpenAI(rate_limited({"retry-after": "90"})), FakeOpenAI(rate_limited())
-    with pytest.raises(LLMUnavailable, match="rate limited"):
-        pool(a=a, b=b).complete(role="sql", messages=MESSAGES)
-    assert naps == []
+# Cooldowns, retry hints, token pacing and the bounded wait: see test_pool_resilience.py.
 
 
 @pytest.mark.parametrize(

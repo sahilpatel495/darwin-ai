@@ -1,11 +1,17 @@
 """The HTTP boundary: uploads, human errors, and the streamed answer."""
 
+import asyncio
 import json
+import time
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 
 from app import main
+from app.config import Settings
+from app.contracts import AskRequest
+from app.limits import LimitExceeded, Limits
 from app.llm.fake import FakeLLM
 from app.query import pipeline
 
@@ -14,9 +20,9 @@ PAYROLL = "Emp Code,Pay Month,Gross\n001,01/01/2025,\"₹2,00,000\"\n002,01/01/2
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
     pipeline._SHARED_CACHE.clear()
-    main._asks.clear()
+    monkeypatch.setattr(main, "limits", Limits(main.settings))  # every test starts with nothing counted
     return TestClient(main.app)
 
 
@@ -94,10 +100,144 @@ def test_new_session_really_deletes_the_data(client):
     assert client.get(f"/api/sessions/{sid}/catalog").status_code == 404
 
 
+# --------------------------------------------------------------------------
+# Per-user limits. The policy is tested in test_limits.py; this is the wiring.
+# --------------------------------------------------------------------------
+
+VISITOR = "203.0.113.9"
+META = json.dumps({"status": "meta"})  # the cheapest real answer: one model call, no SQL, no narration
+
+
+def limited(monkeypatch, **sizes) -> None:
+    """Small limits, and a model that fails loudly if a test reaches it without a script."""
+    monkeypatch.setattr(main, "limits", Limits(Settings(**sizes)))
+    monkeypatch.setattr(main, "llm", FakeLLM({}))
+
+
+def ask(client, sid, question="hi", spoof="1.1.1.1"):
+    return client.post(f"/api/sessions/{sid}/ask", json={"question": question},
+                       headers={"x-forwarded-for": f"{spoof}, {VISITOR}"})
+
+
 def test_rate_limit_uses_the_proxy_appended_address_not_the_client_supplied_one(client, monkeypatch):
+    limited(monkeypatch, asks_per_ip_per_hour=1)
     sid = new_session(client)
-    monkeypatch.setattr(main, "settings", main.settings.__class__(asks_per_ip_per_hour=1))
-    ask = lambda spoof: client.post(f"/api/sessions/{sid}/ask", json={"question": "hi"},
-                                    headers={"x-forwarded-for": f"{spoof}, 203.0.113.9"})
-    assert ask("1.1.1.1").status_code == 200
-    assert ask("2.2.2.2").status_code == 429  # a new spoofed first hop does not reset the limit
+    assert ask(client, sid, spoof="1.1.1.1").status_code == 200
+    assert ask(client, sid, spoof="2.2.2.2").status_code == 429  # a new spoofed first hop does not reset the limit
+
+
+def test_a_refused_question_is_a_human_429_that_says_when_to_come_back(client, monkeypatch):
+    limited(monkeypatch)
+    monkeypatch.setattr(main, "limits", Limits(Settings(asks_per_ip_per_hour=1), clock=lambda: 0.0))
+    sid = new_session(client)
+    assert ask(client, sid).status_code == 200
+    res = ask(client, sid)
+    assert res.status_code == 429 and res.headers["retry-after"] == "3600"
+    assert res.json() == {"message": "You have reached this demo's limit of 1 question an hour.",
+                          "next_step": "You can ask again in about 60 minutes."}
+
+
+def test_an_answer_from_the_shared_cache_is_not_counted(client, monkeypatch):
+    limited(monkeypatch, asks_per_ip_per_hour=2)
+    monkeypatch.setattr(main, "llm", FakeLLM({"sql": [META]}))  # scripted for exactly one model call
+    for _ in range(4):  # same file, same question: the first is answered, the rest come from the cache
+        sid = new_session(client)
+        upload(client, sid, **{"employees.csv": EMPLOYEES})
+        res = ask(client, sid, "What data do I have?")
+        assert res.status_code == 200 and events(res)[-1][1]["kind"] == "meta"
+    assert events(res)[-1][1]["work"]["cached"] is True
+    assert ask(client, sid, "hi").status_code == 200  # 2 of 2: an answer that is not cached still counts
+    assert ask(client, sid, "hi").status_code == 429
+
+
+def test_the_concurrency_slot_is_free_again_after_an_answer_an_error_answer_and_a_crash(client, monkeypatch):
+    limited(monkeypatch, max_concurrent_asks=1)  # one slot: any leak turns the next question into a 429
+    sid = new_session(client)
+    assert events(ask(client, sid))[-1][1]["kind"] == "error"  # no data yet: an error answer
+
+    upload(client, sid, **{"employees.csv": EMPLOYEES})
+    monkeypatch.setattr(main, "llm", FakeLLM({"sql": [META]}))
+    assert events(ask(client, sid, "What data do I have?"))[-1][1]["kind"] == "meta"  # a real answer
+
+    def crash(*_):
+        raise RuntimeError("the pipeline broke its never-raises contract")
+
+    monkeypatch.setattr(main, "answer_question", crash)
+    assert events(ask(client, sid))[-1][0] == "error"  # an exception in the worker thread
+    assert ask(client, sid).status_code == 200  # and the slot came back that time too
+
+
+def test_a_question_asked_while_the_visitor_is_at_their_concurrency_limit_is_refused_not_queued(client, monkeypatch):
+    limited(monkeypatch, max_concurrent_asks_per_ip=1)
+    sid = new_session(client)
+    with main.limits.question(VISITOR, "their other tab"):
+        res = ask(client, sid)
+        assert res.status_code == 429 and "already" in res.json()["message"] and res.headers["retry-after"] == "5"
+    assert ask(client, sid).status_code == 200
+
+
+def test_the_slot_is_freed_when_the_browser_goes_away_before_reading_the_answer(client, monkeypatch):
+    limited(monkeypatch, max_concurrent_asks=1)
+    sid = new_session(client)
+    gone = Request({"type": "http", "headers": [(b"x-forwarded-for", VISITOR.encode())], "client": ("10.0.0.1", 1)})
+    asyncio.run(main.ask(sid, AskRequest(question="hi"), gone))  # the route is called; its stream is never read
+    deadline = time.monotonic() + 5
+    while True:  # the worker thread owns the slot, so it comes back without anybody reading the stream
+        try:
+            with main.limits.question("198.51.100.7", "somebody else"):
+                break
+        except LimitExceeded:
+            assert time.monotonic() < deadline, "the concurrency slot was never released"
+            time.sleep(0.01)
+
+
+def test_new_sessions_and_uploads_are_limited_per_address(client, monkeypatch):
+    limited(monkeypatch, sessions_per_ip_per_hour=1, uploads_per_ip_per_hour=1)
+    sid = new_session(client)
+    res = client.post("/api/sessions")
+    assert res.status_code == 429 and "1 new session an hour" in res.json()["message"] and res.headers["retry-after"]
+    assert upload(client, sid, **{"employees.csv": EMPLOYEES}).status_code == 200
+    assert upload(client, sid, **{"payroll.csv": PAYROLL}).status_code == 429
+    assert client.post(f"/api/sessions/{sid}/sample").status_code == 429  # the sample is read in like any upload
+    assert client.get(f"/api/sessions/{sid}/catalog").status_code == 200  # looking at loaded data is never limited
+
+
+# --------------------------------------------------------------------------
+# Preview rows: shown to the data owner, never to a model
+# --------------------------------------------------------------------------
+
+
+def preview(client, sid, table, **params):
+    return client.get(f"/api/sessions/{sid}/tables/{table}/preview", params=params)
+
+
+def test_preview_formats_rows_the_way_answers_do_and_never_calls_the_model(client, monkeypatch):
+    monkeypatch.setattr(main, "llm", None)  # any use of the model client would now crash the request
+    sid = new_session(client)
+    upload(client, sid, **{"employees.csv": EMPLOYEES, "payroll.csv": PAYROLL})
+    table = preview(client, sid, "employees").json()
+    assert table["columns"] == ["emp_code", "department", "ctc"]
+    assert table["rows"][0] == ["001", "Engineering", 2400000.0]
+    assert table["display"][0] == ["001", "Engineering", "₹24.00 L"]  # leading zeros kept, rupees as in answers
+    assert table["row_count"] == 3 and table["truncated"] is False
+    assert preview(client, sid, "payroll").json()["display"][0][1] == "01 Jan 2025"  # dates too
+
+
+def test_preview_limit_is_honoured_capped_and_says_when_there_is_more(client):
+    sid = new_session(client)
+    upload(client, sid, **{"many.csv": "n,label\n" + "".join(f"{i},row {i}\n" for i in range(250))})
+    two = preview(client, sid, "many", limit=2).json()
+    assert two["row_count"] == 2 and two["truncated"] is True
+    capped = preview(client, sid, "many", limit=100000).json()
+    assert capped["row_count"] == 200 and capped["truncated"] is True
+    assert preview(client, sid, "many", limit=-5).json()["row_count"] == 1  # nonsense is clamped, not an error
+
+
+def test_preview_of_an_unknown_table_is_a_human_404_and_the_name_never_reaches_sql(client):
+    sid = new_session(client)
+    upload(client, sid, **{"employees.csv": EMPLOYEES})
+    for hostile in ('employees"; DROP TABLE employees; --', "information_schema.tables", "nope"):
+        res = preview(client, sid, hostile)
+        assert res.status_code == 404 and res.json()["message"] and res.json()["next_step"]
+    assert preview(client, sid, "employees").json()["row_count"] == 3  # still there
+    assert preview(client, "no-such-session", "employees").status_code == 404

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ class ProviderModel:
     provider: str
     model: str
     base_url: str
-    api_key: str
+    api_key: str = field(repr=False)  # a stray %r or traceback must never print it
 
 
 def chain(role: str) -> list[ProviderModel]:

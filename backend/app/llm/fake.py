@@ -10,6 +10,10 @@ class FakeLLM:
         self._scripted = {role: list(items) for role, items in scripted.items()}
         self.calls: list[dict] = []
 
+    def with_options(self, **_options) -> "FakeLLM":
+        """The real pool returns a per-call view; the fake has nothing to vary."""
+        return self
+
     def complete(
         self, *, role: Role, messages: list[dict[str, str]], json_schema: dict | None = None
     ) -> LLMResult:

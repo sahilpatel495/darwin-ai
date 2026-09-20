@@ -46,7 +46,6 @@ def test_summarize_in_brackets_never_runs_so_its_names_never_reach_a_model():
     assert CANARY_NAME not in sent and CANARY_EMAIL not in sent and "Asha Rao" not in sent
 
 
-@pytest.mark.xfail(reason="open finding for the lead: pipeline._pii_result_columns trusts result column names")
 @pytest.mark.parametrize("sql", [
     "SELECT e.name AS department FROM employees e ORDER BY e.emp_id",
     "SELECT e.email AS location FROM employees e ORDER BY e.emp_id",

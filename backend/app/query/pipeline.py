@@ -44,7 +44,8 @@ Emit = Callable[[StepEvent], None]
 # dataset's starter questions can be pre-warmed after a deploy and cost no tokens afterwards.
 # ponytail: process-local LRU; move to Redis if this ever runs on more than one worker.
 _SHARED_CACHE: OrderedDict[str, Answer] = OrderedDict()
-_SHARED_CACHE_MAX = 500
+_SHARED_CACHE_MAX = 200
+_CACHEABLE_ROWS = 500  # bigger results are cheap to recompute and expensive to hold
 
 
 class _Trace:
@@ -109,7 +110,8 @@ def answer_question(session: SessionLike, req: AskRequest, llm: LLMClient, emit:
         answer = _error(req, "Something went wrong while answering that.",
                         "Try rephrasing the question. If it keeps happening, re-upload the file.")
 
-    if answer.kind in ("answer", "refusal", "meta"):
+    small = answer.table is None or len(answer.table.rows) <= _CACHEABLE_ROWS
+    if answer.kind in ("answer", "refusal", "meta") and small:
         _SHARED_CACHE[key] = answer
         while len(_SHARED_CACHE) > _SHARED_CACHE_MAX:
             _SHARED_CACHE.popitem(last=False)
@@ -187,7 +189,7 @@ def _run(session: SessionLike, req: AskRequest, llm: LLMClient, trace: _Trace) -
 
     # 5. Narrate and cross-check at the same time: both only need the executed result.
     with ThreadPoolExecutor(max_workers=1) as pool:
-        second = pool.submit(_cross_check, session, req, llm, schema_context, metric_context, result)
+        second = pool.submit(_cross_check, session, req, llm, schema_context, metric_context, result, work.payloads[-1].model)
         narration, fallback = _narrate(llm, req, query, table, work, catalog, trace)
         work.cross_check = second.result()
     signals.narration_fallback = fallback
@@ -225,12 +227,15 @@ def _generate_and_execute(session, req, llm, trace, schema_context, metric_conte
     work, signals = trace.work, Signals()
     why, repair = "initial", None
     tried_empty_repair = False
+    # While every free model is rate limited the pool waits briefly; say so instead of hanging.
+    sql_llm = llm.with_options(on_wait=lambda s: trace.step(
+        "generate", "warn", f"All the free AI models are busy. Retrying in {int(s) + 1} seconds."))
 
     while True:
         stage = "repair" if repair else "generate"
         trace.step(stage, "started")
         generation, payload = generate(
-            llm, role="sql", question=req.question, schema_context=schema_context,
+            sql_llm, role="sql", question=req.question, schema_context=schema_context,
             metric_context=metric_context, history=session.history[-3:],
             clarification=req.clarification, repair=repair,
         )
@@ -311,7 +316,7 @@ def _narrate(llm, req, query: GuardedQuery, table, work: Work, catalog: Catalog,
     trace.step("narrate", "started")
     try:
         narration, payload, fallback = narrate(llm, question=req.question, sql=query.sql, table=table,
-                                               caveats=work.caveats, pii_columns=_pii_result_columns(query, table.columns, catalog))
+                                               caveats=work.caveats, pii_columns=_pii_result_columns(query, table, catalog))
         work.payloads.append(payload)
     except LLMUnavailable:
         narration, fallback = Narration(text=template_answer(req.question, table)), True
@@ -320,23 +325,24 @@ def _narrate(llm, req, query: GuardedQuery, table, work: Work, catalog: Catalog,
     return narration, fallback
 
 
-def _pii_result_columns(query: GuardedQuery, result_columns: list[str], catalog: Catalog) -> set[str]:
-    """Conservative: if the query touches any PII column, every result column that is not a
-    known non-PII column is treated as PII (aliases like `e.name AS employee` stay covered)."""
+def _pii_result_columns(query: GuardedQuery, table, catalog: Catalog) -> set[str]:
+    """If the query touches any PII column, EVERY result column that holds text is hidden from
+    the narrator. A column name proves nothing: `SELECT e.name AS department` would otherwise
+    walk straight through. Tokens are swapped back before the user sees the sentence."""
     profiles = {(t.name, c.name): c for t in catalog.tables for c in t.columns}
     if not any(profiles.get(ref) and profiles[ref].pii for ref in query.columns):
         return set()
-    safe = {c.name for t in catalog.tables for c in t.columns if not c.pii}
-    return {name for name in result_columns if name not in safe}
+    return {name for i, name in enumerate(table.columns) if any(isinstance(row[i], str) for row in table.rows)}
 
 
-def _cross_check(session, req, llm, schema_context, metric_context, primary: ExecResult) -> CrossCheck:
+def _cross_check(session, req, llm, schema_context, metric_context, primary: ExecResult, avoid_model: str) -> CrossCheck:
     """A second model family writes its own SQL. Agreement is evidence; disagreement is a flag.
     Any failure here is 'unavailable', never an error for the user."""
     if not settings.crosscheck:
         return CrossCheck(status="skipped")
     try:
-        generation, payload = generate(llm, role="crosscheck", question=req.question, schema_context=schema_context,
+        # Agreement only means something if a DIFFERENT model wrote the second query.
+        generation, payload = generate(llm.with_options(avoid_model=avoid_model), role="crosscheck", question=req.question, schema_context=schema_context,
                                        metric_context=metric_context, history=session.history[-3:],
                                        clarification=req.clarification)
         if generation.status != "ok":

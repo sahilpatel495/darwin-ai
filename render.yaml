@@ -29,7 +29,10 @@ services:
       - key: DUCKDB_THREADS
         value: "2"
       - key: MAX_SESSIONS
-        value: "8"
+        value: "12"
+      # One address cannot push everyone else out: 5 new sessions an hour against 12 slots.
+      - key: SESSIONS_PER_IP_PER_HOUR
+        value: "5"
       # To pin the model the golden eval chose, add for example:
       # - key: LLM_SQL_CHAIN
       #   value: groq:openai/gpt-oss-120b,nvidia:deepseek-ai/deepseek-v4-flash-0731
