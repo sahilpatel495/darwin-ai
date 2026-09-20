@@ -36,15 +36,18 @@ build: ## Build the Docker image
 up: ## Run the app in Docker at http://localhost:8000
 	docker compose up --build
 
-smoke: build ## Start the image with the same lock-down as compose; check health, non-root and no secrets inside
+# PORT is set the way a host such as Render sets it, so this also proves the image obeys it.
+# Up to 30 one-second tries: a cold CI runner needs a few seconds to import pandas and DuckDB.
+smoke: build ## Start the image locked down like compose, on a host-chosen PORT; check health, the UI, non-root, no secrets inside
 	@docker rm -f verity-smoke >/dev/null 2>&1 || true
-	docker run -d --name verity-smoke -p 8011:8000 --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges $(IMAGE)
-	@ok=1; for i in 1 2 3 4 5 6 7 8 9 10; do \
+	docker run -d --name verity-smoke -e PORT=8011 -p 8011:8011 --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges $(IMAGE)
+	@ok=1; for i in $$(seq 1 30); do \
 		sleep 1; curl -fs localhost:8011/healthz && ok=0 && break; \
 	done; \
+	curl -fs localhost:8011/ | grep -q 'id="root"' || { echo "The built UI is not served at /."; ok=1; }; \
 	test "$$(docker exec verity-smoke id -u)" = "1000" || { echo "The container is not running as uid 1000."; ok=1; }; \
 	stray=$$(docker exec verity-smoke find /app -path /app/.venv -prune -o \
-		\( -name '.env*' -o -name '*.env' -o -name '*.pem' -o -name '*.key' -o -name .git -o -name node_modules \) -print); \
+		\( -name '.env*' -o -name '*.env' -o -name '*.pem' -o -name '*.key' -o -name .git -o -name node_modules -o -name .playwright-mcp \) -print); \
 	test -z "$$stray" || { echo "These must never be in the image: $$stray"; ok=1; }; \
 	test $$ok = 0 || docker logs verity-smoke; \
 	docker rm -f verity-smoke >/dev/null; echo; exit $$ok

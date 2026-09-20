@@ -11,7 +11,10 @@ Run from the repo root: uv run pytest .github/scripts -q
 from __future__ import annotations
 
 import http.client
+import os
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -38,13 +41,23 @@ def test_env_example_documents_every_setting() -> None:
 
 
 def test_env_example_sets_nothing_but_empty_api_keys() -> None:
-    """A committed file must never carry a secret, and an empty non-key line is a trap:
-    `MAX_UPLOAD_MB=` overrides the default with "" and the app crashes on int("")."""
+    """A committed file must never carry a secret. Only the key lines are live, and they are
+    empty, so a reader sees where keys go and nothing else changes when the file is copied."""
     live = [line for line in _read(".env.example").splitlines() if line and not line.startswith("#")]
     assert live, "expected the API key lines to be uncommented so users can see where keys go"
     for line in live:
         name, _, value = line.partition("=")
         assert name.endswith("_API_KEY") and value == "", line
+
+
+def test_every_documented_setting_may_be_left_empty() -> None:
+    """`cp .env.example .env` and hosting dashboards both produce `NAME=` lines, and .env.example
+    promises that means "use the default". Without config._env the app dies on int("") at import.
+    A fresh interpreter, because the settings are read once, when app.config is first imported."""
+    names = re.findall(r"^#?\s*([A-Z][A-Z0-9_]+)=", _read(".env.example"), flags=re.MULTILINE)
+    env = {**os.environ, **dict.fromkeys(names, ""), "PYTHONPATH": str(ROOT / "backend")}
+    code = "from app.config import chain, settings; assert settings.max_upload_mb == 25; assert chain('sql') == []"
+    subprocess.run([sys.executable, "-c", code], env=env, check=True)
 
 
 def test_env_example_shows_the_real_default_chains() -> None:
@@ -59,8 +72,10 @@ def test_render_blueprint_is_a_free_docker_service_with_no_secrets() -> None:
     assert (service["type"], service["runtime"], service["plan"]) == ("web", "docker", "free")
     assert service["healthCheckPath"] == "/healthz"
     env = {var["key"]: var for var in service["envVars"]}
+    # Sized for the free instance: 512 MB of memory and a tenth of a CPU.
     assert env["MAX_UPLOAD_MB"]["value"] == "10"
     assert env["DUCKDB_MEMORY_LIMIT"]["value"] == "256MB"
+    assert env["DUCKDB_THREADS"]["value"] == "2"
     for key, var in env.items():
         if key.endswith("_API_KEY"):
             assert var == {"key": key, "sync": False}, f"{key} must be entered in the dashboard"

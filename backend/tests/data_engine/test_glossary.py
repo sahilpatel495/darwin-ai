@@ -191,6 +191,13 @@ def test_plurals_are_ambiguous_too_but_longer_words_are_not(catalog):
         assert find_ambiguity(question, catalog, None) is None, question  # "payment" is not "pay"
 
 
+def test_a_question_that_names_the_pay_component_is_not_ambiguous(catalog):
+    """"Pay out in bonuses" is about bonuses; "pay" on its own is still a question (see below)."""
+    for question in ("How much did we pay out in bonuses in 2025 in total?", "total deductions from pay by month"):
+        assert find_ambiguity(question, catalog, None) is None, question
+    assert find_ambiguity("How much did we pay out in 2025?", catalog, None).term == "pay"
+
+
 def test_the_usual_name_of_a_column_the_data_has_is_specific(catalog):
     """"Basic pay" is not a question about "pay" when the data has a basic-pay column."""
     assert find_ambiguity("average basic pay", catalog, None).term == "pay"  # no basic column: offer what exists

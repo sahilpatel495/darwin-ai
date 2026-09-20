@@ -1,7 +1,7 @@
 // The only file that talks to the backend. Lead-owned: it must match backend/app/main.py.
 // Set VITE_MOCK=1 to develop the UI against ./fixtures with no backend running.
 
-import type { Answer, AskRequest, Catalog, ErrorResponse, EvalReport, Metric, StepEvent } from './types'
+import type { Answer, AskRequest, Catalog, ErrorResponse, EvalReport, Metric, ResultTable, StepEvent } from './types'
 
 const MOCK = import.meta.env.VITE_MOCK === '1'
 const SESSION_KEY = 'verity.session'
@@ -123,6 +123,13 @@ export const setLinkStatus = (sessionId: string, linkId: string, status: 'active
 
 export const saveGlossary = (sessionId: string, glossary: Metric[]) =>
   MOCK ? fixture<Catalog>('catalog', 200) : http<Catalog>(`/api/sessions/${sessionId}/glossary`, json('PUT', glossary))
+
+// The first rows of one uploaded table, for the analyst's own eyes. The server builds no prompt
+// from them. In mock mode a fixture answer's table stands in.
+export const previewTable = (sessionId: string, tableName: string, limit = 50) =>
+  MOCK
+    ? fixture<Answer>('answer_bar', 300).then((answer) => answer.table as ResultTable)
+    : http<ResultTable>(`/api/sessions/${sessionId}/tables/${encodeURIComponent(tableName)}/preview?limit=${limit}`)
 
 export const getEvalReport = () => (MOCK ? fixture<EvalReport>('eval_report', 300) : http<EvalReport>('/api/eval/report'))
 

@@ -440,6 +440,15 @@ def test_ids_and_sleep_flags(harness):
     assert naps == [2.5]  # no pause after a question replayed from the cache: it spent no tokens
 
 
+@pytest.mark.parametrize("cross_check, pauses", [("agreed", [2.5]), ("skipped", [])])
+def test_replayed_sql_still_pauses_when_the_cross_check_may_have_been_live(harness, cross_check, pauses):
+    naps = []
+    app = FakeApp({"What was the total gross pay in 2025?": [answered([[1200000.0]], cached=True, cross_check=cross_check)],
+                   "What is our customer churn rate?": [refused()]})
+    assert run_eval.main(["--ids", "tot-01,una-01", "--sleep", "2.5"], app=app, sleep=naps.append) == 0
+    assert naps == pauses
+
+
 def test_a_different_model_starts_a_fresh_report_but_keeps_the_comparison_table(harness):
     run_eval.main(["--split", "all"], app=FakeApp(full_script()), sleep=no_sleep)
     other = FakeApp({"What was the total gross pay in 2025?": [answered([[1200000.0]])]})

@@ -12,7 +12,7 @@
   --color-line: #e2e8f0;        /* borders */
   --color-ink: #0f172a;         /* primary text */
   --color-ink-soft: #475569;    /* secondary text */
-  --color-ink-faint: #94a3b8;   /* hints */
+  --color-ink-faint: #64748b;   /* hints and placeholders; 4.8:1 on white (the lighter #94a3b8 was 2.6:1, below AA) */
 
   --color-accent: #1d5bd8;      /* primary actions, links, chart series 1 */
   --color-accent-soft: #e8f0fe;

@@ -7,9 +7,11 @@ services:
     plan: free # 512 MB, 0.1 CPU, sleeps after 15 idle minutes; .github/workflows/keepwarm.yml pings it
     region: singapore # closest free region to users in India; it cannot be changed later
     healthCheckPath: /healthz
-    autoDeploy: true
+    autoDeployTrigger: commit # redeploy on every push; replaces Render's deprecated `autoDeploy`
     envVars:
-      # Add at least one key. Providers without a key are skipped by the failover chain.
+      # sync: false = Render asks for the value once, when the Blueprint is created. One key is
+      # enough: a provider whose key is missing or empty is skipped by the failover chain.
+      # Add or change keys later under the service's Environment tab.
       - key: GROQ_API_KEY
         sync: false
       - key: NVIDIA_API_KEY
@@ -23,6 +25,9 @@ services:
         value: "10"
       - key: DUCKDB_MEMORY_LIMIT
         value: 256MB
+      # Already the default; stated so the hosted sizing is all in one place (0.1 CPU).
+      - key: DUCKDB_THREADS
+        value: "2"
       - key: MAX_SESSIONS
         value: "8"
       # To pin the model the golden eval chose, add for example:

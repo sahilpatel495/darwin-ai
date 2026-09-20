@@ -149,6 +149,10 @@ AMBIGUOUS_TERMS: dict[str, list[str]] = {
     "earnings": ["gross", "net"],
 }
 
+# Roles that name one pay component outright. "How much did we pay out in bonuses?" is about
+# bonuses: "pay" there is a verb, not a column to choose, so no chips are offered.
+_NAMED_COMPONENTS = ("bonus", "deductions")
+
 _ROLE_LABELS = {"ctc": "CTC, annual", "gross": "Gross pay", "net": "Net pay, take-home", "basic": "Basic pay"}
 _PLACEHOLDER = re.compile(r"\{(\w+)(@table)?\}")
 
@@ -255,7 +259,8 @@ def find_ambiguity(
 ) -> Clarification | None:
     """Return clarify options when an AMBIGUOUS_TERMS term appears in the question, two or
     more of its candidate roles exist in the data, the question names none of those columns
-    or roles explicitly, and `clarification` does not already resolve the term.
+    or roles explicitly (nor another pay component such as bonuses or deductions), and
+    `clarification` does not already resolve the term.
 
     A clarification only counts when its value is a real "table.column": the pipeline writes
     that value into a prompt, so free text must never pass as a column.
@@ -273,6 +278,7 @@ def find_ambiguity(
             continue
         explicit = {phrase for role, _, column in candidates
                     for phrase in (*_phrases(column), *(s.replace("_", " ") for s in ROLE_SYNONYMS[role]))}
+        explicit |= {s.replace("_", " ") for role in _NAMED_COMPONENTS for s in ROLE_SYNONYMS[role]}
         if any(_mentions(question, phrase) for phrase in explicit):
             continue
         return Clarification(

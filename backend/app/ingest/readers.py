@@ -42,9 +42,17 @@ MAX_ROWS = 1_000_000
 # is short for HR data, a 25 MB CSV holds half this many.
 MAX_CELLS = 10_000_000
 MAX_SHEET_NAME = 31
-# A workbook is a zip. A few kilobytes can unpack to gigabytes, so the declared unpacked
-# size is checked before anything is opened. Honest 25 MB workbooks unpack to well under this.
-MAX_UNZIPPED_BYTES = 500 * 1024 * 1024
+# Excel's own limit for one cell. Rows and columns do not bound a file whose weight is in one
+# cell: a 303 KB workbook holding a single 300 MB cell passed every limit above and took the
+# process past 1 GB. Long cells also ride along into every query result.
+MAX_CELL_CHARS = 32_767
+# A workbook is a zip, and a few kilobytes can unpack to gigabytes, so the declared unpacked
+# size is checked before anything is opened. openpyxl can need three times the unpacked size
+# in memory (measured on that one-cell workbook, which no later limit sees in time), so the
+# allowance follows the upload cap the host was sized for: 200 MB at 25 MB, 80 MB at 10 MB.
+# Sheet XML compresses 5 to 10 times, so honest workbooks fit; a dense one near the cap may
+# not, and is told to come back as CSV, which is read as a stream.
+MAX_UNZIPPED_BYTES = 8 * settings.max_upload_mb * 1024 * 1024
 
 
 def read_raw_tables(path: Path, original_name: str) -> list[RawTable]:
@@ -264,7 +272,8 @@ def _bounded(rows, name: str, rows_left: int, cells_left: int) -> list[list[str 
     """Materialise rows, stopping at the limits before memory is spent on padding.
 
     `rows_left` and `cells_left` are what remains of the file's budget: a CSV passes the
-    full limits, a workbook passes what earlier sheets have not used.
+    full limits, a workbook passes what earlier sheets have not used. The length of a cell
+    is checked here too, so one rule covers both readers.
     """
     out: list[list[str | None]] = []
     width = 0
@@ -279,6 +288,11 @@ def _bounded(rows, name: str, rows_left: int, cells_left: int) -> list[list[str 
                 f"{name} has more than {MAX_ROWS:,} rows, which Verity cannot analyse. "
                 "Split it into smaller files and upload those. If your data is shorter than "
                 "that, delete the empty rows below it, save the file and upload it again."
+            )
+        if max(map(len, filter(None, row)), default=0) > MAX_CELL_CHARS:
+            raise IngestError(
+                f"{name} has a cell with more than {MAX_CELL_CHARS:,} characters, which is more "
+                "than Excel itself allows. Shorten or remove that cell and upload the file again."
             )
         width = max(width, len(row))
         if width * (len(out) + 1) > cells_left:

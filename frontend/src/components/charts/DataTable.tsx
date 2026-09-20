@@ -4,7 +4,8 @@ import type { ResultTable } from '../../types'
 import { humanize } from '../../lib/format'
 
 // ponytail: the server caps a result at 5,000 rows; drawing them all stalls a phone. Show the
-// first 200 and say so. Add paging or CSV export (P2) if analysts need to read further.
+// first 200 and say so; "Download CSV" under an answer's table has every row. Add paging if
+// analysts need to read further on screen.
 const MAX_RENDERED_ROWS = 200
 
 /** A column is right-aligned when every value it holds is a number (empty cells aside). */
@@ -15,7 +16,15 @@ function numericColumns(table: ResultTable): boolean[] {
   })
 }
 
-export default function DataTable({ table, caption }: { table: ResultTable; caption: string }) {
+interface DataTableProps {
+  table: ResultTable
+  caption: string
+  /** Said under the table when it shows only part of the data. Defaults to advice for an answer;
+   *  a file preview passes its own, because "add a filter to your question" makes no sense there. */
+  cutNote?: string
+}
+
+export default function DataTable({ table, caption, cutNote }: DataTableProps) {
   if (table.rows.length === 0) return <p className="text-sm text-ink-soft">The query ran and returned no rows.</p>
   const numeric = numericColumns(table)
   const shown = table.rows.slice(0, MAX_RENDERED_ROWS)
@@ -50,7 +59,7 @@ export default function DataTable({ table, caption }: { table: ResultTable; capt
       </div>
       {cut && (
         <p className="mt-2 text-xs text-ink-soft">
-          Showing the first {shown.length.toLocaleString('en-IN')} rows. The full result is longer. Add a filter or a grouping to your question to narrow it down.
+          {cutNote ?? `Showing the first ${shown.length.toLocaleString('en-IN')} rows. The full result is longer. Add a filter or a grouping to your question to narrow it down.`}
         </p>
       )}
     </div>

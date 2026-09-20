@@ -14,6 +14,8 @@ import Glossary from './Glossary'
 import Links from './Links'
 
 interface SidebarProps {
+  /** Needed by "Preview rows" on each file card, which fetches rows for this session. */
+  sessionId: string
   catalog: Catalog
   busy: Busy | null
   /** Drawer state; ignored from 768px up, where the sidebar is always visible. */
@@ -33,12 +35,13 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-export default function Sidebar({ catalog, busy, open, onClose, onFiles, onSetLink, onSaveGlossary }: SidebarProps) {
+export default function Sidebar({ sessionId, catalog, busy, open, onClose, onFiles, onSetLink, onSaveGlossary }: SidebarProps) {
   const closeButton = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     if (!open) return
     closeButton.current?.focus() // keyboard users land inside the drawer they just opened
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    // Esc inside "Preview rows" closes that dialog only; the drawer under it stays open.
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !document.querySelector('dialog[open]') && onClose()
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
@@ -51,7 +54,11 @@ export default function Sidebar({ catalog, busy, open, onClose, onFiles, onSetLi
       {open && <div onClick={onClose} aria-hidden className="fixed inset-0 z-30 bg-ink/40 md:hidden" />}
       <aside
         aria-label="Your data"
-        className={`z-40 w-[min(22rem,88vw)] shrink-0 space-y-6 overflow-y-auto border-r border-line bg-canvas p-4 transition-transform max-md:fixed max-md:inset-y-0 max-md:left-0 md:w-80 ${
+        // md:relative matters: screen-reader-only text (the file input, "Check:") is absolutely
+        // positioned. Without a positioned scroller it is laid out against the page, the page
+        // grows as tall as this whole sidebar, and scrolling to a new answer pushes the header
+        // off the screen. Below 768px the drawer is `fixed`, which does the same job.
+        className={`z-40 w-[min(22rem,88vw)] shrink-0 space-y-6 overflow-y-auto border-r border-line bg-canvas p-4 transition-transform max-md:fixed max-md:inset-y-0 max-md:left-0 md:relative md:w-80 ${
           open ? '' : 'max-md:invisible max-md:-translate-x-full'
         }`}
       >
@@ -62,7 +69,7 @@ export default function Sidebar({ catalog, busy, open, onClose, onFiles, onSetLi
         <Section title="Your files">
           <ul className="space-y-2">
             {files.map((table) => (
-              <FileCard key={table.name} table={table} />
+              <FileCard key={table.name} sessionId={sessionId} table={table} />
             ))}
           </ul>
           {busy ? <UploadProgress busy={busy} /> : <DropZone compact onFiles={onFiles} />}

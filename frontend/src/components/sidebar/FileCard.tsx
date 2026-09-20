@@ -5,10 +5,11 @@
 import { AlertIcon, CheckIcon } from '../shell/icons'
 import type { TableProfile } from '../../types'
 import Expander from './Expander'
+import PreviewRows from './PreviewRows'
 import { TYPE_NOUN, receiptLines } from './wording'
 
-export default function FileCard({ table }: { table: TableProfile }) {
-  const lines = receiptLines(table.health)
+export default function FileCard({ sessionId, table }: { sessionId: string; table: TableProfile }) {
+  const lines = receiptLines(table.health, (name) => table.columns.find((c) => c.name === name)?.label ?? name)
   const toCheck = lines.filter((line) => line.tone === 'warn').length
 
   return (
@@ -20,10 +21,10 @@ export default function FileCard({ table }: { table: TableProfile }) {
         {table.sheet && <>Sheet {table.sheet}, </>}
         {table.row_count.toLocaleString('en-IN')} rows × {table.columns.length} columns
       </p>
-      {/* The table name is what appears in links below and in the SQL under each answer. */}
-      <p className="mt-0.5 mb-2 truncate text-xs text-ink-soft" title={table.name}>
-        Table name <code className="font-mono text-ink">{table.name}</code>
-      </p>
+      {/* A div, not a <p>: the dialog that PreviewRows renders may not sit inside a paragraph. */}
+      <div className="mt-1 mb-2">
+        <PreviewRows sessionId={sessionId} table={table} />
+      </div>
 
       <Expander
         label="Data Health receipt"
@@ -45,16 +46,21 @@ export default function FileCard({ table }: { table: TableProfile }) {
       </Expander>
 
       <Expander label="Columns">
+        {/* Headers as they are written in the file. The SQL names (column.name, table.name) only
+            matter to someone reading the SQL under an answer, so they sit in a tooltip and a footnote. */}
         <ul className="space-y-1 pt-1 pb-1">
           {table.columns.map((column) => (
             <li key={column.name} className="flex items-baseline justify-between gap-2">
-              <code className="min-w-0 truncate font-mono text-xs text-ink" title={column.label}>
-                {column.name}
-              </code>
-              <span className="shrink-0 text-xs text-ink-soft">{column.pii ? 'personal data, hidden from the model' : TYPE_NOUN[column.type]}</span>
+              <span className="min-w-0 truncate text-sm text-ink" title={`${column.label} (${column.name} in the SQL)`}>
+                {column.label}
+              </span>
+              <span className="shrink-0 text-xs text-ink-soft">{column.pii ? 'personal data, hidden from the AI' : TYPE_NOUN[column.type]}</span>
             </li>
           ))}
         </ul>
+        <p className="pb-2 text-xs break-words text-ink-soft">
+          In the SQL under each answer this table is called <code className="font-mono text-ink">{table.name}</code>.
+        </p>
       </Expander>
     </li>
   )

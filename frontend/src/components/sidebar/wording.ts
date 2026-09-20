@@ -33,8 +33,9 @@ export const TYPE_NOUN: Record<ColumnType, string> = {
 /**
  * Turns the ingestion receipt into sentences, in the order the cleaning happened.
  * Always returns at least one line, so an empty receipt never looks like a check that was skipped.
+ * `label` turns a cleaned column name (pay_month) back into the header the analyst wrote (Pay Month).
  */
-export function receiptLines(health: DataHealth): ReceiptLine[] {
+export function receiptLines(health: DataHealth, label: (column: string) => string = (column) => column): ReceiptLine[] {
   const lines: ReceiptLine[] = []
   const ok = (text: string) => lines.push({ tone: 'ok', text })
   const warn = (text: string) => lines.push({ tone: 'warn', text })
@@ -54,9 +55,9 @@ export function receiptLines(health: DataHealth): ReceiptLine[] {
   for (const c of health.coercions) {
     if (c.unparseable > 0) {
       const examples = c.examples.length ? ` (${c.examples.join(', ')})` : ''
-      warn(`${c.column}: parsed ${TYPE_NOUN[c.to_type]}, ${count(c.unparseable, 'unreadable value')} left empty${examples}.`)
+      warn(`${label(c.column)}: parsed ${TYPE_NOUN[c.to_type]}, ${count(c.unparseable, 'unreadable value')} left empty${examples}.`)
     } else {
-      cleanByType.set(c.to_type, [...(cleanByType.get(c.to_type) ?? []), c.column])
+      cleanByType.set(c.to_type, [...(cleanByType.get(c.to_type) ?? []), label(c.column)])
     }
   }
   for (const [type, columns] of cleanByType) ok(`Read as ${TYPE_NOUN[type]}: ${nameList(columns)}.`)
@@ -66,11 +67,11 @@ export function receiptLines(health: DataHealth): ReceiptLine[] {
     else ok(`Dates read as ${health.date_format}.`)
   }
 
-  if (health.pii_columns.length) ok(`PII columns hidden from the model: ${nameList(health.pii_columns)}.`)
-  if (health.preserved_id_columns.length) ok(`Kept as text to preserve leading zeros: ${nameList(health.preserved_id_columns)}.`)
+  if (health.pii_columns.length) ok(`PII columns hidden from the model: ${nameList(health.pii_columns.map(label))}.`)
+  if (health.preserved_id_columns.length) ok(`Kept as text to preserve leading zeros: ${nameList(health.preserved_id_columns.map(label))}.`)
 
   for (const [column, fraction] of Object.entries(health.null_hotspots)) {
-    warn(`${column}: ${Math.round(fraction * 100)}% of values are empty.`)
+    warn(`${label(column)}: ${Math.round(fraction * 100)}% of values are empty.`)
   }
   for (const warning of health.warnings) warn(warning)
 
@@ -82,36 +83,44 @@ export function receiptLines(health: DataHealth): ReceiptLine[] {
 const wholePercent = (fraction: number): number => Math.floor(fraction * 100 + 1e-9)
 
 /**
- * The weaker of the two match directions, because that is the one the backend uses to decide
- * whether a link is active. Rounded down: showing 100% for 99.6% would overstate the join.
+ * The headline match: the better of the two directions, rounded down (showing 100% for 99.6%
+ * would overstate the join). Better, not weaker, because that is the side the backend uses to
+ * switch a link on, and because in a healthy link every child row finds its parent while many
+ * parents have no child: a bonus sheet that covers a quarter of the staff is a sound link, and
+ * "25%" beside "In use" reads as a broken one. The explanation still gives both directions.
  */
 export function matchPercent(link: Relationship): number {
-  return wholePercent(Math.min(link.match_left, link.match_right))
+  return wholePercent(Math.max(link.match_left, link.match_right))
 }
 
-export function linkLabel(link: Relationship): string {
-  return `${link.left_table}.${link.left_column} ↔ ${link.right_table}.${link.right_column} · ${matchPercent(link)}% · ${link.cardinality}`
+/** Turns a SQL table name into what the analyst calls it (the file). Supplied by the caller so this file stays import-free. */
+type TableNamer = (table: string) => string
+
+/** Files, not SQL identifiers: "employees.csv ↔ Salary_Register_2025.xlsx (sheet Register)". */
+export function linkLabel(link: Relationship, name: TableNamer): string {
+  return `${name(link.left_table)} ↔ ${name(link.right_table)}`
 }
 
-/** Says the match and the cardinality in words, for readers who have never seen "1:N". */
-export function linkExplanation(link: Relationship): string {
-  const { left_table: left, right_table: right } = link
+/** Says the matching column, the match and the cardinality in words, for readers who have never seen "1:N". */
+export function linkExplanation(link: Relationship, name: TableNamer): string {
+  const [left, right] = [name(link.left_table), name(link.right_table)]
   const percent = (fraction: number) => `${wholePercent(fraction)}%`
+  const on = link.left_column === link.right_column ? link.left_column : `${link.left_column} = ${link.right_column}`
   const match =
     link.match_left === link.match_right
       ? `${percent(link.match_left)} of the values match in both directions.`
-      : `${percent(link.match_left)} of ${left}.${link.left_column} values appear in ${right}, and ${percent(link.match_right)} the other way.`
+      : `${percent(link.match_left)} of the ${link.left_column} values in ${left} are found in ${right}, and ${percent(link.match_right)} the other way.`
   const shape: Record<Relationship['cardinality'], string> = {
-    '1:1': `Each ${left} row matches at most one ${right} row.`,
-    '1:N': `One ${left} row can match many ${right} rows.`,
-    'N:1': `Many ${left} rows can match one ${right} row.`,
+    '1:1': `Each row in ${left} matches at most one row in ${right}.`,
+    '1:N': `One row in ${left} can match many rows in ${right}.`,
+    'N:1': `Many rows in ${left} can match one row in ${right}.`,
     'N:M': `Rows repeat on both sides, so totals across this link can be counted more than once.`,
   }
-  return `${match} ${shape[link.cardinality]}`
+  return `Matched on ${on}. ${match} ${shape[link.cardinality]}`
 }
 
-export function unionLabel(union: UnionView): string {
-  return `${union.view_name} = ${union.tables.join(' + ')}`
+export function unionLabel(union: UnionView, name: TableNamer): string {
+  return union.tables.map(name).join(' + ')
 }
 
 // ponytail: mirrors _MAX_SYNONYMS and _MAX_SYNONYM_CHARS in backend/app/sessions.py. The server is

@@ -1,7 +1,7 @@
 // The live step list shown instead of a spinner: people trust a wait they can read. It stays
 // open while the question runs, then folds into one line so the answer leads the turn.
 import type { StepEvent } from '../../types'
-import { STAGE_LABELS, summarizeSteps } from './steps'
+import { STAGE_LABELS, summarizeSteps, tidyDetail } from './steps'
 
 const MARK: Record<StepEvent['status'], { glyph: string; tone: string; spoken: string }> = {
   started: { glyph: '•', tone: 'text-accent animate-pulse', spoken: 'In progress' },
@@ -32,7 +32,7 @@ export default function StepList({ steps, running }: { steps: StepEvent[]; runni
               <span className="min-w-0 break-words">
                 <span className="sr-only">{mark.spoken}: </span>
                 <span className="text-ink">{STAGE_LABELS[step.stage] ?? step.stage}</span>
-                {step.detail && <span className="text-ink-soft">: {step.detail}</span>}
+                {step.detail && <span className="text-ink-soft">: {tidyDetail(step.detail)}</span>}
               </span>
             </li>
           )

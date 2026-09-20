@@ -215,18 +215,30 @@ export default function App() {
     <div className="flex h-full flex-col">
       <Header onTrustPage={onTrustPage} onNewSession={newSession} working={busy !== null} behindDrawer={drawerOpen} />
 
+      {/* Every scroller is `relative`: screen-reader-only text is absolutely positioned, and against
+          an unpositioned scroller it is laid out on the page instead, which then scrolls as a whole. */}
       {onTrustPage && (
-        <main className="min-h-0 flex-1 overflow-y-auto">
+        <main className="relative min-h-0 flex-1 overflow-y-auto">
           <TrustReport />
         </main>
       )}
 
       {/* Hidden rather than unmounted on the Trust Report page: Thread owns the conversation, and
           unmounting it would throw the analyst's answers away for the sake of reading a report. */}
-      <div className={onTrustPage ? 'hidden' : 'flex min-h-0 flex-1'}>
+      <div className={onTrustPage ? 'hidden' : 'relative flex min-h-0 flex-1'}>
         {catalog && sessionId ? (
           <>
+            {/* The sidebar holds dozens of controls. A keyboard user can step over them; the link
+                is invisible until it has focus, and absent on a phone, where the sidebar is a closed drawer. */}
+            <button
+              type="button"
+              onClick={() => document.getElementById('verity-question')?.focus()}
+              className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-surface focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-accent-ink max-md:hidden"
+            >
+              Skip to your question
+            </button>
             <Sidebar
+              sessionId={sessionId}
               catalog={catalog}
               busy={busy}
               open={drawerOpen}
@@ -251,7 +263,7 @@ export default function App() {
             </main>
           </>
         ) : (
-          <main className="min-h-0 flex-1 overflow-y-auto">
+          <main className="relative min-h-0 flex-1 overflow-y-auto">
             {notice && <div className="mx-auto w-full max-w-5xl px-4 pt-4 sm:px-6">{notice}</div>}
             {loading ? <LoadingScreen /> : <Landing busy={busy} onFiles={addFiles} onSample={addSample} />}
           </main>

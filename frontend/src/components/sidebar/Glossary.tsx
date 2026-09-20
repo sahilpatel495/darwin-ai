@@ -40,6 +40,7 @@ function MetricEditor({ metric, glossary, onSave }: GlossaryProps & { metric: Me
         <label className="block text-xs font-medium text-ink-soft">
           Definition
           {/* Length caps keep an edited glossary from crowding out the rest of the model's instructions. */}
+          {/* field-sizing: the box grows to fit the definition, so nobody scrolls a four-line box inside a scrolling sidebar. */}
           <textarea
             required
             rows={4}
@@ -49,7 +50,7 @@ function MetricEditor({ metric, glossary, onSave }: GlossaryProps & { metric: Me
               setDefinition(e.target.value)
               setState('idle')
             }}
-            className={field}
+            className={`${field} [field-sizing:content]`}
           />
         </label>
         <label className="block text-xs font-medium text-ink-soft">
@@ -68,10 +69,12 @@ function MetricEditor({ metric, glossary, onSave }: GlossaryProps & { metric: Me
         {metric.required_roles.length > 0 && (
           <p className="text-xs text-ink-soft">Needs these kinds of column: {metric.required_roles.map((role) => role.replaceAll('_', ' ')).join(', ')}.</p>
         )}
-        <div>
-          <p className="text-xs font-medium text-ink-soft">How it is calculated</p>
+        {/* Folded by default: a SQL template with {placeholders} is for the engineer, and it sat
+            between the analyst and the Save button. A plain <details>, because Expanders must not nest. */}
+        <details>
+          <summary className="cursor-pointer text-xs font-medium text-accent-ink">How it is calculated (SQL pattern)</summary>
           <pre className="mt-1 rounded-md bg-sunken p-2 font-mono text-xs break-words whitespace-pre-wrap text-ink">{metric.sql_pattern}</pre>
-        </div>
+        </details>
         <div className="flex items-center gap-3">
           <button
             type="submit"

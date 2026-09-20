@@ -98,6 +98,9 @@ class CaseResult:
     cached: bool  # any model response was replayed from disk, so the latency is not real
     cross_check: str
     sql: str | None
+    # A model call may have gone to a provider, so the next question must wait. Not the
+    # opposite of `cached`: replayed SQL with a live narration or cross-check still spends.
+    live: bool = True
 
 
 class AppUnderTest(Protocol):
@@ -248,6 +251,10 @@ def run_case(case: GoldenCase, ask: Ask, expected: Any, sleep: Sleep = time.slee
         cached=any(payload.cached for a in answers for payload in a.work.payloads),
         cross_check=answer.work.cross_check.status,
         sql=answer.work.sql,
+        # ponytail: the cross-check call leaves no payload, so whenever it ran it counts as
+        # live. A fully replayed pass then sleeps for nothing; run that one without --sleep.
+        live=any(not payload.cached for a in answers for payload in a.work.payloads)
+        or answer.work.cross_check.status != "skipped",
     )
 
 
@@ -472,11 +479,11 @@ class SampleApp:
     def new_conversation(self) -> None:
         """Golden questions are independent: no follow-up context, no remembered answers. The
         pipeline's process-wide answer cache is cleared too, or a second run would be a replay."""
-        from app.query import pipeline
+        from app.query.pipeline import clear_answer_cache
 
         self._session.history.clear()
         self._session.answer_cache.clear()
-        pipeline._SHARED_CACHE.clear()  # private on purpose: if it is renamed this fails loudly
+        clear_answer_cache()
 
     def ask(self, req: AskRequest) -> Answer:
         from app.query.pipeline import answer_question
@@ -562,8 +569,8 @@ def _run(args: argparse.Namespace, app: AppUnderTest | None, sleep: Sleep) -> in
             _print_case(f"run {run_index + 1}, {position}/{len(selected)}", case, result,
                         hidden=args.hide_holdout_failures and case.split == "holdout")
             last = run_index == args.runs - 1 and position == len(selected)
-            if args.sleep and not result.cached and not last:
-                sleep(args.sleep)  # a cached question spent no tokens, so there is nothing to pace
+            if args.sleep and result.live and not last:
+                sleep(args.sleep)  # a fully replayed question spent no tokens, so there is nothing to pace
 
     earlier = {c.id: c for c in previous.cases} if previous and previous.model == model else {}
     fresh = [collapse_runs(case, results[case.id], earlier.get(case.id)) for case in selected]

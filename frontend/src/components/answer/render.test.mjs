@@ -45,7 +45,7 @@ before(async () => {
 after(() => vite.close())
 
 const noop = () => {}
-const card = (answer, props = {}) => renderToStaticMarkup(h(AnswerCard, { answer, glossary: [], busy: false, onAsk: noop, onClarify: noop, onRetry: noop, ...props }))
+const card = (answer, props = {}) => renderToStaticMarkup(h(AnswerCard, { answer, glossary: [], tables: catalog.tables, busy: false, onAsk: noop, onClarify: noop, onRetry: noop, ...props }))
 /** Visible words only, so assertions read like the page. Spans are inline: no space is added. */
 const words = (html) => html.replace(/<\/?span[^>]*>/g, '').replace(/<[^>]+>/g, ' ').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/\s+/g, ' ').trim()
 /** The way React writes text into HTML. If a string shows up like this, it was never markup. */
@@ -106,13 +106,32 @@ test('clarify offers each meaning as a chip, even when two options share a value
   assert.match(words(html), /Which salary figure do you mean\?/)
 })
 
+test('the analyst reads file names, not SQL table names, and is not asked the same sentence twice', () => {
+  const tables = [{ name: 'pay_2025_register', source_file: 'Pay_2025.xlsx', sheet: 'Register', columns: [{ name: 'gross', label: 'Gross' }] }]
+  const asked = { ...clarify, text: 'Which one?', clarification: { term: 'salary', question: 'which one?', options: [{ label: 'Gross pay (pay_2025_register.gross)', value: 'pay_2025_register.gross' }, clarify.clarification.options[0]] } }
+  const html = words(card(asked, { tables }))
+  assert.equal(html.match(/which one\?/gi).length, 1)
+  assert.match(html, /Gross pay · Gross in Pay_2025\.xlsx/)
+  assert.ok(!html.includes('pay_2025_register'))
+  const caveat = words(card({ ...bar, work: { ...bar.work, caveats: ['6 exact duplicate rows were removed from pay_2025_register before answering.'] } }, { tables }))
+  assert.match(caveat, /removed from Pay_2025\.xlsx before answering\./)
+})
+
+test('the table view offers the rows as a CSV; the chart view and an empty result do not', () => {
+  const tableOnly = words(renderToStaticMarkup(h(ResultView, { chart: null, table: tableOf([['HR', 1], ['Sales', 2]]), question: 'Pay by dept?' })))
+  assert.match(tableOnly, /Download CSV \(2 rows\)/)
+  assert.ok(!words(renderToStaticMarkup(h(ResultView, { chart: bar.chart, table: bar.table, question: 'q' }))).includes('Download CSV'), 'chart view first')
+  assert.ok(!words(renderToStaticMarkup(h(ResultView, { chart: null, table: tableOf([]), question: 'q' }))).includes('Download CSV'))
+})
+
 test('refusal says what would make the question answerable', () => {
   assert.match(words(card(refusal)), new RegExp(`What would make this answerable ${refusal.missing.slice(0, 40).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`))
 })
 
 test('How I got this carries the privacy line and the model messages word for word', () => {
   const html = card(bar)
-  assert.match(html, /Only table structure and statistics were sent\. No rows\./)
+  // The line must match what the payloads below it show: category values are sent, rows are not.
+  assert.match(words(html), /short lists of category values \(such as department names\) were sent\. No rows, and nothing from a personal data column\./)
   for (const payload of bar.work.payloads) for (const message of payload.messages) assert.ok(html.includes(escaped(message.content)))
   assert.match(html, /Copy SQL/)
 })
@@ -171,6 +190,9 @@ test('trust report: an empty run has no empty headings; an unreadable file is re
   assert.match(page, /not enough rated answers/)
   assert.match(page, /Second model agreed Not measured/)
   assert.match(page, /This report lists no individual questions\./)
+  // A tuning-only run holds no unseen questions: "0%" would read as a failure.
+  const devOnly = { ...report, accuracy_holdout: 0, cases: report.cases.filter((c) => c.split !== 'holdout') }
+  assert.match(words(renderToStaticMarkup(h(trustReport.Report, { report: devOnly }))), /Correct on unseen questions Not measured/)
   assert.equal(trustReport.isReadable(report), true)
   for (const broken of [{}, null, 'oops', { ...report, cases: null }, { ...report, trust_score: undefined }]) assert.equal(trustReport.isReadable(broken), false)
 })

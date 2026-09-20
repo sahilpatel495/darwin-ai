@@ -66,6 +66,9 @@ function calibrationVerdict(calibration: EvalReport['calibration']): string {
 export function Report({ report }: { report: EvalReport }) {
   const [failedOnly, setFailedOnly] = useState(false)
   const failures = report.cases.filter((c) => !c.passed).length
+  // A run over the tuning questions only has no unseen questions; its file still says 0, and
+  // "0% correct" would be read as a failure rather than as "not measured".
+  const unseenMeasured = report.cases.some((c) => c.split === 'holdout')
   const cases = failedOnly ? report.cases.filter((c) => !c.passed) : report.cases
   return (
     <div className="space-y-4">
@@ -75,7 +78,7 @@ export function Report({ report }: { report: EvalReport }) {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat label="Correct answers" value={formatShare(report.accuracy)} help="Share of test questions answered correctly. The correct answers were worked out separately from the app, from the clean source data." />
-        <Stat label="Correct on unseen questions" value={formatShare(report.accuracy_holdout)} help="Questions that were kept aside and never used while tuning. A figure close to the share of correct answers means the result is not memorised." />
+        <Stat label="Correct on unseen questions" value={unseenMeasured ? formatShare(report.accuracy_holdout) : 'Not measured'} help="Questions that were kept aside and never used while tuning. A figure close to the share of correct answers means the result is not memorised." />
         <Stat label="Trust score" value={report.trust_score.toFixed(2)} help="Plus 1 for a correct answer, 0 for honestly saying it cannot answer, minus 1 for a wrong answer. It ranges from -1 to 1. A wrong answer costs more than no answer." />
       </div>
 
@@ -235,10 +238,8 @@ export default function TrustReport() {
   return (
     // A div, not <main>: the shell already wraps this page in the document's one <main>.
     <div className="mx-auto w-full max-w-5xl px-4 py-6">
-      <a href="#/" className="text-sm font-medium text-accent-ink underline">
-        Back to your data
-      </a>
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">Trust Report</h1>
+      {/* No "back" link here: the header already shows "Back to questions" on this page. */}
+      <h1 className="text-2xl font-semibold tracking-tight text-ink">Trust Report</h1>
       <p className="mt-1 mb-5 max-w-prose text-sm text-ink-soft">How often Verity gets it right, measured on a fixed set of test questions with known correct answers.</p>
 
       {load.state === 'loading' && (

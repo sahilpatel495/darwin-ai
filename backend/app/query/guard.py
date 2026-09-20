@@ -6,7 +6,8 @@ CREATE/INSERT, so this guard is a control in its own right, not a formality.
 
 What is allowed: one SELECT (or UNION/INTERSECT/EXCEPT of SELECTs) over the tables and columns
 in this session's catalog, using functions sqlglot recognises (except the few that report on
-the engine, such as version()) plus the short list below.
+the engine, such as version(), and the few that build huge values or cannot be stopped, see
+_reject_runaway_functions) plus the short list below.
 Anything the guard cannot analyse is refused: a refusal costs one repair, a miss costs trust.
 
 We execute the SQL re-rendered from the parsed tree, never the model's text, so DuckDB runs
@@ -60,6 +61,10 @@ class GuardedQuery:
 
 _WRITES = (exp.Insert, exp.Update, exp.Delete, exp.Merge, exp.Create, exp.Drop, exp.Alter,
            exp.TruncateTable, exp.Copy, exp.Into)
+# What may sit inside brackets or WITH. `SELECT * FROM (SUMMARIZE employees)` is a SELECT on the
+# outside and returns the min and max of every column, names and emails included, without
+# naming one column, so nothing downstream would know to hide them from the narration model.
+_QUERY_BODIES = (exp.Select, exp.SetOperation, exp.Subquery, exp.Table, exp.Values)
 _ROW_SOURCES = (exp.GenerateSeries, exp.Unnest)  # the only functions allowed to produce rows
 _FILE_READERS = (exp.ReadCSV, exp.ReadParquet)
 _AGGREGATES = (exp.Sum, exp.Avg, exp.Count, exp.Min, exp.Max)
@@ -69,6 +74,23 @@ _UNTYPED_FUNCTIONS = (exp.Anonymous, exp.AnonymousAggFunc)
 # every name in duckdb_functions() through the guard; repeat that on a sqlglot or DuckDB upgrade.
 _ENGINE_INFO = (exp.CurrentVersion, exp.CurrentUser, exp.CurrentRole, exp.SessionUser,
                 exp.CurrentDatabase, exp.CurrentCatalog, exp.CurrentSchema, exp.CurrentSchemas)
+
+# DuckDB's memory_limit covers its buffers, not the text a function builds: measured on 1.5.5
+# with a 512 MB limit, repeat('x', 4000000000) took the process to 3.4 GB and range(30000000)
+# to 2.8 GB once Python had copied the list. One question must not be able to do that, so a
+# length argument has to be a small number written in the query. This stops the one-line
+# bombs, not every route (nested replace() can still build large text): the container's memory
+# limit is the backstop for the rest.
+MAX_SQL_CHARS = 20_000  # the guard's own parsing is CPU we spend before any timeout applies
+MAX_BUILT_CHARS = 1_000  # repeat(s, n), lpad(s, n, fill), rpad(s, n, fill): n at most this
+_LENGTH_ARGUMENT = {exp.Repeat: "times", exp.Pad: "expression"}
+# printf and format take a width from the pattern or from an argument ('%*d'), so they are
+# bombs too, and the app formats every number itself (presentation.py). The edit distances are
+# quadratic in the length of their inputs and DuckDB only looks at its interrupt flag between
+# batches of 2,048 rows: damerau_levenshtein over 64 long strings ran past a 10 s timeout for
+# more than 90 s, holding a CPU and the session's connection. sqlglot has no node for printf
+# or damerau_levenshtein, so those two are refused by being absent from _ALLOWED_FUNCTIONS.
+_RUNAWAY_FUNCTIONS = (exp.Format, exp.Levenshtein)
 
 # sqlglot parses every function it knows into a typed node (sum, date_trunc, coalesce, ...);
 # those are ordinary analytical functions and are allowed. Any other name arrives as
@@ -88,8 +110,8 @@ _ALLOWED_FUNCTIONS = frozenset({
     "mean", "product", "fsum", "favg", "kahan_sum", "sumkahan", "arbitrary", "mad",
     "geomean", "geometric_mean", "wavg", "weighted_avg", "histogram", "entropy",
     # text
-    "prefix", "suffix", "strlen", "ord", "printf", "strip_accents", "regexp_escape",
-    "regexp_split_to_array", "jaro_similarity", "jaccard", "hamming", "damerau_levenshtein",
+    "prefix", "suffix", "strlen", "ord", "strip_accents", "regexp_escape",
+    "regexp_split_to_array", "jaro_similarity", "jaccard", "hamming",
     # lists (string_agg / list results)
     "list_aggr", "list_aggregate", "list_unique", "list_position", "list_extract",
     "list_slice", "list_sum", "list_avg", "list_count",
@@ -101,7 +123,8 @@ _ALLOWED_FUNCTIONS = frozenset({
 def validate_sql(sql: str, catalog: Catalog) -> GuardedQuery:
     """Parse as DuckDB; exactly one statement; Select or set operation only; no write/command
     nodes; no table functions (generate_series and unnest allowed); no catalog/schema-qualified
-    names; only allow-listed functions; every real table in the catalog (CTEs resolved via
+    names; only allow-listed functions, none of them able to build a huge value in one call
+    or to outrun the timeout; every real table in the catalog (CTEs resolved via
     scopes); every column resolved against the catalog, unknown ones raise unknown_column with
     a difflib closest-match suggestion. Raises GuardError, and nothing else: an unexpected
     failure inside sqlglot is reported as a refusal, never as a pass.
@@ -113,6 +136,7 @@ def validate_sql(sql: str, catalog: Catalog) -> GuardedQuery:
         _reject_anything_but_a_read(tree)
         _reject_row_producing_functions_and_qualified_names(tree)
         _reject_unlisted_functions(tree)
+        _reject_runaway_functions(tree)
         _reject_columns_selected_without_a_name(tree)
         tables = _real_tables(tree, catalog)
         _check_qualified_columns(tree, catalog)
@@ -131,6 +155,9 @@ def validate_sql(sql: str, catalog: Catalog) -> GuardedQuery:
 
 
 def _parse_one_statement(sql: str) -> exp.Expression:
+    if len(sql) > MAX_SQL_CHARS:
+        raise GuardError("parse", f"The query is longer than {MAX_SQL_CHARS:,} characters, so it"
+                         " was not run. Write a shorter query.")
     try:
         statements = [s for s in sqlglot.parse(sql, read="duckdb") if s is not None]
     except (SqlglotError, RecursionError) as exc:
@@ -150,6 +177,12 @@ def _reject_anything_but_a_read(tree: exp.Expression) -> None:
                                   " This one would change or export data.")
     if not isinstance(tree, (exp.Select, exp.SetOperation)):
         raise GuardError("not_select", "Only a single SELECT query is allowed.")
+    bodies = [nested.this for nested in tree.find_all(exp.Subquery, exp.CTE)]
+    only_queries = all(isinstance(body, _QUERY_BODIES) for body in bodies)
+    if tree.find(exp.Summarize, exp.Describe) or not only_queries:
+        raise GuardError("not_select", "Only SELECT is allowed inside brackets and WITH."
+                         " SUMMARIZE and DESCRIBE are not: select the columns and aggregates"
+                         " you need by name.")
 
 
 def _reject_row_producing_functions_and_qualified_names(tree: exp.Expression) -> None:
@@ -172,6 +205,27 @@ def _reject_unlisted_functions(tree: exp.Expression) -> None:
             raise GuardError("function", f"The function {_function_name(node)}() is not on the"
                              " list of allowed functions. Rewrite the query with standard SQL"
                              " functions.")
+
+
+def _reject_runaway_functions(tree: exp.Expression) -> None:
+    """Functions that are fine for analysis at small sizes and a way to take the server down at
+    large ones (see MAX_BUILT_CHARS and _RUNAWAY_FUNCTIONS for the measurements)."""
+    if runaway := tree.find(*_RUNAWAY_FUNCTIONS):
+        raise GuardError("function", f"The function {_function_name(runaway)}() is not allowed."
+                         " Return plain numbers and text; the app formats them. Compare text"
+                         " with =, LIKE or jaro_winkler_similarity().")
+    for node in tree.find_all(*_LENGTH_ARGUMENT):
+        length = node.args.get(_LENGTH_ARGUMENT[type(node)])
+        written_number = isinstance(length, exp.Literal) and length.is_int
+        if not (written_number and int(length.name) <= MAX_BUILT_CHARS):
+            raise GuardError("function", f"The length given to {_function_name(node)}() has to be"
+                             f" a plain number of at most {MAX_BUILT_CHARS:,}.")
+    for series in tree.find_all(exp.GenerateSeries):
+        if not isinstance(series.parent, (exp.Table, exp.Lateral)):
+            # No quoted example here: the repair prompt hides quoted text it has not seen before.
+            raise GuardError("function", "generate_series() and range() are only allowed in FROM,"
+                             " where rows are produced one batch at a time. For example:"
+                             " FROM generate_series(1, 12) AS months(n).")
 
 
 def _reject_columns_selected_without_a_name(tree: exp.Expression) -> None:

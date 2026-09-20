@@ -5,7 +5,8 @@
 // nodes only. No markdown, no links, no HTML.
 import { useState } from 'react'
 import { humanize } from '../../lib/format'
-import type { Answer, Confidence, Metric } from '../../types'
+import { optionLabel, plainTables } from '../../lib/tables'
+import type { Answer, Confidence, Metric, TableProfile } from '../../types'
 import ResultView from '../charts/ResultView'
 import ErrorNotice from './ErrorNotice'
 import HowIGotThis, { hasWork } from './HowIGotThis'
@@ -13,6 +14,8 @@ import HowIGotThis, { hasWork } from './HowIGotThis'
 interface Props {
   answer: Answer
   glossary: Metric[]
+  /** The loaded tables, so SQL table names in the server's sentences can be shown as file names. */
+  tables: TableProfile[]
   /** True while another question is running: chips that would start a new one are disabled. */
   busy: boolean
   onAsk: (question: string) => void
@@ -30,7 +33,7 @@ const LEVEL: Record<Confidence['level'], { label: string; tone: string }> = {
 const badge = 'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium'
 const chip = 'rounded-full border border-line bg-surface px-3 py-1.5 text-left text-sm text-accent-ink hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50'
 
-export default function AnswerCard({ answer, glossary, busy, onAsk, onClarify, onRetry }: Props) {
+export default function AnswerCard({ answer, glossary, tables, busy, onAsk, onClarify, onRetry }: Props) {
   const [panel, setPanel] = useState<'confidence' | 'definition' | null>(null)
   const { work, confidence } = answer
   // undefined for a level this build does not know (a newer server): no badge rather than a crash.
@@ -47,11 +50,12 @@ export default function AnswerCard({ answer, glossary, busy, onAsk, onClarify, o
 
       {answer.kind === 'clarify' && answer.clarification && (
         <div>
-          <p className="mb-2 text-sm text-ink-soft">{answer.clarification.question}</p>
+          {/* The server usually sends the same sentence as the answer text; saying it twice reads as a glitch. */}
+          {answer.clarification.question.toLowerCase() !== answer.text.toLowerCase() && <p className="mb-2 text-sm text-ink-soft">{answer.clarification.question}</p>}
           <div className="flex flex-wrap gap-2">
             {answer.clarification.options.map((option, i) => (
               <button key={i} type="button" disabled={busy} className={chip} onClick={() => onClarify(answer.clarification!.term, option.value)}>
-                {option.label}
+                {optionLabel(option, tables)}
               </button>
             ))}
           </div>
@@ -89,7 +93,7 @@ export default function AnswerCard({ answer, glossary, busy, onAsk, onClarify, o
               <p className="font-medium text-ink">Why this is rated {confidence.level}</p>
               <ul className="mt-1 list-disc space-y-0.5 pl-5 text-ink-soft">
                 {confidence.reasons.map((reason, i) => (
-                  <li key={i}>{reason}</li>
+                  <li key={i}>{plainTables(reason, tables)}</li>
                 ))}
               </ul>
             </div>
@@ -120,14 +124,14 @@ export default function AnswerCard({ answer, glossary, busy, onAsk, onClarify, o
         </div>
       )}
 
-      {answer.table && <ResultView chart={answer.chart} table={answer.table} />}
+      {answer.table && <ResultView chart={answer.chart} table={answer.table} question={answer.question} />}
 
       {work.caveats.length > 0 && (
         <div>
           <h4 className="text-sm font-medium text-ink">Keep in mind</h4>
           <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-ink-soft">
             {work.caveats.map((caveat, i) => (
-              <li key={i}>{caveat}</li>
+              <li key={i}>{plainTables(caveat, tables)}</li>
             ))}
           </ul>
         </div>
@@ -146,7 +150,7 @@ export default function AnswerCard({ answer, glossary, busy, onAsk, onClarify, o
         </div>
       )}
 
-      {hasWork(work) && <HowIGotThis work={work} />}
+      {hasWork(work) && <HowIGotThis work={work} tables={tables} />}
     </div>
   )
 }

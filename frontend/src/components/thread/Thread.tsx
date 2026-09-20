@@ -5,6 +5,7 @@
 // overlapping questions would make "split that by location" ambiguous.
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { ApiError, ask } from '../../api'
+import { columnLabel } from '../../lib/tables'
 import type { Answer, Catalog, StepEvent } from '../../types'
 import AnswerCard from '../answer/AnswerCard'
 import ErrorNotice from '../answer/ErrorNotice'
@@ -37,6 +38,13 @@ interface Turn {
 const MAX_QUESTION = 500 // AskRequest.question max_length in backend/app/contracts.py
 const UNEXPECTED: Problem = { message: 'Something went wrong while reading the answer.', nextStep: 'Ask the question again.' }
 const EXPIRED: Problem = { message: 'Your session expired.', nextStep: 'Please upload your files again.' }
+
+/** The meanings already chosen that a follow-up's own wording uses. "salary" stays CTC when the
+ *  follow-up says "salary"; nothing else travels, so an unrelated question starts clean. */
+function carried(question: string, chosen: Record<string, string> | null): Record<string, string> | null {
+  const kept = Object.entries(chosen ?? {}).filter(([term]) => question.toLowerCase().includes(term.toLowerCase()))
+  return kept.length > 0 ? Object.fromEntries(kept) : null
+}
 
 const chip = 'rounded-full border border-line bg-surface px-3 py-1.5 text-left text-sm text-accent-ink hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50'
 
@@ -148,7 +156,10 @@ export default function Thread({ sessionId, catalog, onSessionExpired }: ThreadP
             <article key={turn.key} ref={i === turns.length - 1 ? latestTurn : undefined} className="scroll-mt-4 space-y-3 last:min-h-[70dvh]">
               <div className="ml-auto w-fit max-w-[85%] rounded-card bg-accent-soft px-4 py-2.5 text-ink">
                 <h3 className="text-base font-normal whitespace-pre-wrap break-words">{turn.question}</h3>
-                {turn.clarification && <p className="mt-1 text-xs text-ink-soft">Using {Object.values(turn.clarification).join(', ')}</p>}
+                {/* A Set: a second clarifying question about the same word can carry the same column twice. */}
+                {turn.clarification && (
+                  <p className="mt-1 text-xs text-ink-soft">Using {[...new Set(Object.values(turn.clarification))].map((ref) => columnLabel(ref, catalog.tables)).join(', ')}</p>
+                )}
               </div>
 
               <StepList steps={turn.steps} running={turn.state === 'running'} />
@@ -157,8 +168,11 @@ export default function Thread({ sessionId, catalog, onSessionExpired }: ThreadP
                 <AnswerCard
                   answer={turn.answer}
                   glossary={catalog.glossary}
+                  tables={catalog.tables}
                   busy={running}
-                  onAsk={(question) => askFromChip(question)}
+                  // A follow-up is asked in the context of this answer, so it keeps the meaning the
+                  // analyst already chose ("salary" = CTC) instead of asking them again.
+                  onAsk={(question) => askFromChip(question, carried(question, turn.clarification))}
                   onClarify={(term, value) => askFromChip(turn.question, { ...turn.clarification, [term]: value })}
                   onRetry={() => askFromChip(turn.question, turn.clarification)}
                 />

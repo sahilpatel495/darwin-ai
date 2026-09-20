@@ -18,13 +18,21 @@ export const STAGE_LABELS: Record<Exclude<Stage, 'done'>, string> = {
 
 /** Adds one event to the list. A "started" step is replaced by its own result so a stage shows
  *  once per run of it; a stage that runs again later (guard after a repair) is listed again,
- *  because that second check is exactly what the user should see. Returns a new array. */
+ *  because that second check is exactly what the user should see. Returns a new array.
+ *
+ *  The open step is looked for anywhere in the list, not only at the end: verification starts,
+ *  the chart and the wording finish while the second model is still working, and only then does
+ *  verification report. Matching just the last step left a "Verifying: not finished" line on
+ *  every successful answer. */
 export function foldStep(steps: StepEvent[], event: StepEvent): StepEvent[] {
   if (event.stage === 'done') return steps
-  const last = steps[steps.length - 1]
-  const finishesLast = last !== undefined && last.stage === event.stage && last.status === 'started'
-  return finishesLast ? [...steps.slice(0, -1), event] : [...steps, event]
+  const open = steps.map((s) => s.stage === event.stage && s.status === 'started').lastIndexOf(true)
+  return open < 0 ? [...steps, event] : steps.map((s, i) => (i === open ? event : s))
 }
+
+/** The server writes counts it has not pluralised as "2 table(s)"; people read "2 tables". */
+export const tidyDetail = (detail: string): string =>
+  detail.replace(/\b(\d[\d,]*) (\w+)\(s\)/g, (_, n: string, noun: string) => `${n} ${noun}${n === '1' ? '' : 's'}`)
 
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`
 

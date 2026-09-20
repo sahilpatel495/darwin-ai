@@ -29,14 +29,27 @@ from app.catalog.relationships import detect_relationships
 from app.catalog.suggest import suggest_questions
 from app.catalog.unions import create_union_views, detect_unions, quote
 from app.config import settings
-from app.contracts import Answer, Catalog, ColumnType, Metric, Relationship, TableProfile, UnionView
+from app.contracts import (
+    Answer,
+    Catalog,
+    ColumnType,
+    Metric,
+    Relationship,
+    ResultTable,
+    TableProfile,
+    UnionView,
+)
 from app.ingest import IngestError, ingest_file
 from app.profile import profile_table
+from app.query.executor import execute
+from app.query.guard import GuardedQuery
+from app.query.presentation import build_table, column_kinds
 
 # The prompt has a budget of about 2K tokens and link detection compares every pair of
 # tables, so a workbook with hundreds of sheets is refused rather than half-handled.
 MAX_TABLES_PER_SESSION = 30
 MAX_TEMP_DIRECTORY_SIZE = "1GB"  # what one session may spill to disk when a query outgrows memory
+MAX_PREVIEW_ROWS = 200  # a preview is for checking how a file was read, not for browsing it
 _STAGING = "_staging"
 
 # Explicit casts, so a column's DuckDB type never depends on what pandas happened to infer
@@ -301,6 +314,24 @@ class Session:
         with self._lock:
             return self._publish(self.catalog.model_copy(update={
                 "glossary": [m.model_copy(deep=True) for m in metrics], "version": self.catalog.version + 1}))
+
+    def preview(self, table_name: str, limit: int = 50) -> ResultTable:
+        """The first rows of one table, so the person who uploaded a file can check how it was
+        read. The rows go to their browser only: nothing here builds a prompt or calls a model.
+
+        `table_name` arrives in a URL, so it is only ever compared with the catalog's own names
+        (KeyError when it is not one of them); the SQL is then built from the catalog's copy,
+        quoted. Formatting reuses the answer path, so ₹ amounts and dates read the same in a
+        preview as in an answer. One extra row is requested purely to learn whether more exist.
+        """
+        profile = next((t for t in self.catalog.tables if t.name == table_name), None)
+        if profile is None:
+            raise KeyError(table_name)
+        limit = max(1, min(limit, MAX_PREVIEW_ROWS))
+        columns = ", ".join(quote(c.name) for c in profile.columns)
+        sql = f"SELECT {columns} FROM {quote(profile.name)} LIMIT {limit + 1}"
+        result = execute(self.cursor(), sql, timeout_s=settings.query_timeout_s, row_cap=limit)
+        return build_table(result, column_kinds(result, GuardedQuery(sql=sql, tables=[profile.name]), self.catalog))
 
     def close(self) -> None:
         """Free the database and delete whatever the session left on disk."""

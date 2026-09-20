@@ -2,8 +2,9 @@
 // Everything here is rendered as plain text. SQL, prompts and error messages can contain text
 // from a customer's file, so nothing is ever treated as HTML or markdown.
 import { useState, type ReactNode } from 'react'
-import type { Attempt, ModelPayload, Work } from '../../types'
+import type { Attempt, ModelPayload, TableProfile, Work } from '../../types'
 import { formatDuration } from '../../lib/format'
+import { labelOf } from '../../lib/tables'
 
 const PURPOSE: Record<ModelPayload['purpose'], string> = {
   generate: 'Writing the SQL',
@@ -90,7 +91,7 @@ const CROSS_CHECK: Record<Work['cross_check']['status'], string> = {
  *  has none, and an empty panel would only look broken. */
 export const hasWork = (work: Work): boolean => Boolean(work.sql || work.reading || work.interpretation || work.plan.length || work.payloads.length || work.attempts.length)
 
-export default function HowIGotThis({ work }: { work: Work }) {
+export default function HowIGotThis({ work, tables }: { work: Work; tables: TableProfile[] }) {
   const reading = work.reading || work.interpretation
   const totalMs = Object.values(work.timings_ms).reduce((sum, ms) => sum + ms, 0)
   return (
@@ -111,7 +112,7 @@ export default function HowIGotThis({ work }: { work: Work }) {
 
         {work.tables_used.length > 0 && (
           <Section title="Data used">
-            {work.tables_used.join(', ')}. {work.rows_scanned.toLocaleString('en-IN')} rows read by the database.
+            {work.tables_used.map((name) => labelOf(name, tables)).join(', ')}. {work.rows_scanned.toLocaleString('en-IN')} rows read by the database.
           </Section>
         )}
 
@@ -138,8 +139,11 @@ export default function HowIGotThis({ work }: { work: Work }) {
 
         {work.cross_check.status !== 'skipped' && (
           <Section title="Cross-check">
+            {/* One sentence, not two: the server's detail repeats ours, except on a disagreement,
+                where it adds what differed. When the second model failed, its detail is an error
+                class name, which is for the server log, not for the analyst. */}
             <p>
-              {CROSS_CHECK[work.cross_check.status]} {work.cross_check.detail}
+              {work.cross_check.status === 'disagreed' && work.cross_check.detail ? work.cross_check.detail : CROSS_CHECK[work.cross_check.status]}
               {work.cross_check.model && ` Model: ${work.cross_check.model}.`}
             </p>
             {work.cross_check.sql && (
@@ -171,7 +175,9 @@ export default function HowIGotThis({ work }: { work: Work }) {
 
         {work.payloads.length > 0 && (
           <Section title="What the model saw">
-            <p className="mb-2 font-medium text-ink">Only table structure and statistics were sent. No rows.</p>
+            <p className="mb-2 font-medium text-ink">
+              Column names, types, statistics and short lists of category values (such as department names) were sent. No rows, and nothing from a personal data column.
+            </p>
             <div className="space-y-2">
               {work.payloads.map((payload, i) => (
                 <Payload key={i} payload={payload} />

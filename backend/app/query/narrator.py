@@ -58,7 +58,14 @@ SYSTEM_RULES = """You write the answer sentence for a data question. A database 
 computed the result; your only job is to put it into words.
 
 Rules:
-- Answer in 1 to 3 plain sentences. Lead with the number, its unit and the period it covers.
+- Answer in 1 to 3 full sentences. The first sentence is the headline: it answers the question \
+in words, with a subject and a verb, and says what the number measures and the period or filter \
+it covers. Example on other data: "Billing closed the most tickets in March at 412, followed by \
+Onboarding at 388."
+- Never reply with a bare value ("412 for March.") and never recite the rows ("412 for Billing, \
+388 for Onboarding, ..."). For a breakdown, name the top one or two rows and, if useful, the \
+lowest. For a trend, say where it starts, where it ends and the peak. The full table is shown \
+beside your answer.
 - Copy numbers exactly as they appear in the result, including ₹, L, Cr and %. Never compute, \
 round, convert, total or estimate a number, and never add a number that is not in the result.
 - Placeholders such as ⟦P1⟧ stand for values hidden from you: personal details, free text and \
