@@ -21,3 +21,7 @@ frontend/dist/
 playwright-report/
 test-results/
 .sessions/
+
+# browser automation artefacts
+.playwright-mcp/
+eval/.llm_cache/

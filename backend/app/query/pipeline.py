@@ -174,7 +174,8 @@ def _run(session: SessionLike, req: AskRequest, llm: LLMClient, trace: _Trace) -
     signals.cross_check = work.cross_check.status
     detail = {"agreed": "A second model reached the same result", "disagreed": "A second model got a different result",
               "unavailable": "Cross-check unavailable", "skipped": "Cross-check off"}[work.cross_check.status]
-    trace.step("verify", "warn" if work.cross_check.status == "disagreed" or work.caveats else "ok", detail)
+    alarming = work.cross_check.status == "disagreed" or signals.fan_out
+    trace.step("verify", "warn" if alarming else "ok", detail + (f"; {len(work.caveats)} caveat(s) noted" if work.caveats else ""))
     trace.lap("narrate_and_verify")
 
     work.interpretation = generation.interpretation
@@ -330,20 +331,26 @@ def _cross_check(session, req, llm, schema_context, metric_context, primary: Exe
 
 
 def _link_caveats(query: GuardedQuery, catalog: Catalog, signals: Signals) -> list[str]:
-    """Joins over keys that only partly match silently drop rows; say so."""
+    """An inner join silently leaves out keys that have no partner; say which side, because
+    "7% of employees have no payroll rows" and "7% of payroll rows have no employee" are very
+    different problems. Confidence looks at the better-contained side: in a healthy
+    parent/child link the child's keys are all found in the parent."""
     caveats = []
     for join in query.joins:
         ends = {(join.left_table, join.left_column), (join.right_table, join.right_column)}
         for r in catalog.relationships:
             if {(r.left_table, r.left_column), (r.right_table, r.right_column)} != ends:
                 continue
-            match = min(r.match_left, r.match_right)
-            signals.min_join_match = min(signals.min_join_match, match)
-            if match < 0.98:
-                caveats.append(f"{match:.0%} of keys match between {r.left_table} and {r.right_table}; unmatched rows are left out.")
+            signals.min_join_match = min(signals.min_join_match, max(r.match_left, r.match_right))
+            for table, other, match in ((r.left_table, r.right_table, r.match_left),
+                                        (r.right_table, r.left_table, r.match_right)):
+                if match < 0.98:
+                    caveats.append(f"{1 - match:.0%} of the keys in {table} have no match in {other}, "
+                                   "so those rows are left out of joined results.")
             if r.status == "suggested":
                 signals.used_unconfirmed_link = True
-                caveats.append(f"The link {r.left_table}.{r.left_column} = {r.right_table}.{r.right_column} is a suggestion you have not confirmed.")
+                caveats.append(f"The link {r.left_table}.{r.left_column} = {r.right_table}.{r.right_column} "
+                               "is a suggestion you have not confirmed.")
     return caveats
 
 

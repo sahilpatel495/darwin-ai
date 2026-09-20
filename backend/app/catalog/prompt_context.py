@@ -88,7 +88,7 @@ def build_schema_context(catalog: Catalog) -> str:
             lines.append(
                 f"  {r.left_table}.{r.left_column} {r.cardinality} "
                 f"{r.right_table}.{r.right_column} "
-                f"({min(r.match_left, r.match_right):.0%} of keys match){flag}"
+                f"({r.match_left:.0%} of left keys and {r.match_right:.0%} of right keys match){flag}"
             )
         blocks.append("\n".join(lines))
 
