@@ -2,7 +2,7 @@
 # $PORT, and asks for the secret values below in its dashboard. No secret is stored in git.
 services:
   - type: web
-    name: verity
+    name: darwinlens
     runtime: docker
     plan: free # 512 MB, 0.1 CPU, sleeps after 15 idle minutes; .github/workflows/keepwarm.yml pings it
     region: singapore # closest free region to users in India; it cannot be changed later
@@ -20,6 +20,10 @@ services:
         sync: false
       - key: OPENROUTER_API_KEY
         sync: false
+      # Signs the sign-in tokens. generateValue: true = Render invents a long random value once
+      # and keeps it across deploys, so people stay signed in; nobody, including us, types it.
+      - key: AUTH_SECRET
+        generateValue: true
       # Sized for the 512 MB instance. Locally the defaults are 25 MB, 512MB and 20 sessions.
       - key: MAX_UPLOAD_MB
         value: "10"
