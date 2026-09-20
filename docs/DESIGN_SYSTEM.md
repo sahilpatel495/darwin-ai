@@ -144,3 +144,68 @@ Plain verbs, sentence case, no filler. Name things the way the analyst would: "f
 ## 9. Quality floor
 
 Works at 390, 768 and 1280 wide. Keyboard-only use is complete; focus is always visible (2px indigo ring, 2px offset). Every control has a name. Contrast at least 4.5:1 for text. Charts have a table alternative one click away. No layout shift when an answer arrives. `pnpm typecheck` clean, no console errors, no CSP violations. The 30-second path (land → sample data → click a question → read the answer) must never get slower or longer.
+
+## 10. Component seams (who owns what during the revamp)
+
+Four engineers restyle in parallel after the primitives exist. These interfaces are fixed so the halves meet. Behaviour that works today (upload, links, glossary, preview rows, CSV download, clarify, follow-ups, How I got this, abort) must keep working.
+
+```ts
+// frontend/src/lib/projects.ts                      owner: journey
+export interface Turn { id: string; question: string; answer: Answer; askedAt: string }
+// ProjectRecord as in section 7. Exposes: listProjects, getProject, createProject, updateProject,
+// deleteProject, and a useProject(id) hook returning [record, update].
+
+// frontend/src/components/thread/Thread.tsx          owner: answers
+export interface ThreadProps {
+  sessionId: string | null            // null = files not loaded: history is readable, asking is off
+  catalog: Catalog | null
+  turns: Turn[]                       // controlled: the project record is the source of truth
+  onTurnsChange: (turns: Turn[]) => void   // called when a turn completes (running turns stay local)
+  savedAnswerIds: string[]
+  onToggleSaved: (answerId: string) => void
+  onSessionExpired: () => void
+  emptyState: React.ReactNode         // the briefing, supplied by the workspace
+  notice?: React.ReactNode            // e.g. the re-attach banner, rendered above the composer
+}
+
+// frontend/src/components/answer/AnswerStatement.tsx  owner: answers (replaces AnswerCard)
+export interface AnswerStatementProps {
+  answer: Answer
+  mode: 'thread' | 'board'            // board: no controls, print-friendly
+  saved?: boolean
+  onToggleSaved?: () => void
+  onAsk?: (question: string, clarification?: Record<string, string>) => void
+}
+
+// frontend/src/components/sidebar/Sidebar.tsx        owner: workspace
+export interface SidebarProps {
+  sessionId: string | null
+  catalog: Catalog | null
+  readOnly: boolean                   // files not loaded
+  fileNames: string[]                 // from the project record, shown when catalog is null
+  onCatalogChange: (catalog: Catalog) => void
+  onGlossaryEdited: (glossary: Metric[]) => void
+  onLinkStatusChanged: (linkId: string, status: 'active' | 'rejected') => void
+  onAddFiles: () => void
+}
+
+// frontend/src/components/workspace/Briefing.tsx     owner: workspace
+export interface BriefingProps { catalog: Catalog; onAsk: (question: string) => void }
+
+// frontend/src/components/education/                 owner: education
+//   Tour.tsx              <Tour run onDone />  anchors by data-tour="files|composer|working|trust"
+//   HowItWorksDialog.tsx  <HowItWorksDialog open onClose />
+//   explain.ts            export const EXPLAIN: Record<'confidence'|'crossCheck'|'definition'|
+//                         'dataHealth'|'links'|'combined'|'clarify', { title: string; body: string }>
+//   (WhatsThis itself is a primitive in components/ui; everyone imports the copy from explain.ts)
+```
+
+| Owner | Files |
+|---|---|
+| foundation (runs first, alone) | `src/index.css`, `src/components/ui/**`, `public/fonts` wiring, print stylesheet |
+| journey | `src/App.tsx`, `src/lib/projects.ts`, `src/lib/route.ts`, `src/components/home/**`, `src/components/board/**`, `src/components/shell/**`, `src/components/upload/**` except `Landing.tsx` |
+| answers | `src/components/thread/**`, `src/components/answer/**`, `src/components/charts/**`, `src/lib/format.ts`, `src/lib/csv.ts`, `src/lib/tables.ts` |
+| workspace | `src/components/sidebar/**`, `src/components/workspace/**` |
+| education | `src/components/education/**`, `src/components/upload/Landing.tsx` (the hero), `src/pages/TrustReport.tsx` |
+
+Anchors other owners must place: `data-tour="files"` on the Files tab (workspace), `data-tour="composer"` on the composer and `data-tour="working"` on the first How I got this (answers), `data-tour="trust"` on the Trust Report link (journey). `api.ts` and `types.ts` stay Lead-owned.
