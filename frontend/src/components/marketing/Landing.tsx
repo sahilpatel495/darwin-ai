@@ -61,7 +61,8 @@ export default function Landing({ onTryDemo, loading = false, error, onDismissEr
         <section className="relative isolate overflow-hidden">
           <AuroraBackdrop intensity="hero" />
           <div className="relative mx-auto flex w-full max-w-[1200px] flex-col items-center px-4 pt-16 pb-20 text-center sm:px-6 sm:pt-24">
-            <h1 className="measure text-hero-display text-ink-deep">Ask your spreadsheets. Verify every answer.</h1>
+            {/* `text-balance`: unbalanced, the 64px headline drops "answer." onto a line of its own. */}
+            <h1 className="measure text-hero-display text-balance text-ink-deep">Ask your spreadsheets. Verify every answer.</h1>
             <p className="mt-6 max-w-[46ch] text-subtitle-md text-slate">
               Bring the HR exports you already have, ask in plain English, and open any answer to see exactly how the
               number was worked out.

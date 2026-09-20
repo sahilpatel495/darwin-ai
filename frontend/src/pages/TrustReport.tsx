@@ -54,7 +54,10 @@ function Block({ title, intro, aside, children }: { title: string; intro?: strin
 /** A figure with its name above it: a tile whose label came second is a number with no meaning. */
 function Tile({ label, value, help, animate }: { label: string; value: string; help: string; animate?: boolean }) {
   return (
-    <Card className="flex flex-col justify-between">
+    // Top-aligned, never `justify-between`: in an equal-height row the tile with the shortest
+    // help line would push its figure down, and three headline figures on three baselines is the
+    // first thing the eye catches.
+    <Card className="flex flex-col">
       <p className="text-body-sm font-bold text-ink-deep">{label}</p>
       <StatTile value={value} label={help} animate={animate} className="mt-4" />
     </Card>
@@ -310,9 +313,12 @@ export default function TrustReport() {
   return (
     // A div, not <main>: the shell already wraps this page in the document's one <main>.
     <div>
-      <div className="relative isolate overflow-hidden">
+      {/* A rounded panel, because the page already sits inside the shell's padded column: a
+          full-bleed wash cannot reach the window edge here, and a square-cornered one reads as a
+          block that failed to load its image. */}
+      <div className="relative isolate overflow-hidden rounded-xxxl">
         <AuroraBackdrop intensity="panel" />
-        <div className="relative mx-auto w-full max-w-[1120px] px-4 pt-12 pb-10 sm:px-6 sm:pt-16">
+        <div className="relative px-6 pt-12 pb-14 sm:px-10 sm:pt-16">
           <h1 className="measure text-display-lg text-ink-deep">How often is it right?</h1>
           <p className="mt-5 measure text-subtitle-md text-slate">
             DarwinLens is scored on a fixed set of test questions whose correct answers were worked out separately, from
@@ -321,7 +327,7 @@ export default function TrustReport() {
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-[1120px] px-4 pb-20 sm:px-6">
+      <div className="mt-10">
         {load.state === 'loading' && (
           <div role="status" aria-label="Reading the latest accuracy test">
             <p className="text-body-md text-slate">Reading the latest accuracy test…</p>

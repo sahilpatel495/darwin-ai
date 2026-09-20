@@ -217,8 +217,10 @@ function BarPlot({ chart, data, minHeight }: { chart: ChartSpec; data: Series; m
   const stacked = data.kind === 'stacked_bar'
   const single = data.series.length === 1
   const valueTick = axisTicks(format, axisMax(data, stacked))
-  const rowHeight = data.points.length * (data.series.length * 18 + 14) + (single ? 40 : 24)
-  const tall = Math.max(minHeight ?? 0, data.horizontal ? rowHeight : 280)
+  // Bars are the shape of the answer, so they get room: 24px a bar and a floor of 240, or a
+  // three-row chart comes out 136px tall inside a 32px-padded card and reads as a thumbnail.
+  const rowHeight = data.points.length * (data.series.length * 24 + 16) + (single ? 44 : 28)
+  const tall = Math.max(minHeight ?? 0, data.horizontal ? Math.max(rowHeight, 240) : 300)
   return (
     <>
       <ResponsiveContainer width="100%" height={tall}>

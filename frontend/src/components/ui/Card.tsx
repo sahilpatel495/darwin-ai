@@ -53,7 +53,10 @@ export default function Card({
       TONE[tone],
       RADIUS[r],
       !flush && PAD[r],
-      interactive && 'card-hover block w-full cursor-pointer text-left',
+      // `flex flex-col`, not `block`: a <button> centres its own content when it is stretched
+      // taller than it needs (an equal-height grid row), which puts the titles of a row of cards
+      // on three different baselines. Column flex pins them all to the top.
+      interactive && 'card-hover flex w-full cursor-pointer flex-col items-stretch justify-start text-left',
       className,
     ),
     ...rest,
