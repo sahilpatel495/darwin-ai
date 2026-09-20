@@ -17,7 +17,7 @@
   {
     "stage": "repair",
     "status": "ok",
-    "detail": "Rewrote the query to read both files"
+    "detail": "Rewrote the query to link the two files"
   },
   {
     "stage": "guard",
@@ -32,7 +32,7 @@
   {
     "stage": "verify",
     "status": "ok",
-    "detail": "Second model agreed; nothing counted twice"
+    "detail": "Second model agreed; no rows counted twice"
   },
   {
     "stage": "chart",

@@ -63,8 +63,8 @@ def bar_answer() -> Answer:
                           display=[["Engineering", "₹12.00 L"], ["Sales", "₹6.33 L"], ["HR", "₹2.70 L"]], row_count=3),
         work=Work(
             interpretation="Sum of gross pay from the salary register, grouped by each employee's department.",
-            reading="Joins employees to the salary register on employee ID, then adds up gross pay for each department.",
-            plan=["Join employees to salary_register on emp_id = emp_code", "Sum gross per department", "Sort from highest to lowest"],
+            reading="Links employees to the salary register on employee ID, then adds up gross pay for each department.",
+            plan=["Link employees to salary_register on emp_id = emp_code", "Sum gross per department", "Sort from highest to lowest"],
             sql="SELECT e.department, sum(s.gross) AS total_gross\nFROM employees e JOIN salary_register s ON e.emp_id = s.emp_code\nGROUP BY e.department ORDER BY total_gross DESC",
             tables_used=["employees", "salary_register"], rows_scanned=24,
             assumptions=["All pay months in the file are included (Jan–Feb 2025)."],
@@ -75,7 +75,7 @@ def bar_answer() -> Answer:
             cross_check=CrossCheck(status="agreed", model="deepseek-v4-flash", detail="A second model wrote different SQL and got the same 3 rows."),
             timings_ms={"generate": 840, "execute": 12, "narrate": 410},
         ),
-        confidence=Confidence(level="high", score=0.8, reasons=["A second model independently reached the same result.", "One SQL repair was needed.", "100% of join keys matched."]),
+        confidence=Confidence(level="high", score=0.8, reasons=["A second model independently reached the same result.", "One SQL repair was needed.", "100% of the linking IDs matched."]),
         followups=["Split that by location", "Show the monthly trend", "Which department has the highest average gross?"],
     )
 
@@ -150,10 +150,10 @@ STEPS = [
     StepEvent(stage="understand", status="ok", detail="No ambiguous terms"),
     StepEvent(stage="generate", status="ok", detail="openai/gpt-oss-120b wrote a 3-step plan"),
     StepEvent(stage="guard", status="warn", detail="Rejected: unknown column department in salary_register"),
-    StepEvent(stage="repair", status="ok", detail="Rewrote the query with a join"),
+    StepEvent(stage="repair", status="ok", detail="Rewrote the query to link the two files"),
     StepEvent(stage="guard", status="ok", detail="Read-only, 2 tables, 3 columns"),
     StepEvent(stage="execute", status="ok", detail="3 rows in 12 ms"),
-    StepEvent(stage="verify", status="ok", detail="Second model agreed; no fan-out risk"),
+    StepEvent(stage="verify", status="ok", detail="Second model agreed; no rows counted twice"),
     StepEvent(stage="chart", status="ok", detail="Bar chart"),
     StepEvent(stage="narrate", status="ok", detail="All numbers grounded"),
 ]
