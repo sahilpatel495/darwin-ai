@@ -35,7 +35,9 @@ from app.contracts import (
 from app.ingest import IngestError
 from app.limits import LimitExceeded, Limits, client_ip
 from app.llm.client import PoolClient
+from app.query.executor import QueryError, QueryTimeout
 from app.query.pipeline import answer_question
+from app.sample_files import router as sample_router
 from app.sessions import Session, SessionStore
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -46,6 +48,7 @@ MAX_FILES_PER_UPLOAD = 10
 HEARTBEAT_S = 15
 
 app = FastAPI(title="Verity", docs_url=None, redoc_url=None)
+app.include_router(sample_router)  # before the SPA catch-all below, which would swallow /api/sample/*
 store = SessionStore()
 llm = PoolClient()
 limits = Limits(settings)
@@ -120,7 +123,9 @@ def _session(session_id: str) -> Session:
 
 def _ip(request: Request) -> str:
     """Who the per-user limits count against. There are no accounts, so it is the address."""
-    return client_ip(request.headers.get("x-forwarded-for", ""), request.client.host if request.client else None)
+    return client_ip(request.headers.get("x-forwarded-for", ""),
+                     request.client.host if request.client else None,
+                     settings.trusted_proxy_hops)
 
 
 # --------------------------------------------------------------------------
@@ -169,7 +174,8 @@ async def upload_files(session_id: str, request: Request, files: list[UploadFile
     folder.mkdir(parents=True, exist_ok=True)
     try:
         saved = [await run_in_threadpool(_save_upload, f, folder) for f in files]
-        return await run_in_threadpool(session.add_files, saved)
+        with limits.ingest():  # one file read at a time on this host: LimitExceeded -> 429
+            return await run_in_threadpool(session.add_files, saved)
     except IngestError as e:
         raise ApiProblem(422, str(e), "Fix or remove that file and upload again. The other files were not loaded.") from None
     finally:
@@ -181,7 +187,8 @@ async def load_sample(session_id: str, request: Request) -> Catalog:
     session = _session(session_id)
     limits.upload(_ip(request))  # the sample is read in exactly like an upload, so it costs the same
     try:
-        return await run_in_threadpool(session.load_sample)
+        with limits.ingest():  # the sample is read in like any upload, so it queues for nothing either
+            return await run_in_threadpool(session.load_sample)
     except IngestError as e:
         raise ApiProblem(422, str(e), "Upload your own CSV or Excel files instead.") from None
 
@@ -204,6 +211,12 @@ async def preview_table(session_id: str, table_name: str, limit: int = 50) -> Re
     never touches the LLM client: rows are shown to the person who uploaded them, not to a model."""
     try:
         return await run_in_threadpool(_session(session_id).preview, table_name, limit)
+    except (QueryError, QueryTimeout):
+        # DuckDB's message can quote a cell value ("Could not convert string 'Asha Rao'"), so it
+        # stays in the server log and the browser gets a sentence, like every other failure here.
+        log.exception("preview failed")
+        raise ApiProblem(500, "That table could not be read back.",
+                         "Reload the page. If it keeps happening, upload the file again.") from None
     except KeyError:
         raise ApiProblem(404, "That table is no longer loaded.", "Reload the page to see your current files.") from None
 

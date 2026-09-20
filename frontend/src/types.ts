@@ -140,7 +140,7 @@ export interface ResultTable {
 export interface Attempt {
   sql: string
   model: string
-  reason: 'initial' | 'sql_error' | 'guard_rejected' | 'empty_result' | 'fan_out'
+  reason: 'initial' | 'sql_error' | 'guard_rejected' | 'empty_result' | 'fan_out' | 'period_missing'
   error: string | null
 }
 

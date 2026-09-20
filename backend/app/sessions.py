@@ -352,6 +352,18 @@ def _read_starters(path: Path) -> list[str]:
     return [q for q in loaded if isinstance(q, str) and q.strip()] if isinstance(loaded, list) else []
 
 
+def _close_all(sessions: list[Session]) -> None:
+    """Close sessions the store has already forgotten, and never while holding its lock.
+
+    `conn.close()` waits for whatever query is still running on that connection, which can be
+    the full query timeout. Under the store's lock that wait would stop every other request in
+    the process, including the ones that touch nobody's data. A closed-over connection makes
+    the running query raise, which its own thread already handles.
+    """
+    for session in sessions:
+        session.close()
+
+
 class SessionStore:
     """LRU + TTL store. ponytail: process memory, single worker; move to Redis + persisted
     DuckDB files if this ever needs more than one process."""
@@ -374,11 +386,12 @@ class SessionStore:
             catalog=Catalog(session_id=session_id, version=0, fingerprint="",
                             glossary=[m.model_copy(deep=True) for m in DEFAULT_GLOSSARY]))
         with self._lock:
-            for stale in [s for s in self._sessions.values() if now - s.last_used > self._ttl]:
-                self._drop(stale.id)
+            dropped = [self._sessions.pop(s.id) for s in list(self._sessions.values())
+                       if now - s.last_used > self._ttl]
             self._sessions[session_id] = session
             while len(self._sessions) > self._max:
-                self._drop(next(iter(self._sessions)))
+                dropped.append(self._sessions.popitem(last=False)[1])
+        _close_all(dropped)
         return session
 
     def get(self, session_id: str) -> Session:
@@ -386,18 +399,19 @@ class SessionStore:
         now = time.time()
         with self._lock:
             session = self._sessions[session_id]
-            if now - session.last_used > self._ttl:
-                self._drop(session_id)
-                raise KeyError(session_id)
-            session.last_used = now
-            self._sessions.move_to_end(session_id)
-            return session
+            expired = now - session.last_used > self._ttl
+            if expired:
+                del self._sessions[session_id]
+            else:
+                session.last_used = now
+                self._sessions.move_to_end(session_id)
+        if expired:
+            _close_all([session])
+            raise KeyError(session_id)
+        return session
 
     def delete(self, session_id: str) -> None:
         """The user asked for their data to be gone. Unknown ids are not an error."""
         with self._lock:
-            if session_id in self._sessions:
-                self._drop(session_id)
-
-    def _drop(self, session_id: str) -> None:
-        self._sessions.pop(session_id).close()
+            dropped = self._sessions.pop(session_id, None)
+        _close_all([dropped] if dropped else [])

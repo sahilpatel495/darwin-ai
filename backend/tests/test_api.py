@@ -8,12 +8,13 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 
-from app import main
+from app import main, sessions
 from app.config import Settings
 from app.contracts import AskRequest
 from app.limits import LimitExceeded, Limits
 from app.llm.fake import FakeLLM
 from app.query import pipeline
+from app.query.executor import QueryError
 
 EMPLOYEES = "Emp Code,Department,CTC\n001,Engineering,\"₹24,00,000\"\n002,Sales,\"₹12,00,000\"\n003,Sales,\"₹15,00,000\"\n"
 PAYROLL = "Emp Code,Pay Month,Gross\n001,01/01/2025,\"₹2,00,000\"\n002,01/01/2025,\"₹1,00,000\"\n003,01/01/2025,\"₹1,25,000\"\n"
@@ -126,6 +127,22 @@ def test_rate_limit_uses_the_proxy_appended_address_not_the_client_supplied_one(
     assert ask(client, sid, spoof="2.2.2.2").status_code == 429  # a new spoofed first hop does not reset the limit
 
 
+def test_the_trusted_entry_is_counted_from_the_right_by_trusted_proxy_hops(client, monkeypatch):
+    """Two proxies in front (a CDN, then the host's router) means the visitor is second from the
+    right; the last entry is the CDN and would put every visitor in one bucket."""
+    limited(monkeypatch, asks_per_ip_per_hour=1)
+    monkeypatch.setattr(main, "settings", main.settings.__class__(trusted_proxy_hops=2))
+    sid = new_session(client)
+
+    def ask_via_cdn(visitor, cdn="70.0.0.1"):
+        return client.post(f"/api/sessions/{sid}/ask", json={"question": "hi"},
+                           headers={"x-forwarded-for": f"1.1.1.1, {visitor}, {cdn}"})
+
+    assert ask_via_cdn(VISITOR).status_code == 200
+    assert ask_via_cdn(VISITOR, cdn="70.0.0.2").status_code == 429  # same visitor, another CDN node
+    assert ask_via_cdn("198.51.100.7").status_code == 200  # a different visitor still has their own
+
+
 def test_a_refused_question_is_a_human_429_that_says_when_to_come_back(client, monkeypatch):
     limited(monkeypatch)
     monkeypatch.setattr(main, "limits", Limits(Settings(asks_per_ip_per_hour=1), clock=lambda: 0.0))
@@ -202,6 +219,18 @@ def test_new_sessions_and_uploads_are_limited_per_address(client, monkeypatch):
     assert client.get(f"/api/sessions/{sid}/catalog").status_code == 200  # looking at loaded data is never limited
 
 
+def test_only_one_file_is_read_in_at_a_time_and_the_second_is_refused_not_queued(client, monkeypatch):
+    """Parsing is the memory peak on a 512 MB host, so a second reader waits for nothing."""
+    limited(monkeypatch)
+    sid = new_session(client)
+    with main.limits.ingest():  # somebody else's file is being read right now
+        res = upload(client, sid, **{"employees.csv": EMPLOYEES})
+        assert res.status_code == 429 and res.headers["retry-after"] == "5"
+        assert res.json() == {"message": "Another upload is being read.", "next_step": "Try again in a few seconds."}
+        assert client.post(f"/api/sessions/{sid}/sample").status_code == 429  # the sample costs the same
+    assert upload(client, sid, **{"employees.csv": EMPLOYEES}).status_code == 200  # the slot came back
+
+
 # --------------------------------------------------------------------------
 # Preview rows: shown to the data owner, never to a model
 # --------------------------------------------------------------------------
@@ -241,3 +270,18 @@ def test_preview_of_an_unknown_table_is_a_human_404_and_the_name_never_reaches_s
         assert res.status_code == 404 and res.json()["message"] and res.json()["next_step"]
     assert preview(client, sid, "employees").json()["row_count"] == 3  # still there
     assert preview(client, "no-such-session", "employees").status_code == 404
+
+
+def test_a_preview_that_duckdb_refuses_is_a_sentence_that_quotes_no_cell(client, monkeypatch):
+    """DuckDB's own message can quote a cell value, and cells are the one thing this app
+    promises not to hand out. The browser gets the usual two sentences; the log gets the rest."""
+    sid = new_session(client)
+    upload(client, sid, **{"employees.csv": EMPLOYEES})
+
+    def refuse(*_, **__):
+        raise QueryError("Conversion Error: Could not convert string 'Asha Rao' to INT32")
+
+    monkeypatch.setattr(sessions, "execute", refuse)
+    res = preview(client, sid, "employees")
+    assert res.status_code == 500 and res.json()["message"] and res.json()["next_step"]
+    assert "Asha Rao" not in res.text and "duckdb" not in res.text.lower()

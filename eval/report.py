@@ -17,6 +17,35 @@ from pydantic import ValidationError
 LEVELS = ("high", "medium", "low")
 # Kinds where the app asserted something. Being wrong here costs a point; declining does not.
 _ASSERTIVE_KINDS = ("answer", "meta")
+# The failure the golden set could not see: the table was right and the sentence about it was
+# not. The runner writes it into the note; `failure_kind` reads it back out. Kept here because
+# both sides need the same words and the EvalCase contract has no field for a failure kind.
+NARRATION_FAILURE = "right table, wrong sentence"
+# What the runner leaves in place of a holdout failure's reason when it was told to hide it.
+# It lives here, not in the runner, because REPORT.md is rebuilt from whichever reports are on
+# disk: a challenge pass re-renders the golden section and must not put a hidden reason back.
+HIDDEN_NOTE = "Hidden during tuning so prompts cannot be fitted to the holdout questions."
+_REPORT_FILES = {"golden": "report.json", "challenge": "challenge_report.json"}
+
+
+def report_filename(question_set: str) -> str:
+    """Which file a set's report lives in. `--set challenge` must never overwrite the golden
+    report, so the name is decided here rather than passed in by the caller."""
+    return _REPORT_FILES[question_set]
+
+
+def failure_kind(case: EvalCase) -> str:
+    """Why this question failed, in a few words, so a reader can group the failures at a glance
+    instead of reading six sentences to notice that three of them are the same problem."""
+    if case.passed:
+        return ""
+    if NARRATION_FAILURE in case.note.casefold():
+        return NARRATION_FAILURE
+    if case.got_kind == "error":
+        return "error"
+    if case.got_kind != case.expected_kind:
+        return f"{case.got_kind}, expected {case.expected_kind}"
+    return "wrong result"
 
 
 def trust_points(case: EvalCase) -> int:
@@ -74,10 +103,21 @@ def load_report(path: Path) -> EvalReport | None:
         return None
 
 
-def write_report(report: EvalReport, directory: Path, hide_holdout_failures: bool = False) -> None:
+def write_report(report: EvalReport, directory: Path, hide_holdout_failures: bool = False,
+                 question_set: str = "golden") -> None:
+    """Write this set's JSON, then rebuild REPORT.md from whichever of the two reports exist.
+
+    Both sets share one readable report, so a challenge pass must not drop the golden section
+    and a golden pass must not drop the challenge one. Each is read back off disk rather than
+    remembered, which is also what makes `--set challenge` unable to touch eval/report.json."""
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / "report.json").write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
-    (directory / "REPORT.md").write_text(render_markdown(report, hide_holdout_failures), encoding="utf-8")
+    (directory / report_filename(question_set)).write_text(
+        report.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    golden = report if question_set == "golden" else load_report(directory / _REPORT_FILES["golden"])
+    challenge = report if question_set == "challenge" else load_report(directory / _REPORT_FILES["challenge"])
+    sections = [render_markdown(golden, hide_holdout_failures) if golden else "",
+                render_challenge(challenge) if challenge else ""]
+    (directory / "REPORT.md").write_text("\n".join(s for s in sections if s), encoding="utf-8")
 
 
 # --------------------------------------------------------------------------
@@ -165,15 +205,49 @@ def _crosscheck_line(report: EvalReport) -> str:
     )
 
 
+def render_challenge(report: EvalReport) -> str:
+    """The challenge set's own section of REPORT.md: the score, then every failure.
+
+    Nothing is hidden and nothing is summarised away. The golden set is the regression bar; this
+    section is the one that says how hard the app actually finds this data."""
+    failures = [c for c in report.cases if not c.passed]
+    lines = [
+        "## Challenge set (never tuned)",
+        "",
+        (f"{report.total} harder questions, written after the prompts were finished and never used to "
+         f"change one. Run separately from the golden set. Generated {report.generated_at} with "
+         f"`{report.model}`, {report.runs} run(s) each."),
+        "",
+        f"- **Accuracy: {report.accuracy:.1%}** ({report.total - len(failures)} of {report.total} correct).",
+        (f"- **Trust score: {report.trust_score:+.2f}** on the same scale as above "
+         "(+1 correct, 0 declined to answer, -1 gave a wrong answer)."),
+        "",
+        "### Every challenge failure",
+        "",
+    ]
+    if failures:
+        lines += ["| Id | Category | Kind of failure | Question | What happened |", "|---|---|---|---|---|"]
+        lines += [f"| {c.id} | {c.category} | {failure_kind(c)} | {_cell(c.question)} | {_cell(c.note)} |"
+                  for c in failures]
+    else:
+        lines.append("None. Every challenge question passed.")
+    lines += ["", "These questions were written to find where it breaks.", ""]
+    return "\n".join(lines)
+
+
 def _failure_lines(cases: list[EvalCase], hide_holdout: bool) -> list[str]:
     failures = [c for c in cases if not c.passed]
-    hidden = [c for c in failures if hide_holdout and c.split == "holdout"]
+    # Either the caller asked to hide, or this row was written by a run that did: a report whose
+    # reason is already gone must stay a count, whichever pass is rebuilding the page.
+    hidden = [c for c in failures if c.split == "holdout" and (hide_holdout or c.note == HIDDEN_NOTE)]
     shown = [c for c in failures if c not in hidden]
     lines = []
     if shown:
-        lines += ["| Id | Category | Split | Question | Expected | Got | What happened |", "|---|---|---|---|---|---|---|"]
+        lines += ["| Id | Category | Split | Kind of failure | Question | Expected | Got | What happened |",
+                  "|---|---|---|---|---|---|---|---|"]
         lines += [
-            f"| {c.id} | {c.category} | {c.split} | {_cell(c.question)} | {c.expected_kind} | {c.got_kind} | {_cell(c.note)} |"
+            f"| {c.id} | {c.category} | {c.split} | {failure_kind(c)} | {_cell(c.question)} | "
+            f"{c.expected_kind} | {c.got_kind} | {_cell(c.note)} |"
             for c in shown
         ]
     elif not hidden:

@@ -342,6 +342,12 @@ def test_golden_cases_load_with_their_expectations(tmp_path):
     ("cases: {tot-01: {question: hello}}", "must be a list of cases"),
     ("- id: [unclosed", "not valid YAML"),
     (GOLDEN_YAML.replace("{kind: refusal}", "refusal"), "una-01"),
+    # A misspelt narration key would quietly stop grading the sentence, which is the failure
+    # this whole check exists to make visible, so the file is refused instead.
+    (GOLDEN_YAML.replace("truth: total_gross_2025", "truth: total_gross_2025, narration: {names_topp: true}"),
+     "tot-01 has an expect.narration"),
+    (GOLDEN_YAML.replace("truth: total_gross_2025", "truth: total_gross_2025, narration: true"),
+     "tot-01 has an expect.narration"),
 ])
 def test_a_broken_golden_file_is_reported_before_any_model_call(tmp_path, bad, complaint):
     with pytest.raises(EvalSetupError, match=complaint):
@@ -490,3 +496,112 @@ def test_an_answer_in_words_with_no_table_fails_with_a_reason():
     wordy = answered([[5]]).model_copy(update={"table": None})
     result = run_case(golden(), Script(wordy), 5, no_sleep)
     assert not result.passed and "no result table" in result.note
+
+
+# ---------------------------------------------------------------- a column that is not there
+
+
+NEAR_COLUMN = {"kind": "assume_or_refuse", "category": "near_column"}
+BY_UNIT = [("HR", 35), ("Sales", 102)]
+
+
+def test_refusing_a_question_about_a_missing_column_is_honest():
+    result = run_case(golden(**NEAR_COLUMN), Script(refused("There is no business unit column.")), BY_UNIT, no_sleep)
+    assert result.passed and result.got_kind == "refusal"
+
+
+def test_answering_the_near_column_passes_only_when_the_assumption_is_stated():
+    rows = [["HR", 35], ["Sales", 102]]
+    stated = run_case(golden(**NEAR_COLUMN),
+                      Script(answered(rows, assumptions=["Business unit read as department."])), BY_UNIT, no_sleep)
+    silent = run_case(golden(**NEAR_COLUMN), Script(answered(rows)), BY_UNIT, no_sleep)
+    assert stated.passed and "Stated which column it read" in stated.note
+    assert not silent.passed and "without stating which column" in silent.note
+
+
+def test_a_stated_assumption_does_not_excuse_the_wrong_number():
+    result = run_case(golden(**NEAR_COLUMN),
+                      Script(answered([["HR", 1]], assumptions=["Business unit read as department."])),
+                      BY_UNIT, no_sleep)
+    assert not result.passed and "does not match" in result.note
+
+
+# ---------------------------------------------------------------- the two question sets
+
+
+CHALLENGE_YAML = """
+- id: ch-01
+  category: chain
+  split: holdout
+  question: "A harder question?"
+  expect: {kind: answer, truth: hard_number}
+- id: ch-02
+  category: unanswerable
+  split: holdout
+  question: "What will it be next year?"
+  expect: {kind: refusal}
+"""
+CHALLENGE_TRUTH = SimpleNamespace(hard_number=lambda: 42)
+
+
+@pytest.fixture
+def two_sets(tmp_path, monkeypatch):
+    """Both files on disk and both truth modules resolvable, the way a real run has them."""
+    monkeypatch.setattr(run_eval, "GOLDEN_PATH", write_golden(tmp_path))
+    challenge_path = tmp_path / "challenge.yaml"
+    challenge_path.write_text(CHALLENGE_YAML, encoding="utf-8")
+    monkeypatch.setattr(run_eval, "CHALLENGE_PATH", challenge_path)
+    monkeypatch.setattr(run_eval, "OUT_DIR", tmp_path)
+    monkeypatch.setattr(run_eval, "_load_truth",
+                        lambda name="eval.truth": CHALLENGE_TRUTH if "challenge" in name else TRUTH)
+    return tmp_path
+
+
+def challenge_app(correct=True) -> FakeApp:
+    return FakeApp({"A harder question?": [answered([[42.0 if correct else 1.0]])],
+                    "What will it be next year?": [answered([[99.0]], text="It will be 99.")]})
+
+
+def test_the_challenge_set_is_run_and_reported_in_its_own_file(two_sets, capsys):
+    assert run_eval.main(["--set", "challenge"], app=challenge_app(), sleep=no_sleep) == 0
+    report = load_report(two_sets / "challenge_report.json")
+    assert [c.id for c in report.cases] == ["ch-01", "ch-02"]
+    assert report.accuracy == 0.5  # the forecast was answered instead of refused
+    assert "Challenge set (never tuned)" in (two_sets / "REPORT.md").read_text()
+    assert "ch-02" in capsys.readouterr().out
+
+
+def test_a_challenge_run_can_never_overwrite_the_golden_report(two_sets):
+    run_eval.main(["--split", "all"], app=FakeApp(full_script()), sleep=no_sleep)
+    golden_before = (two_sets / "report.json").read_text()
+    assert run_eval.main(["--set", "challenge"], app=challenge_app(), sleep=no_sleep) == 0
+    assert (two_sets / "report.json").read_text() == golden_before
+    assert load_report(two_sets / "report.json").total == 4
+
+
+def test_the_challenge_set_is_never_hidden_even_with_the_tuning_flag(two_sets, capsys):
+    """Its questions are all `holdout`, so without this the tuning flag would blank the very
+    failures the challenge report promises to show."""
+    run_eval.main(["--set", "challenge", "--hide-holdout-failures"], app=challenge_app(), sleep=no_sleep)
+    assert "ch-02" in capsys.readouterr().out
+    failed = next(c for c in load_report(two_sets / "challenge_report.json").cases if not c.passed)
+    assert "should have refused" in failed.note
+    assert "ch-02" in (two_sets / "REPORT.md").read_text()
+
+
+def test_only_failed_re_runs_within_the_set_it_was_given(two_sets):
+    run_eval.main(["--set", "challenge"], app=challenge_app(), sleep=no_sleep)
+    fixed = FakeApp({"What will it be next year?": [refused()]})
+    assert run_eval.main(["--set", "challenge", "--only-failed"], app=fixed, sleep=no_sleep) == 0
+    assert load_report(two_sets / "challenge_report.json").accuracy == 1.0
+    assert fixed.conversations == 1
+
+
+def test_the_default_set_is_still_the_golden_one(two_sets):
+    assert run_eval.main(["--ids", "tot-01"], app=FakeApp(full_script()), sleep=no_sleep) == 0
+    assert (two_sets / "report.json").exists() and not (two_sets / "challenge_report.json").exists()
+
+
+def test_an_unknown_set_is_refused_by_the_command_line(two_sets):
+    with pytest.raises(SystemExit):
+        run_eval.main(["--set", "nonsense"], app=FakeApp({}), sleep=no_sleep)

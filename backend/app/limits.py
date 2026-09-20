@@ -34,16 +34,25 @@ class LimitExceeded(Exception):
         self.message, self.next_step, self.retry_after_s = message, next_step, retry_after_s
 
 
-def client_ip(forwarded_for: str, socket_host: str | None) -> str:
+def client_ip(forwarded_for: str, socket_host: str | None, hops: int = 1) -> str:
     """The address limits are counted against.
 
-    The hosting proxy appends the address it saw to X-Forwarded-For, so the LAST entry is the
-    one a client cannot forge (the first is whatever the client typed). With no proxy in front
-    the header is absent and the socket address is used. Anything that does not parse as an
-    address is ignored, so header text never becomes a dictionary key. An IPv6 customer is
-    handed a whole /64, so the /64 is the user: otherwise one laptop has 2^64 identities.
+    Each proxy appends the address it saw to X-Forwarded-For, so entries are forgeable from the
+    left and trustworthy from the right. `hops` (settings.trusted_proxy_hops) is how many of our
+    own proxies are in front: 1 means the nearest one appended the client's address, 2 means a
+    CDN appended it and our router then appended the CDN's. Counting from the right is what a
+    client cannot shift, because it cannot make our proxies stop appending. A header with fewer
+    entries than that did not come through them, so the socket address is used instead, as it is
+    when there is no header at all. Never set `hops` above the number of proxies actually in
+    front: one hop too many reads the entry just before the real client, which is the first
+    thing the client itself can write, and every visitor can then be anyone they like. Only the right-hand end is ever split, so a 16 KB header of
+    commas is not parsed into a 16 KB list. Anything that does not parse as an address is
+    ignored, so header text never becomes a dictionary key. An IPv6 customer is handed a whole
+    /64, so the /64 is the user: otherwise one laptop has 2^64 identities.
     """
-    for candidate in (forwarded_for.rsplit(",", 1)[-1], socket_host or ""):
+    entries = forwarded_for.rsplit(",", hops) if hops > 0 else []
+    forwarded = entries[-hops] if len(entries) >= hops > 0 else ""
+    for candidate in (forwarded, socket_host or ""):
         try:
             address = ipaddress.ip_address(candidate.strip())
         except ValueError:
@@ -172,6 +181,21 @@ class Limits:
         self._asks_hour, self._asks_day, self._asks_session = SlidingWindow(), SlidingWindow(), SlidingWindow()
         self._sessions, self._uploads = SlidingWindow(), SlidingWindow()
         self._gate = ConcurrencyGate(settings.max_concurrent_asks, settings.max_concurrent_asks_per_ip)
+        self._ingest_slot = threading.BoundedSemaphore(1)
+
+    @contextmanager
+    def ingest(self) -> Iterator[None]:
+        """One file read at a time, for everybody: reading a spreadsheet in is the memory peak
+        on a 512 MB host (the whole file as text, then a frame, then a DuckDB table), and two
+        at once is what kills the process. A second reader is refused now rather than queued,
+        because queueing would hold its request open while still owing all that memory.
+        """
+        if not self._ingest_slot.acquire(blocking=False):
+            raise LimitExceeded("Another upload is being read.", "Try again in a few seconds.", BUSY_RETRY_S)
+        try:
+            yield
+        finally:
+            self._ingest_slot.release()
 
     def new_session(self, ip: str) -> None:
         """Each session is a DuckDB connection and a temp folder, and the store keeps only a few."""

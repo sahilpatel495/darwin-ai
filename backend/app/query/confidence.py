@@ -18,6 +18,7 @@ class Signals:
     repairs: int = 0
     cross_check: str = "skipped"  # agreed | disagreed | unavailable | skipped
     fan_out: bool = False
+    period_unfiltered: bool = False  # the question named a period the SQL never filtered on
     max_null_fraction: float = 0.0
     min_join_match: float = 1.0
     used_unconfirmed_link: bool = False
@@ -29,8 +30,9 @@ class Signals:
 
 def score(signals: Signals) -> Confidence:
     """Start at 0.8; agreed +0.15, vetted_metric +0.05; each repair -0.15; disagreed -0.35;
-    fan_out -0.25; max_null_fraction >= 0.2 -0.1; min_join_match < 0.8 -0.15; unconfirmed link
-    -0.1; narration fallback -0.05; truncated -0.05; assumptions >= 2 -0.05. Clamp 0..1.
+    fan_out -0.25; period_unfiltered -0.2; max_null_fraction >= 0.2 -0.1; min_join_match < 0.8
+    -0.15; unconfirmed link -0.1; narration fallback -0.05; truncated -0.05; assumptions >= 2
+    -0.05. Clamp 0..1.
     high >= 0.8, medium >= 0.55, else low. Every applied signal adds a plain-English reason.
 
     The cross-check reason comes first because it is the strongest evidence either way; the
@@ -43,6 +45,8 @@ def score(signals: Signals) -> Confidence:
         (s.cross_check == "disagreed", -0.35,
          "A second model wrote its own query and got a different result, so check the SQL before relying on this."),
         (s.fan_out, -0.25, "A join may have counted some rows more than once."),
+        (s.period_unfiltered, -0.2, ("The question names a period but the query filters on no"
+                                     " date, so the number may also cover other periods.")),
         (s.repairs > 0, -0.15 * s.repairs, f"The query needed {repairs} before it ran correctly."),
         (s.min_join_match < 0.8, -0.15,
          f"Only {s.min_join_match:.0%} of the keys matched between the joined files, so some rows were left out."),

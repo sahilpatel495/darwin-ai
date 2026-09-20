@@ -20,9 +20,10 @@ dev: ## API with reload on :8000 and the UI on :5173 (open http://localhost:5173
 	(cd frontend && pnpm dev --port 5173) & \
 	wait
 
-test: ## Backend tests, packaging checks and the frontend type check. No model is ever called.
+test: ## Backend tests, packaging checks, the frontend type check and its unit tests. No model is ever called.
 	uv run pytest -q backend/tests .github/scripts
 	cd frontend && pnpm typecheck
+	cd frontend && pnpm test
 
 eval: ## Grade the app on the golden questions with the real model, e.g. make eval ARGS="--split dev"
 	PYTHONPATH=backend:. uv run $(ENV_FILE) python -m eval.run_eval $(ARGS)

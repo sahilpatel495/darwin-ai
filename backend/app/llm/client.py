@@ -375,7 +375,12 @@ class PoolClient:
                 "No AI model is configured. Add a provider API key (for example GROQ_API_KEY) "
                 "to the .env file and restart the app."
             )
-        providers = [pm for pm in chain if not _same_model(pm.model, avoid_model)]
+        # dict.fromkeys keeps the order and drops repeats. A chain that names the same
+        # provider:model twice (a typo in LLM_SQL_CHAIN) would otherwise be asked the same
+        # refused request twice: two calls off the daily budget for one certain refusal.
+        providers = list(dict.fromkeys(
+            pm for pm in chain if not _same_model(pm.model, avoid_model)
+        ))
         if not providers:
             raise LLMUnavailable("No second AI model is configured to double-check this answer.")
         # Any model in this chain having answered this exact prompt before is good enough:
@@ -435,10 +440,19 @@ class PoolClient:
             log.info("LLM %s (%s) %s; not asked again for this question",
                      pm.provider, pm.model, failed.reason)
             return
+        until = self._clock() + failed.cool_s
         with _health_lock:
             health = _health.setdefault((pm.provider, pm.model), _Health())
-            health.cooling_until = self._clock() + failed.cool_s
-            health.reason = failed.reason
+            # Only ever extend. Requests overlap, so a 15 s timeout can land just after a 401
+            # parked the same entry; shortening the cooldown there would re-probe (and re-log)
+            # a rejected key every 15 seconds for the hour it was supposed to be left alone.
+            extends = until > health.cooling_until
+            if extends:
+                health.cooling_until, health.reason = until, failed.reason
+        if not extends:
+            log.info("LLM %s (%s) %s; already cooling for longer",
+                     pm.provider, pm.model, failed.reason)
+            return
         # A parked entry needs a human, so it is a warning; being skipped for the next hour
         # is what makes it appear once rather than once per question. A rate limit on a free
         # tier is routine: info.
@@ -475,7 +489,13 @@ class PoolClient:
         log.info("No model could take this %s call: %s", role, "; ".join(
             f"{pm.provider} ({pm.model}) {why or 'is free again'}, {seconds:.0f} s to go"
             for pm, seconds, why in states))
-        n = max(MIN_RETRY_HINT_S, math.ceil(min(seconds for _, seconds, _ in states)))
+        # PARKED_S is the longest cooldown the pool ever sets, so anything above it means the
+        # clock behind _health moved: a non-monotonic clock, or two PoolClients sharing the
+        # process-wide table with different injected clocks. Never promise the user a number
+        # the pool itself could not have produced.
+        # ponytail: a clamp, not a cure. Give _health its own clock if that ever really bites.
+        soonest = min(min(seconds, PARKED_S) for _, seconds, _ in states)
+        n = max(MIN_RETRY_HINT_S, math.ceil(soonest))
         return LLMUnavailable(
             f"All the free AI models are busy right now. Try again in about {n} seconds.",
             retry_after_s=n,

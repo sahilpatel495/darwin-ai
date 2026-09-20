@@ -19,6 +19,7 @@ const ATTEMPT_REASON: Record<Attempt['reason'], string> = {
   guard_rejected: 'Retry after the safety check rejected the SQL',
   empty_result: 'Retry after a result that came back empty',
   fan_out: 'Retry to stop rows being counted twice in a join',
+  period_missing: 'Retry to filter on the period the question names',
 }
 
 const ROLE: Record<string, string> = { system: 'Instructions (system)', user: 'Request (user)', assistant: 'Reply (assistant)' }

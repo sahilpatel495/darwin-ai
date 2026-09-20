@@ -43,6 +43,7 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      - run: pnpm test # node --test over src/**/*.test.mjs; no model, no browser
       - run: pnpm build
 
   image:

@@ -1,0 +1,127 @@
+# Verity challenge set: 16 questions written to find the boundary, not to be passed.
+#
+# The golden set scored 40 of 40. That is a regression bar, not proof: every one of its
+# questions is a shape the prompts were tuned against. These sixteen are the opposite. They were
+# written after the tuning was finished, they are never used to change a prompt, and the report
+# shows every failure. A score below the golden set's is the expected outcome and the useful one.
+#
+# Same file format as eval/golden.yaml, with `expect.truth` naming a function in
+# eval/truth_challenge.py, plus one extra kind:
+#
+#   assume_or_refuse -> the question names a column that does not exist while a near one does.
+#                       Two responses are honest: refuse and name the missing column, or answer
+#                       the near column *and say so* in an assumption. A silently confident
+#                       answer with no assumption is the failure this kind exists to catch.
+#
+# Every split is `holdout`: nothing here is ever tuned on. The runner keeps that honest by
+# refusing to let `--set challenge` write eval/report.json, and the challenge section of
+# eval/REPORT.md lists every failure whatever the --hide-holdout-failures flag says.
+#
+# Wording rules are the golden set's, and they are the reason each question has exactly one
+# defensible answer: periods are named, "active" is said out loud when leavers would change the
+# number, and a boundary ("more than 15 lakh") says which side it falls on. Where this set is
+# hard, it is hard because the *query* is hard, never because the question is vague.
+
+# ---------------------------------------------------------------- three tables in one chain
+- id: ch-01
+  category: chain
+  split: holdout
+  question: "For the employees rated 4 or above in the H2 2025 review cycle, what was the total gross pay in 2025 by department?"
+  expect: {kind: answer, truth: gross_2025_by_department_for_top_rated}
+
+# ---------------------------------------------------------------- share of a whole
+- id: ch-02
+  category: percent_of_total
+  split: holdout
+  question: "What percentage of the total gross pay in 2025 went to each department?"
+  expect: {kind: answer, truth: share_of_gross_by_department_2025}
+- id: ch-03
+  category: percent_of_total
+  split: holdout
+  question: "In 2025, what did bonuses add as a percentage of total gross pay?"
+  expect: {kind: answer, truth: bonus_as_share_of_gross_2025}
+
+# ---------------------------------------------------------------- ranking, middle, change
+- id: ch-04
+  category: ties
+  split: holdout
+  question: "What were the five most common exit reasons in 2025?"
+  expect: {kind: answer, truth: top_five_exit_reasons_2025}
+- id: ch-05
+  category: median
+  split: holdout
+  # "the median monthly gross pay" alone has two honest readings on this data: the middle
+  # payslip (₹73,000) or the middle of the three monthly totals (₹4.73 Cr). Naming the payslip
+  # settles it without giving away the median or the period.
+  question: "Taking every payslip in the last quarter of the data, what was the median gross pay?"
+  expect: {kind: answer, truth: median_gross_last_quarter}
+- id: ch-06
+  category: change_over_time
+  split: holdout
+  question: "By how much did total net pay rise or fall each month against the month before, from February to December 2025?"
+  expect: {kind: answer, truth: net_pay_change_month_on_month_2025}
+
+# ---------------------------------------------------------------- cohorts and conditions
+- id: ch-07
+  category: cohort
+  split: holdout
+  question: "Of the people who joined in 2024, what percentage left within 12 months of joining?"
+  expect: {kind: answer, truth: share_of_2024_joiners_who_left_within_12_months}
+- id: ch-08
+  category: conditional_aggregation
+  split: holdout
+  question: "For each location, how many active employees earn more than 15 lakh a year and how many earn 15 lakh or less?"
+  expect: {kind: answer, truth: active_headcount_above_and_below_15_lakh_by_location}
+- id: ch-09
+  category: negation
+  split: holdout
+  # Months, not "the first half of 2025": this company's own review cycles are called H1 and H2,
+  # so a fiscal half (April to September) is a fair reading of that phrase, and it answers HR
+  # where the calendar half answers Finance. Two defensible answers is a broken question.
+  question: "Which departments had no exits from January to June 2025?"
+  expect: {kind: answer, truth: departments_with_no_exits_jan_to_jun_2025}
+
+# ---------------------------------------------------------------- people, files, customers
+# ch-10 returns names. They reach the analyst in the result table and the model sees only a
+# ⟦P…⟧ token for them; the canary test in backend/tests/security proves the second half.
+- id: ch-10
+  category: per_group_row
+  split: holdout
+  question: "Who is the highest paid active employee in each department, and what is their CTC?"
+  expect: {kind: answer, truth: highest_paid_active_employee_per_department}
+- id: ch-11
+  category: unions
+  split: holdout
+  question: "In the combined attendance data, how many days of absence came from the attendance_q2.csv file?"
+  expect: {kind: answer, truth: days_absent_from_attendance_q2_file}
+- id: ch-12
+  category: non_hr
+  split: holdout
+  question: "What was the average order value by product category for each month of 2025?"
+  expect: {kind: answer, truth: average_order_value_by_category_and_month}
+- id: ch-13
+  category: non_hr
+  split: holdout
+  question: "How many customers placed more than one order in December 2025?"
+  expect: {kind: answer, truth: repeat_customers_december_2025}
+
+# ---------------------------------------------------------------- a column that is not there
+- id: ch-14
+  category: near_column
+  split: holdout
+  question: "How many active employees are there in each business unit?"
+  expect: {kind: assume_or_refuse, truth: active_headcount_by_department}
+
+# ---------------------------------------------------------------- outside what SQL can answer
+# Both are refusals by design (docs/DESIGN.md §3: "no statistical tests, forecasting or
+# free-form Python"). A number here would be a guess wearing a result table.
+- id: ch-15
+  category: unanswerable
+  split: holdout
+  question: "What will the total gross pay be in the first quarter of 2026?"
+  expect: {kind: refusal}
+- id: ch-16
+  category: unanswerable
+  split: holdout
+  question: "Is the difference in average CTC between men and women statistically significant?"
+  expect: {kind: refusal}

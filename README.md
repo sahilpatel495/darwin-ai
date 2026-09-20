@@ -171,9 +171,10 @@ cross-check on a different model family from the SQL model, or agreement means l
 per model, so a chain that alternates models spreads the quota.
 
 Providers: `groq`, `nvidia` (NIM), `gemini` (Google AI Studio), `openrouter`, `ollama`, and
-`custom` for any other base URL such as a customer's gateway: set `LLM_BASE_URL` and `LLM_API_KEY`,
-then use `custom:<model>` in a chain. `LLM_API_KEY` must not be empty or the entry is skipped; if
-the gateway wants no key, put a placeholder.
+`custom` for any other base URL such as a customer's gateway: set `LLM_BASE_URL`, then use
+`custom:<model>` in a chain. `LLM_API_KEY` is optional there, because a gateway or a self-hosted
+vLLM server often authenticates by network; `LLM_BASE_URL` alone makes the entry real. Every
+other provider is skipped when its key is missing or blank, rather than spending a call on a 401.
 
 **Every runtime model is open-weight.** `openai/gpt-oss-120b` and `openai/gpt-oss-20b` are OpenAI's
 **Apache-2.0 open-weight** models, and `qwen/qwen3.8-27b` is Alibaba's Apache-2.0 open-weight

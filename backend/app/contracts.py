@@ -192,7 +192,8 @@ class ResultTable(BaseModel):
 class Attempt(BaseModel):
     sql: str
     model: str
-    reason: Literal["initial", "sql_error", "guard_rejected", "empty_result", "fan_out"]
+    reason: Literal["initial", "sql_error", "guard_rejected", "empty_result", "fan_out",
+                    "period_missing"]
     error: str | None = None
 
 

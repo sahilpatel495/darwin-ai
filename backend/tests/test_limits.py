@@ -251,3 +251,21 @@ def test_one_ipv6_customer_is_one_user():
     assert client_ip("2001:db8:1:2:aaaa::1", None) == client_ip("2001:db8:1:2:bbbb::2", None)
     assert client_ip("2001:db8:1:3::1", None) != client_ip("2001:db8:1:2::1", None)
     assert client_ip("::ffff:203.0.113.9", None) == "203.0.113.9"  # IPv4 seen through a dual-stack socket
+
+
+def test_two_proxies_in_front_means_counting_two_entries_from_the_right():
+    """With a CDN in front of the host's own router, the last entry is the CDN, not the visitor."""
+    header = "1.1.1.1, 203.0.113.9, 70.0.0.1"  # typed by the client, the visitor, the CDN
+    assert client_ip(header, "10.0.0.1", hops=2) == "203.0.113.9"
+    assert client_ip("203.0.113.9, 70.0.0.1", "10.0.0.1", hops=2) == "203.0.113.9"  # nothing typed
+    # Too few entries: the request did not come through both proxies, so trust the socket instead
+    # of the one entry a client could have written itself.
+    assert client_ip("1.1.1.1", "10.0.0.1", hops=2) == "10.0.0.1"
+    assert client_ip("", "10.0.0.1", hops=2) == "10.0.0.1"
+    assert client_ip("1.1.1.1, 2.2.2.2, 3.3.3.3", "10.0.0.1", hops=0) == "10.0.0.1"  # no proxy: never read it
+
+
+def test_a_client_cannot_shift_the_trusted_entry_by_padding_the_header():
+    """The count is from the right, so adding entries on the left moves nothing."""
+    assert client_ip("9.9.9.9, " * 500 + "1.1.1.1, 203.0.113.9, 70.0.0.1", None, hops=2) == "203.0.113.9"
+    assert client_ip("x" * 16_000 + ", 203.0.113.9", "10.0.0.1") == "203.0.113.9"  # huge header, right end read

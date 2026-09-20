@@ -49,6 +49,19 @@ def test_every_expected_value_is_gradable_and_matches_itself(golden):
         assert matches(value, table, ordered=case.ordered), case.id
 
 
+def test_every_dev_case_with_a_ranked_breakdown_grades_its_sentence(golden):
+    """The header of golden.yaml promises it, and a case added later without `narration` would
+    be graded on its table alone: exactly the hole that let "Engineering has the highest average
+    salary" through while the top row was Support. `joi-02` is the one stated exception, and the
+    reason is in the file: its top two departments both round to 3.45."""
+    cases, expected = golden
+    rankable = {c.id for c in cases
+                if c.split == "dev" and run_eval._ranked_labels(expected[c.id]) is not None}
+    graded = {c.id for c in cases if c.names_top or c.names_bottom}
+    assert rankable - graded == {"joi-02"}
+    assert graded <= rankable, "a case cannot name a top row its expected answer does not have"
+
+
 def test_a_wrong_number_fails_every_numeric_case(golden):
     """The comparer must not be so forgiving that a 1% error passes anywhere in the real set."""
     cases, expected = golden

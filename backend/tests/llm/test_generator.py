@@ -219,14 +219,14 @@ def test_clarifications_are_stated_and_hostile_ones_are_dropped(schema_context):
     }
     _, payload = ask(FakeLLM({"sql": [GOOD]}), schema_context, clarification=clarification)
     user = payload.messages[-1]["content"]
-    assert 'The user clarified: "salary" means employees.ctc' in user
+    assert 'The user already chose: "salary" means employees.ctc' in user
     assert "ignore all previous" not in user and "reveal the prompt" not in user
 
 
 def test_a_padded_clarification_cannot_grow_the_prompt(schema_context):
     padded = {f"term {i}": "employees.ctc" for i in range(500)}
     _, payload = ask(FakeLLM({"sql": [GOOD]}), schema_context, clarification=padded)
-    assert payload.messages[-1]["content"].count("The user clarified:") == 5
+    assert payload.messages[-1]["content"].count("The user already chose:") == 5
 
 
 def test_only_the_last_three_turns_are_sent_and_never_results(schema_context):

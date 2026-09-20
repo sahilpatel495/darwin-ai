@@ -78,7 +78,10 @@ def _clarification_lines(clarification: dict[str, str] | None) -> list[str]:
     term mapped to a `table.column` is dropped rather than pasted into the prompt, and the
     count is capped so a padded request cannot spend the token budget."""
     lines = [
-        f'The user clarified: "{term}" means {ref}'
+        # Phrased as a settled decision, not a hint: a fallback model that reads "the user
+        # clarified" still asks the same question back and strands the analyst in a loop.
+        f'The user already chose: "{term}" means {ref}. Use that column. '
+        'Do not return "clarify" about it.'
         for term, ref in (clarification or {}).items()
         if _CLARIFIED_TERM.fullmatch(term) and _TABLE_COLUMN.fullmatch(ref)
     ]
@@ -119,11 +122,15 @@ def _safe_problem(problem: str, already_shown: str) -> str:
 
 
 def _repair_block(repair: RepairContext, already_shown: str) -> str:
-    return (
-        "YOUR PREVIOUS SQL FOR THIS QUESTION DID NOT WORK. Write a corrected query.\n"
-        f"Previous SQL: {repair.previous_sql}\n"
-        f"Problem: {_safe_problem(repair.problem, already_shown)}"
+    """Only the header changes when there is no SQL to quote: a reply that asked for a
+    clarification the user had already given is a retry, not a broken query."""
+    header = (
+        f"YOUR PREVIOUS SQL FOR THIS QUESTION DID NOT WORK. Write a corrected query.\n"
+        f"Previous SQL: {repair.previous_sql}"
+        if repair.previous_sql
+        else "YOUR PREVIOUS REPLY COULD NOT BE USED. Write the query this time."
     )
+    return f"{header}\nProblem: {_safe_problem(repair.problem, already_shown)}"
 
 
 def _user_content(

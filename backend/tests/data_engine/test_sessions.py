@@ -5,6 +5,8 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
+import threading
+import time
 from pathlib import Path
 
 import app.sessions as sessions_module
@@ -459,3 +461,34 @@ def test_idle_sessions_expire_and_are_closed(tmp_path, monkeypatch):
         store.get(session.id)
     with pytest.raises(duckdb.Error):
         session.conn.execute("SELECT 1")
+
+
+class _SlowToClose:
+    """A connection whose close() waits, the way DuckDB waits for a query still running."""
+
+    def __init__(self, closing: threading.Event, release: threading.Event) -> None:
+        self.closing, self.release = closing, release
+
+    def close(self) -> None:
+        self.closing.set()
+        self.release.wait(5)
+
+
+def test_a_session_that_is_slow_to_close_does_not_freeze_the_whole_store(store):
+    """Closing waits for a running query, so it happens after the store lock is released.
+    Held under the lock, one slow close would stop every other request in the process."""
+    slow, other = store.create(), store.create()
+    closing, release = threading.Event(), threading.Event()
+    real_conn, slow.conn = slow.conn, _SlowToClose(closing, release)
+    closer = threading.Thread(target=store.delete, args=(slow.id,), daemon=True)
+    closer.start()
+    assert closing.wait(5), "the session was never closed"
+
+    started = time.monotonic()
+    assert store.get(other.id) is other  # somebody else's request, while that close is still waiting
+    assert store.create() is not None
+    assert time.monotonic() - started < 2, "the store was blocked behind a closing session"
+
+    release.set()
+    closer.join(5)
+    real_conn.close()

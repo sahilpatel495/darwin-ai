@@ -101,6 +101,16 @@ def test_cooldowns_are_shared_by_every_client_in_the_process(clock):
         # an HTTP date is not worth parsing: fall through to the next hint
         ({"retry-after": "Wed, 21 Oct 2026 07:28:00 GMT"}, "try again in 12s", 12.0),
         ({}, "Rate limit reached", 20.0),  # no hint at all: the default
+        # headers arrive in whatever case the provider chose; httpx matches them regardless
+        ({"Retry-After": "7"}, "Rate limit reached", 7.0),
+        ({"X-RateLimit-Reset-Tokens": "7.66s"}, "Rate limit reached", 7.66),
+        # nonsense is not a hint: fall through rather than trust it
+        ({"retry-after": "-5"}, "Rate limit reached", 20.0),
+        ({"retry-after": "NaN"}, "", 20.0),
+        ({"retry-after": ""}, "", 20.0),
+        # a gateway's HTML error page says nothing parsable and nothing of it is kept
+        ({}, ("<html><head><title>429 Too Many Requests</title></head>"
+              "<body><h1>429</h1><p>Please try again in a few minutes.</p></body></html>"), 20.0),
         ({"retry-after": "0"}, "", 1.0),  # clamped up ...
         ({"x-ratelimit-reset-tokens": "380ms"}, "", 1.0),
         ({"x-ratelimit-reset-requests": "2m59.56s"}, "", 120.0),  # ... and down
@@ -164,6 +174,33 @@ def test_a_refused_request_costs_no_cooldown_and_is_not_asked_twice_for_one_ques
     assert client.complete(role="sql", messages=MESSAGES).content == "fine with the next question"
 
 
+def test_a_chain_that_names_the_same_entry_twice_asks_it_once(clock, monkeypatch):
+    """A repeated chain entry (a typo in LLM_SQL_CHAIN, or an overlap between two roles) used
+    to cost two requests, and two calls off the daily budget, for one certain refusal."""
+    monkeypatch.setenv("LLM_SQL_CHAIN", "groq:model-a,groq:model-a,nvidia:model-b")
+    a, b = FakeOpenAI(too_long(), too_long()), FakeOpenAI("b answered")
+
+    assert pool(clock, a=a, b=b).complete(role="sql", messages=MESSAGES).content == "b answered"
+
+    assert len(a.requests) == 1
+    assert client_module._budget["calls"] == 2  # one refusal, one answer
+
+
+def test_a_cooldown_is_only_ever_extended_never_shortened(clock):
+    """Requests overlap, so a 15 s timeout can land just after a 401 parked the same entry.
+    Shortening the cooldown there would re-probe a rejected key four times a minute for the
+    hour it was supposed to be left alone."""
+    entry = config.chain("sql")[0]
+    client = pool(clock)
+    parked = client_module._ProviderFailed("rejected the API key (401)", 3600.0)
+    late = client_module._ProviderFailed("had a server error (503)", 15.0)
+
+    client._note_failure(entry, parked)
+    client._note_failure(entry, late)
+
+    assert client._blocked_for(entry, 0) == (3600.0, "rejected the API key (401)")
+
+
 def test_a_request_every_model_refuses_is_not_blamed_on_busy_models(clock):
     a, b = FakeOpenAI(too_long()), FakeOpenAI(too_long())
     with pytest.raises(LLMUnavailable) as raised:
@@ -191,6 +228,20 @@ def test_token_pacing_skips_an_entry_that_cannot_fit_the_request_until_its_reset
     assert client.complete(role="sql", messages=big).content == "a3"
 
 
+def test_an_entry_that_reports_zero_tokens_left_is_skipped_until_its_allowance_refills(clock):
+    """"0" is a number, not a missing header: the next request is certain to be refused."""
+    spent = {"x-ratelimit-remaining-tokens": "0", "x-ratelimit-reset-tokens": "12s"}
+    a, b = FakeOpenAI("a1", "a2", headers=spent), FakeOpenAI("b1")
+    client = pool(clock, a=a, b=b)
+
+    assert client.complete(role="sql", messages=MESSAGES).content == "a1"
+    assert client.complete(role="sql", messages=MESSAGES).provider == "nvidia"
+    assert len(a.requests) == 1 and clock.naps == []
+
+    clock.now += 12
+    assert client.complete(role="sql", messages=MESSAGES).content == "a2"
+
+
 @pytest.mark.parametrize(
     "headers",
     [{}, {"x-ratelimit-remaining-tokens": "soon"}, {"x-ratelimit-remaining-tokens": "10"}],
@@ -210,7 +261,9 @@ def test_the_real_sdk_hands_over_headers_the_way_the_fakes_pretend(clock):
         if b'"model-a"' in request.content:
             limited = {"error": {"message": "Rate limit reached"}}
             return _httpx.Response(429, headers={"x-ratelimit-reset-tokens": "7.66s"}, json=limited)
-        nearly_spent = {"x-ratelimit-remaining-tokens": "100", "x-ratelimit-reset-tokens": "30s"}
+        # deliberately odd casing: the pool looks these up in lower case and relies on the
+        # SDK handing over a case-insensitive header mapping
+        nearly_spent = {"X-RateLimit-Remaining-Tokens": "100", "X-RateLimit-Reset-Tokens": "30s"}
         choice = {"index": 0, "finish_reason": "stop",
                   "message": {"role": "assistant", "content": "hi"}}
         body = {"id": "x", "object": "chat.completion", "created": 0, "model": "model-b",
@@ -228,6 +281,29 @@ def test_the_real_sdk_hands_over_headers_the_way_the_fakes_pretend(clock):
     with pytest.raises(LLMUnavailable) as raised:
         client.complete(role="narrate", messages=MESSAGES)
     assert raised.value.retry_after_s == 8  # 7.66 s, rounded up
+
+
+def test_a_429_that_is_an_html_error_page_cools_by_the_default_and_is_never_quoted(clock, caplog):
+    """A gateway in front of a provider answers 429 with HTML, which leaves the SDK as an
+    exception whose whole text is the page. It carries no hint, and none of it is kept."""
+    caplog.set_level(logging.INFO)
+    page = ("<html><head><title>429 Too Many Requests</title></head><body><h1>429</h1>"
+            "<p>cf-ray 8a1b2c3d; the origin declined this request.</p></body></html>")
+
+    def real_client(pm):
+        transport = _httpx.MockTransport(
+            lambda request: _httpx.Response(429, headers={"content-type": "text/html"}, text=page)
+        )
+        return openai.OpenAI(base_url="https://provider.example/v1", api_key=pm.api_key,
+                             max_retries=0, http_client=_httpx.Client(transport=transport))
+
+    client = PoolClient(client_factory=real_client, clock=clock, sleep=clock.sleep)
+    with pytest.raises(LLMUnavailable) as raised:
+        client.complete(role="narrate", messages=MESSAGES)
+
+    assert raised.value.retry_after_s == 20  # no parsable hint: RATE_LIMIT_DEFAULT_S
+    for fragment in ("<html", "cf-ray", "origin declined"):
+        assert fragment not in str(raised.value) and fragment not in caplog.text
 
 
 # --- 3. the bounded wait ------------------------------------------------------------------
@@ -307,6 +383,26 @@ def test_crosscheck_and_narrate_never_sleep(clock, role):
     assert "about 5 seconds" in str(raised.value)
 
 
+def test_the_retry_hint_survives_a_clock_that_moves_backwards(clock):
+    """_health is process-wide but the clock is per PoolClient, so a second pool built on a
+    different time base (or a clock that is not monotonic) can make a cooldown look like days.
+    The user is never promised a number the pool itself could not have set."""
+    a = FakeOpenAI(rate_limited({"retry-after": "30"}))
+    b = FakeOpenAI(rate_limited({"retry-after": "40"}))
+    client = pool(clock, a=a, b=b)
+    with pytest.raises(LLMUnavailable) as sane:
+        client.complete(role="narrate", messages=MESSAGES)
+    assert sane.value.retry_after_s == 30
+
+    clock.now -= 100_000  # both entries now look like they are cooling for a day and a bit
+
+    with pytest.raises(LLMUnavailable) as raised:
+        client.complete(role="narrate", messages=MESSAGES)
+    assert raised.value.retry_after_s == 3600  # PARKED_S: the longest cooldown the pool sets
+    assert str(raised.value).endswith("Try again in about 3600 seconds.")
+    assert len(a.requests) == len(b.requests) == 1  # still cooling: the second call reached nobody
+
+
 # --- 4. per-call options ------------------------------------------------------------------
 
 
@@ -362,7 +458,7 @@ def test_avoiding_the_only_model_is_an_honest_error_not_a_crash(clock, monkeypat
 
 
 def test_threads_hitting_the_pool_together_do_not_corrupt_its_state(clock):
-    threads, calls_each = 8, 25
+    threads, calls_each = 50, 10
     a = FakeOpenAI(*[rate_limited()] * threads)
     b = FakeOpenAI(*["ok"] * (threads * calls_each))
     client = pool(clock, a=a, b=b)
@@ -408,6 +504,8 @@ def test_the_disk_cache_still_hits_with_the_key_format_unchanged(clock, monkeypa
         role="sql", messages=MESSAGES, json_schema=schema
     )
     assert hit.cached is True and hit.content == '{"a": 1}' and untouched.requests == []
+    # a replayed answer is free: no request, no daily-budget call, no health to remember
+    assert client_module._budget["calls"] == 0 and client_module._health == {}
 
 
 def test_a_cached_answer_is_served_even_while_every_model_is_cooling(clock, monkeypatch, tmp_path):

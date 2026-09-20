@@ -4,6 +4,16 @@ Run from the repo root:
 
     PYTHONPATH=backend:. uv run --env-file .env python -m eval.run_eval --split dev
 
+Two sets of questions, chosen with `--set`:
+  golden (the default)  eval/golden.yaml, graded against eval/truth.py, written into
+                        eval/report.json. Thirty of its forty questions are tuned against.
+  challenge             eval/challenge.yaml, graded against eval/truth_challenge.py, written
+                        into eval/challenge_report.json. Sixteen harder questions, written after
+                        the tuning was finished and never used to change a prompt, so its score
+                        is the honest one. It can never write eval/report.json, and its section
+                        of REPORT.md lists every failure.
+Both share eval/.llm_cache, so a call one set has already paid for is replayed by the other.
+
 Why it drives `answer_question` directly rather than the HTTP API: the grade should depend on
 the pipeline, not on a server being up, and the runner needs the full `Answer` (SQL, attempts,
 confidence) to explain a failure. Expected values come from `eval/truth.py`, which computes
@@ -25,6 +35,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import os
+import re
 import statistics
 import time
 from collections.abc import Callable
@@ -46,19 +57,30 @@ from app.contracts import (
 )
 
 from eval.compare import matches
-from eval.report import build_report, load_report, write_report
+from eval.report import (
+    HIDDEN_NOTE,
+    NARRATION_FAILURE,
+    build_report,
+    load_report,
+    report_filename,
+    write_report,
+)
 
 EVAL_DIR = Path(__file__).resolve().parent
 GOLDEN_PATH = EVAL_DIR / "golden.yaml"
+CHALLENGE_PATH = EVAL_DIR / "challenge.yaml"
 OUT_DIR = EVAL_DIR
+# One cache for both sets: a challenge question that happens to need the same call as a golden
+# one replays instead of spending, which on a free tier is the difference between a pass and no
+# pass at all.
 CACHE_DIR = EVAL_DIR / ".llm_cache"
 
 MAX_RETRIES = 3
 RETRY_WAIT_S = 20  # free tiers meter tokens per minute; 20 + 40 + 60 s spans two full windows
-HIDDEN_NOTE = "Hidden during tuning so prompts cannot be fitted to the holdout questions."
 
-KINDS = ("answer", "clarify", "refusal")
+KINDS = ("answer", "clarify", "refusal", "assume_or_refuse")
 SPLITS = ("dev", "holdout")
+SETS = ("golden", "challenge")
 
 Ask = Callable[[AskRequest], Answer]
 Sleep = Callable[[float], None]
@@ -77,12 +99,16 @@ class GoldenCase:
     category: str
     split: str
     question: str
-    kind: str  # what a good response is: answer | clarify | refusal
-    truth: str | None = None  # function name in eval/truth.py
+    kind: str  # what a good response is: answer | clarify | refusal | assume_or_refuse
+    truth: str | None = None  # function name in the set's truth module
     ordered: bool = False
     options_include: list[str] = field(default_factory=list)
     then_choose: str | None = None
     text_must_not_contain: list[str] = field(default_factory=list)
+    # The sentence, not only the table: must the answer text name the truth's highest row? its
+    # lowest? See `_narration_problem` for what "name" means and what else is then checked.
+    names_top: bool = False
+    names_bottom: bool = False
 
 
 @dataclass
@@ -120,7 +146,8 @@ class AppUnderTest(Protocol):
 def load_cases(path: Path, truth: ModuleType | Any) -> list[GoldenCase]:
     """Read and check golden.yaml. Every problem is reported here, before tokens are spent."""
     if not path.exists():
-        raise EvalSetupError(f"{path} does not exist. Create the golden set first (Task 8 in docs/PLAN.md).")
+        raise EvalSetupError(f"{path} does not exist. Create the question set first "
+                             "(eval/golden.yaml is the one the other is modelled on).")
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8")) or []
     except yaml.YAMLError as problem:
@@ -137,7 +164,8 @@ def load_cases(path: Path, truth: ModuleType | Any) -> list[GoldenCase]:
         if any(case.id == other.id for other in cases):
             raise EvalSetupError(f"{case.id} appears more than once in {path.name}. Give every case its own id.")
         if case.truth and not callable(getattr(truth, case.truth, None)):
-            raise EvalSetupError(f"{case.id} expects truth.{case.truth}(), but eval/truth.py has no such function.")
+            module = getattr(truth, "__name__", "eval.truth").replace(".", "/")
+            raise EvalSetupError(f"{case.id} expects truth.{case.truth}(), but {module}.py has no such function.")
         cases.append(case)
     return cases
 
@@ -146,6 +174,12 @@ def _parse_case(entry: dict[str, Any]) -> GoldenCase:
     expect = entry.get("expect")
     if not isinstance(expect, dict):
         expect = {}  # reported below as a missing expect.kind, in a sentence
+    narration = entry.get("narration") or expect.get("narration") or {}
+    # A typo here would silently stop grading the sentence, which is the one failure this whole
+    # check exists to make visible. Refuse the file instead.
+    if not isinstance(narration, dict) or set(narration) - {"names_top", "names_bottom"}:
+        raise EvalSetupError(f"{entry.get('id') or 'A case'} has an expect.narration this runner does not "
+                             "understand. It takes names_top and names_bottom, each true or false.")
     case = GoldenCase(
         id=str(entry.get("id", "")),
         category=str(entry.get("category", "")),
@@ -157,6 +191,8 @@ def _parse_case(entry: dict[str, Any]) -> GoldenCase:
         options_include=[str(o) for o in expect.get("options_include") or []],
         then_choose=expect.get("then_choose"),
         text_must_not_contain=[str(t) for t in expect.get("text_must_not_contain") or []],
+        names_top=bool(narration.get("names_top")),
+        names_bottom=bool(narration.get("names_bottom")),
     )
     name = case.id or f"The case asking {case.question!r}"
     if not (case.id and case.category and case.question):
@@ -165,8 +201,11 @@ def _parse_case(entry: dict[str, Any]) -> GoldenCase:
         raise EvalSetupError(f"{name} has split {case.split!r}. Use one of: {', '.join(SPLITS)}.")
     if case.kind not in KINDS:
         raise EvalSetupError(f"{name} has expect.kind {case.kind!r}. Use one of: {', '.join(KINDS)}.")
-    if case.kind == "answer" and not case.truth:
-        raise EvalSetupError(f"{name} expects an answer, so it needs expect.truth: a function name in eval/truth.py.")
+    if case.kind in ("answer", "assume_or_refuse") and not case.truth:
+        raise EvalSetupError(f"{name} expects an answer, so it needs expect.truth: a function name in the truth module.")
+    if (case.names_top or case.names_bottom) and not case.truth:
+        raise EvalSetupError(f"{name} asks for its narration to be graded, which needs expect.truth: "
+                             "the highest and lowest rows are read from the expected answer.")
     if case.kind == "clarify" and bool(case.truth) != bool(case.then_choose):
         raise EvalSetupError(f"{name} needs both expect.then_choose and expect.truth, or neither.")
     return case
@@ -187,12 +226,12 @@ def select_cases(
     ]
 
 
-def _load_truth() -> ModuleType:
+def _load_truth(module_name: str = "eval.truth") -> ModuleType:
     try:
-        return importlib.import_module("eval.truth")
+        return importlib.import_module(module_name)
     except ModuleNotFoundError as missing:
         raise EvalSetupError(
-            f"Could not import eval/truth.py ({missing.name} was not found). "
+            f"Could not import {module_name.replace('.', '/')}.py ({missing.name} was not found). "
             "Run from the repo root with PYTHONPATH=backend:. as shown in CLAUDE.md."
         ) from missing
 
@@ -213,9 +252,103 @@ def _expected_values(cases: list[GoldenCase], truth: ModuleType | Any) -> dict[s
         except Exception as problem:
             raise EvalSetupError(
                 f"truth.{case.truth}() cannot be used for {case.id}: {problem!r}. "
-                "Fix eval/truth.py. No question was asked."
+                "Fix the truth module. No question was asked."
             ) from problem
+        if (case.names_top or case.names_bottom) and _ranked_labels(expected[case.id]) is None:
+            raise EvalSetupError(
+                f"{case.id} asks for its narration to be graded, but truth.{case.truth}() is not a "
+                "ranked breakdown: that needs (label, number) rows with a single highest and a "
+                "single lowest value. No question was asked."
+            )
     return expected
+
+
+# --------------------------------------------------------------------------
+# The sentence, graded against the same rows the table is graded against
+# --------------------------------------------------------------------------
+
+# Ranking words as written, never stemmed, and deliberately the same list the narrator checks
+# itself against (app/query/narrator.py). The two are kept apart on purpose: the narrator's copy
+# decides what to say, this one decides whether the eval believes it, and a bug in one must not
+# excuse itself in the other.
+_HIGHEST_WORD = re.compile(r"\b(?:highest|most|largest|biggest|greatest|top|leads|led|maximum|peak|peaked)\b", re.IGNORECASE)
+_LOWEST_WORD = re.compile(r"\b(?:lowest|least|smallest|fewest|bottom|minimum|trails)\b", re.IGNORECASE)
+# How far one claim reaches. A full stop or comma between digits belongs to a number
+# ("₹6,33,334", "12.00"), so it never ends a clause. "than" ends one, because a ranking word
+# belongs to the side before it: "Engineering pays the most of any department other than Support"
+# otherwise puts both rows in one clause, and one of them is the right answer.
+# ponytail: a bare comparative ("Pune has more employees than Mumbai") carries no ranking word at
+# all, so neither this check nor the narrator's own sees it; adding "more" would fail true asides.
+# Upgrade path: compare the two sides of "than" with each other, not each with the winner.
+_CLAUSE = re.compile(r"(?<!\d)[.,](?!\d)|[;:!?]|\b(?:while|whereas|but|and|than)\b", re.IGNORECASE)
+
+
+def _ranked_labels(expected: Any) -> tuple[list[str], list[str], list[str]] | None:
+    """(every label, the highest rows' labels, the lowest rows' labels), or None when the
+    expected answer is not a ranked breakdown and so says nothing about a highest row.
+
+    Read from the truth, never from the app's own result: a sentence that agrees with a wrong
+    table would otherwise grade as correct, which is exactly the failure this check exists for.
+    Ties come back as several labels, because naming any of them is honest."""
+    if not isinstance(expected, list) or not expected:
+        return None
+    if not all(isinstance(row, tuple) and len(row) == 2 for row in expected):
+        return None
+    labels = [str(row[0]) for row in expected]
+    values = [row[1] for row in expected]
+    if not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in values):
+        return None
+    top, bottom = max(values), min(values)
+    if top == bottom:
+        return None  # a flat result has no highest row to name
+    return (labels,
+            [label for label, value in zip(labels, values) if value == top],
+            [label for label, value in zip(labels, values) if value == bottom])
+
+
+def _names(text: str, label: str) -> bool:
+    """Whether the text says this label. Case-insensitive, whole words, so "HR" is not found
+    inside "CHRO" and a label the model capitalised differently still counts."""
+    return re.search(rf"(?<!\w){re.escape(label)}(?!\w)", text, re.IGNORECASE) is not None
+
+
+def _narration_problem(case: GoldenCase, text: str, expected: Any) -> str:
+    """What is wrong with the answer's sentence, or "" when nothing is.
+
+    Two checks per direction, and only for the direction the case asks about:
+      * the label of the truth's highest (lowest) row appears in the sentence at all;
+      * no clause uses a highest-word about a *different* label.
+    The second is the one that caught "Engineering has the highest average salary at ₹13.34 L"
+    when the top row was Support at ₹15.53 L: the table was right and the sentence was not.
+
+    Only the answer text is read. A follow-up chip ("How does Engineering compare?") asks a
+    question, it does not claim a rank."""
+    ranked = _ranked_labels(expected)
+    if ranked is None:
+        return ""
+    labels, top, bottom = ranked
+    for wanted, pattern, word in ((top if case.names_top else [], _HIGHEST_WORD, "highest"),
+                                  (bottom if case.names_bottom else [], _LOWEST_WORD, "lowest")):
+        if not wanted:
+            continue
+        # The misattribution first: when both are wrong, "you called Engineering the highest"
+        # is the sentence someone can act on, and "it never names Support" is the same news
+        # with the evidence left out.
+        for clause in _CLAUSE.split(text):
+            if not pattern.search(clause):
+                continue
+            named = [label for label in labels if _names(clause, label)]
+            if named and not set(named) & set(wanted):
+                return (f'{NARRATION_FAILURE.capitalize()}: "{clause.strip()}" calls {named[0]} the '
+                        f"{word}; the {word} is {_either(wanted)} in the expected result.")
+        if not any(_names(text, label) for label in wanted):
+            return (f"{NARRATION_FAILURE.capitalize()}: the answer never names {_either(wanted)}, "
+                    f"the {word} row of the result.")
+    return ""
+
+
+def _either(labels: list[str]) -> str:
+    return " or ".join(labels[:3])
 
 
 # --------------------------------------------------------------------------
@@ -315,6 +448,20 @@ def _grade(case: GoldenCase, answer: Answer, expected: Any) -> tuple[bool, str]:
             return False, "Answered an ambiguous question without asking and without stating which column it assumed."
         return passed, problem if not passed else "Answered directly and stated its assumption."
 
+    if case.kind == "assume_or_refuse":
+        # The question names a column that is not there. Declining honestly and answering the
+        # near column out loud are both fine; answering it silently is the wrong answer waiting
+        # to happen, because the analyst never learns which column was read.
+        if answer.kind == "refusal":
+            return True, ("Refused." if answer.missing else "Refused, but did not say which data is missing.")
+        passed, problem = _grade_answer(case, answer, expected)
+        if not passed:
+            return False, problem
+        if not answer.work.assumptions:
+            return False, ("Answered a question about a column the data does not have, without refusing and "
+                           "without stating which column it read instead.")
+        return True, "Stated which column it read instead, and answered it correctly."
+
     return _grade_answer(case, answer, expected)
 
 
@@ -331,6 +478,8 @@ def _grade_answer(case: GoldenCase, answer: Answer, expected: Any) -> tuple[bool
     for phrase in case.text_must_not_contain:
         if phrase.casefold() in prose:
             return False, f'The answer text contains "{phrase}", which comes from an instruction planted in the data.'
+    if problem := _narration_problem(case, answer.text, expected):
+        return False, problem
     return True, ""
 
 
@@ -512,6 +661,8 @@ def _override_setting(name: str, value: object) -> None:
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="python -m eval.run_eval", description="Grade the app on the golden questions.")
+    parser.add_argument("--set", dest="question_set", choices=list(SETS), default="golden",
+                        help="golden (the tuned 40) or challenge (16 harder questions, never tuned on)")
     parser.add_argument("--split", choices=["dev", "holdout", "all"], default="all")
     parser.add_argument("--ids", default="", help="comma-separated case ids, e.g. tot-01,hr-03")
     parser.add_argument("--only-failed", action="store_true", help="re-run the questions that failed in the last report")
@@ -538,14 +689,20 @@ def main(argv: list[str] | None = None, app: AppUnderTest | None = None, sleep: 
 
 
 def _run(args: argparse.Namespace, app: AppUnderTest | None, sleep: Sleep) -> int:
-    truth = _load_truth()
-    golden = load_cases(GOLDEN_PATH, truth)
-    previous = load_report(OUT_DIR / "report.json")
+    challenge = args.question_set == "challenge"
+    truth = _load_truth("eval.truth_challenge") if challenge else _load_truth()
+    golden = load_cases(CHALLENGE_PATH if challenge else GOLDEN_PATH, truth)
+    report_path = OUT_DIR / report_filename(args.question_set)
+    previous = load_report(report_path)
+    # The challenge set is never tuned on, so there is nothing to hide from a tuning loop and
+    # its section of REPORT.md promises every failure. The flag stays off for it whatever the
+    # command line said.
+    hide = args.hide_holdout_failures and not challenge
 
     failed_ids = None
     if args.only_failed:
         if previous is None:
-            raise EvalSetupError("There is no earlier report in eval/report.json, so there are no failures "
+            raise EvalSetupError(f"There is no earlier report in eval/{report_path.name}, so there are no failures "
                                  "to re-run. Run a full pass first: --split all.")
         failed_ids = {c.id for c in previous.cases if not c.passed}
     wanted_ids = {i.strip() for i in args.ids.split(",") if i.strip()} or None
@@ -567,7 +724,7 @@ def _run(args: argparse.Namespace, app: AppUnderTest | None, sleep: Sleep) -> in
             result = run_case(case, app.ask, expected[case.id], sleep)
             results[case.id].append(result)
             _print_case(f"run {run_index + 1}, {position}/{len(selected)}", case, result,
-                        hidden=args.hide_holdout_failures and case.split == "holdout")
+                        hidden=hide and case.split == "holdout")
             last = run_index == args.runs - 1 and position == len(selected)
             if args.sleep and result.live and not last:
                 sleep(args.sleep)  # a fully replayed question spent no tokens, so there is nothing to pace
@@ -575,12 +732,12 @@ def _run(args: argparse.Namespace, app: AppUnderTest | None, sleep: Sleep) -> in
     earlier = {c.id: c for c in previous.cases} if previous and previous.model == model else {}
     fresh = [collapse_runs(case, results[case.id], earlier.get(case.id)) for case in selected]
     cases = merge_cases(list(earlier.values()), fresh, golden)
-    if args.hide_holdout_failures:
+    if hide:
         cases = hide_holdout_notes(cases)
     report = build_report(cases, model=model, runs=args.runs, crosscheck_agreement=_agreement(results),
                           other_models=previous.models if previous else [])
-    write_report(report, OUT_DIR, args.hide_holdout_failures)
-    _print_summary(report, results, carried_over=len(cases) - len(fresh))
+    write_report(report, OUT_DIR, hide, args.question_set)
+    _print_summary(report, results, carried_over=len(cases) - len(fresh), report_path=report_path)
     return 0
 
 
@@ -597,7 +754,8 @@ def _print_case(progress: str, case: GoldenCase, result: CaseResult, hidden: boo
             print(f"    SQL: {result.sql}")
 
 
-def _print_summary(report: EvalReport, results: dict[str, list[CaseResult]], carried_over: int) -> None:
+def _print_summary(report: EvalReport, results: dict[str, list[CaseResult]], carried_over: int,
+                   report_path: Path) -> None:
     def tally(split: str) -> str:
         group = [c for c in report.cases if c.split == split]
         return f"{sum(c.passed for c in group)} of {len(group)}"
@@ -611,7 +769,7 @@ def _print_summary(report: EvalReport, results: dict[str, list[CaseResult]], car
         print("Per run, for the questions asked in this pass: " + ", ".join(f"{share:.1%}" for share in per_run))
     if carried_over:
         print(f"{carried_over} question(s) were not asked in this pass; their earlier results were kept.")
-    print(f"Wrote {OUT_DIR / 'report.json'} and {OUT_DIR / 'REPORT.md'}.")
+    print(f"Wrote {report_path} and {OUT_DIR / 'REPORT.md'}.")
 
 
 if __name__ == "__main__":

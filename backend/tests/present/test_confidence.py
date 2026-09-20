@@ -25,6 +25,7 @@ def test_a_disagreeing_second_model_leads_the_reasons_and_lowers_the_level():
         (Signals(repairs=1), 0.65, "medium", "1 repair "),
         (Signals(repairs=2), 0.5, "low", "2 repairs"),
         (Signals(fan_out=True), 0.55, "medium", "more than once"),
+        (Signals(period_unfiltered=True), 0.6, "medium", "names a period"),
         (Signals(max_null_fraction=0.34), 0.7, "medium", "34%"),
         (Signals(max_null_fraction=0.19), 0.8, "high", "No repairs"),
         (Signals(min_join_match=0.62), 0.65, "medium", "62%"),
@@ -51,8 +52,8 @@ def test_an_unavailable_cross_check_is_mentioned_but_costs_nothing():
 def test_the_score_is_clamped_and_every_problem_is_listed_in_plain_sentences():
     confidence = score(Signals(repairs=2, cross_check="disagreed", fan_out=True, max_null_fraction=0.5,
                                min_join_match=0.4, used_unconfirmed_link=True, narration_fallback=True,
-                               truncated=True, assumptions=3))
+                               truncated=True, assumptions=3, period_unfiltered=True))
     assert (confidence.score, confidence.level) == (0.0, "low")
-    assert len(confidence.reasons) == 9
+    assert len(confidence.reasons) == 10
     for reason in confidence.reasons:
         assert reason.endswith(".") and "_" not in reason and reason[0].isupper()

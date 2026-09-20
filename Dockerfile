@@ -50,4 +50,7 @@ EXPOSE 8000
 # One worker on purpose: sessions live in this process's memory, and hosts such as Render set
 # WEB_CONCURRENCY, which uvicorn would otherwise read as its worker count.
 # `exec` makes uvicorn PID 1 so it receives the host's stop signal and shuts down cleanly.
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]
+# --no-access-log: the session id travels in the URL path (/api/sessions/{id}/ask) and it is the
+# only credential for that session's data, so the access log would write a live secret to stdout,
+# where the host keeps it. Errors and warnings still log; they carry no session id.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --no-access-log"]

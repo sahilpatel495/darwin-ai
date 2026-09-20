@@ -126,6 +126,13 @@ def test_an_empty_column_is_not_pii():
         ("Emp Code", "text", "employee_id"), ("Employee ID", "text", "employee_id"),
         ("emp_id", "text", "employee_id"), ("employee_code", "text", "employee_id"),
         ("emp_no", "text", "employee_id"),
+        # The four spellings of the commonest HRMS header for it, including the all-caps one
+        # that has no word break to find.
+        ("EmpNo", "text", "employee_id"), ("Emp No", "text", "employee_id"),
+        ("Emp_No", "text", "employee_id"), ("EmployeeNo", "text", "employee_id"),
+        ("EMPNO", "text", "employee_id"),
+        # camelCase is a word break everywhere, not only in the header above.
+        ("JoinDate", "date", "join_date"), ("GrossPay", "currency", "gross"),
         ("manager_id", "text", "manager_id"), ("reporting_manager_code", "text", "manager_id"),
         ("CTC", "currency", "ctc"), ("annual_ctc", "currency", "ctc"), ("cost_to_company", "decimal", "ctc"),
         ("gross", "currency", "gross"), ("gross_pay", "currency", "gross"), ("gross_salary", "integer", "gross"),

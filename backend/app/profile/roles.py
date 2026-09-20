@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 
 from app.contracts import ColumnType
+from app.ingest.cleaning import snake_case
 
 ROLES: tuple[str, ...] = (
     # people
@@ -32,7 +33,10 @@ IDENTIFIER_PATTERN = re.compile(r"(^|_)(id|code|no|num|number)$")
 
 # role -> headers, already normalised (see normalise_header). A header belongs to one role.
 ROLE_SYNONYMS: dict[str, tuple[str, ...]] = {
+    # "empno"/"employeeno" are for the all-caps spelling EMPNO: no normaliser can find the word
+    # break in it, unlike "EmpNo", which normalise_header splits.
     "employee_id": ("employee_id", "emp_id", "emp_code", "emp_no", "emp_num", "emp_number", "empid",
+                    "empno", "employeeno",
                     "empcode", "employee_code", "employee_no", "employee_num", "employee_number",
                     "staff_id", "staff_code", "staff_no", "personnel_no", "personnel_number",
                     "worker_id", "associate_id", "ee_id"),
@@ -100,8 +104,14 @@ _ROLE_BY_HEADER = {header: role for role, headers in ROLE_SYNONYMS.items() for h
 
 
 def normalise_header(text: str) -> str:
-    """'Gross (₹)' -> 'gross', 'Date of Joining' -> 'date_of_joining'."""
-    return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
+    """'Gross (₹)' -> 'gross', 'Date of Joining' -> 'date_of_joining', 'EmpNo' -> 'emp_no'.
+
+    Exactly the rule ingest uses to name a column, so a synonym matches whether the role is read
+    from the renamed column or from the original label. Two normalisers would drift apart: this
+    one used to keep "EmpNo" as one word, so the commonest HRMS spelling of the employee id
+    matched nothing while its spaced twin "Emp No" matched.
+    """
+    return snake_case(text)
 
 
 def _allowed_types(role: str) -> tuple[ColumnType, ...]:

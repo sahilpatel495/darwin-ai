@@ -3,7 +3,7 @@
 Reading order is the product thesis. The model appears twice (write SQL, phrase the result)
 and never touches data; everything between those two calls is deterministic and checked.
 
-    cache -> ambiguity -> generate -> [guard -> execute -> fan-out check] (repair <= 2)
+    cache -> ambiguity -> generate -> [guard -> execute -> fan-out + period checks] (repair <= 2)
           -> caveats -> present -> narrate || cross-check -> confidence
 """
 
@@ -32,13 +32,18 @@ from app.query.generator import Generation, RepairContext, generate
 from app.query.guard import GuardedQuery, GuardError, validate_sql
 from app.query.narrator import Narration, narrate, template_answer
 from app.query.presentation import build_table, choose_chart, column_kinds
-from app.query.verify import fan_out_risks, null_caveats, results_equivalent
+from app.query.verify import fan_out_risks, null_caveats, period_risks, results_equivalent
 from app.sessions import SessionLike, Turn
 
 log = logging.getLogger(__name__)
 
 MAX_REPAIRS = 2
 Emit = Callable[[StepEvent], None]
+
+# Sent back when the model asks for a choice the analyst has already made. The choice itself is
+# already in the prompt (generator._clarification_lines), so nothing user-supplied is repeated.
+CHOICE_ALREADY_MADE = ("You asked the analyst to choose a column, but they already chose: their "
+                       "choice is listed above. Use it and write the SQL. Do not ask again.")
 
 # Answers for identical data + semantics + question are shared across sessions, so the sample
 # dataset's starter questions can be pre-warmed after a deploy and cost no tokens afterwards.
@@ -137,6 +142,12 @@ def _remember(session: SessionLike, answer: Answer) -> None:
         del session.history[:-10]
 
 
+def _count(n: int, noun: str) -> str:
+    """"1 table", "4 columns". Counts are pluralised where they are written, because "1 table(s)"
+    in a step line is the kind of small wrongness that makes a careful analyst distrust the rest."""
+    return f"{n:,} {noun}" + ("" if n == 1 else "s")
+
+
 def _error(req: AskRequest, message: str, next_step: str) -> Answer:
     return Answer(id=uuid.uuid4().hex, kind="error", question=req.question, text=f"{message} {next_step}")
 
@@ -173,11 +184,13 @@ def _run(session: SessionLike, req: AskRequest, llm: LLMClient, trace: _Trace) -
     trace.step("verify", "started")
     work = trace.work
     risks = fan_out_risks(query, catalog)
-    work.caveats += risks + null_caveats(query, catalog) + _link_caveats(query, catalog, signals)
+    periods = period_risks(req.question, query, catalog)
+    work.caveats += risks + periods + null_caveats(query, catalog) + _link_caveats(query, catalog, signals)
     if result.truncated:
         work.caveats.append(f"Only the first {settings.row_cap:,} rows are shown.")
         signals.truncated = True
     signals.fan_out = bool(risks)
+    signals.period_unfiltered = bool(periods)
     signals.max_null_fraction = _max_null_fraction(query, catalog)
 
     # 4. Present: rules pick the chart and format every number before any model sees it.
@@ -196,8 +209,9 @@ def _run(session: SessionLike, req: AskRequest, llm: LLMClient, trace: _Trace) -
     signals.cross_check = work.cross_check.status
     detail = {"agreed": "A second model reached the same result", "disagreed": "A second model got a different result",
               "unavailable": "Cross-check unavailable", "skipped": "Cross-check off"}[work.cross_check.status]
-    alarming = work.cross_check.status == "disagreed" or signals.fan_out
-    trace.step("verify", "warn" if alarming else "ok", detail + (f"; {len(work.caveats)} caveat(s) noted" if work.caveats else ""))
+    alarming = work.cross_check.status == "disagreed" or signals.fan_out or signals.period_unfiltered
+    trace.step("verify", "warn" if alarming else "ok",
+               detail + (f"; {_count(len(work.caveats), 'caveat')} noted" if work.caveats else ""))
     trace.lap("narrate_and_verify")
 
     work.interpretation = generation.interpretation
@@ -226,7 +240,7 @@ def _generate_and_execute(session, req, llm, trace, schema_context, metric_conte
     """
     work, signals = trace.work, Signals()
     why, repair = "initial", None
-    tried_empty_repair = False
+    tried_empty_repair = tried_period_repair = asked_again = False
     # While every free model is rate limited the pool waits briefly; say so instead of hanging.
     sql_llm = llm.with_options(on_wait=lambda s: trace.step(
         "generate", "warn", f"All the free AI models are busy. Retrying in {int(s) + 1} seconds."))
@@ -242,6 +256,16 @@ def _generate_and_execute(session, req, llm, trace, schema_context, metric_conte
         work.payloads.append(payload)
         trace.step(stage, "ok", f"{payload.model} wrote a {len(generation.plan)}-step plan")
         trace.lap(stage)
+        if generation.status == "clarify" and req.clarification:
+            # The analyst already picked a column; a fallback model that asks the same question
+            # again would loop them forever. Say the choice once more, then stop asking.
+            if asked_again:
+                return _error(req, "I still could not tell which column you mean.",
+                              "Try naming the column in your question.")
+            asked_again = True
+            trace.step(stage, "warn", "The model asked again about a choice you already made")
+            repair = RepairContext(previous_sql="", problem=CHOICE_ALREADY_MADE)
+            continue
         if generation.status != "ok":
             return _non_sql_answer(session.catalog, req, generation, work)
 
@@ -249,14 +273,21 @@ def _generate_and_execute(session, req, llm, trace, schema_context, metric_conte
         problem_kind = problem = None
         try:
             query = validate_sql(generation.sql, session.catalog)
-            trace.step("guard", "ok", f"Read-only, {len(query.tables)} table(s), {len(query.columns)} column(s)")
+            trace.step("guard", "ok", f"Read-only, {_count(len(query.tables), 'table')}, {_count(len(query.columns), 'column')}")
             result = execute(session.cursor(), query.sql, timeout_s=settings.query_timeout_s, row_cap=settings.row_cap)
-            trace.step("execute", "ok", f"{len(result.rows):,} row(s) in {result.elapsed_ms} ms")
+            trace.step("execute", "ok", f"{_count(len(result.rows), 'row')} in {result.elapsed_ms} ms")
             trace.lap("execute")
             risks = fan_out_risks(query, session.catalog)
+            periods = period_risks(req.question, query, session.catalog)
             if risks:
                 problem_kind = "fan_out"
                 problem = risks[0] + " Rewrite it so the many-side is aggregated in a CTE before joining."
+            elif periods and not tried_period_repair:
+                # One try only: if the model still writes no date filter, the result is kept and
+                # the sentence becomes a caveat in _run. A caveat beats no answer.
+                tried_period_repair = True
+                problem_kind = "period_missing"
+                problem = periods[0] + " Filter on the period the question names."
             elif not result.rows and not tried_empty_repair:
                 tried_empty_repair = True
                 problem_kind = "empty_result"
@@ -300,7 +331,7 @@ def _non_sql_answer(catalog: Catalog, req: AskRequest, generation: Generation, w
 
 def _describe_data(catalog: Catalog) -> str:
     """Meta questions are answered from the catalog by template: no SQL, nothing to get wrong."""
-    lines = [f"You have {len(catalog.tables)} table(s):"]
+    lines = [f"You have {_count(len(catalog.tables), 'table')}:"]
     for t in catalog.tables:
         kind = "view" if t.is_view else "table"
         names = ", ".join(c.label for c in t.columns[:8]) + (", ..." if len(t.columns) > 8 else "")
@@ -363,7 +394,7 @@ def _cross_check(session, req, llm, schema_context, metric_context, primary: Exe
         return CrossCheck(status="agreed", model=payload.model, sql=query.sql,
                           detail="A second model wrote its own SQL and got the same result.")
     return CrossCheck(status="disagreed", model=payload.model, sql=query.sql,
-                      detail=f"A second model wrote different SQL and got a different result ({len(other.rows):,} row(s)). Check the SQL before relying on this.")
+                      detail=f"A second model wrote different SQL and got a different result ({_count(len(other.rows), 'row')}). Check the SQL before relying on this.")
 
 
 def _link_caveats(query: GuardedQuery, catalog: Catalog, signals: Signals) -> list[str]:
