@@ -191,6 +191,50 @@ def test_a_many_to_many_link_is_refused_because_it_would_double_count(session):
         sb.from_clause(refs, session.catalog)
 
 
+def test_a_measure_from_the_one_side_grouped_by_the_many_side_is_refused(session):
+    """One employee has many payslips, so a CTC summed across that join is counted once per
+    payslip. A caveat under the number was not enough: the number itself is wrong."""
+    ctc = sb.resolve("employees.ctc", session.catalog, ("measure",))
+    month = sb.resolve("salary_register.pay_month", session.catalog, ("date",))
+    with pytest.raises(ValueError) as caught:
+        sb.from_clause([ctc, month], session.catalog, measure=ctc)
+    assert str(caught.value) == (
+        "ctc is stored once per employee, but pay_month has many rows per employee, so this"
+        " would count each ctc several times."
+        " Pick a number from the same file as the group.")
+
+
+def test_a_measure_from_the_many_side_grouped_by_the_one_side_is_still_allowed(session):
+    """The common cross-file question — gross pay by department — is not a fan-out: the
+    payslips are on the many side and each one is counted once."""
+    gross = sb.resolve("salary_register.gross", session.catalog, ("measure",))
+    department = sb.resolve("employees.department", session.catalog, ("category",))
+    assert sb.from_clause([gross, department], session.catalog, measure=gross).startswith(
+        'FROM "salary_register" JOIN "employees"')
+
+
+def test_the_one_side_is_read_from_the_cardinality_not_from_the_order_of_the_columns(session):
+    """The attendance link is recorded the other way round (attendance -> employees, N:1), so
+    the one side is that link's right-hand table. The same refusal has to fire."""
+    ctc = sb.resolve("employees.ctc", session.catalog, ("measure",))
+    month = sb.resolve("attendance_q1.month", session.catalog, ("date",))
+    with pytest.raises(ValueError, match="count each ctc several times"):
+        sb.from_clause([ctc, month], session.catalog, measure=ctc)
+
+
+def test_a_one_to_one_link_never_repeats_a_row(session):
+    session.catalog.relationships[0].cardinality = "1:1"
+    ctc = sb.resolve("employees.ctc", session.catalog, ("measure",))
+    month = sb.resolve("salary_register.pay_month", session.catalog, ("date",))
+    assert "JOIN" in sb.from_clause([ctc, month], session.catalog, measure=ctc)
+
+
+def test_one_file_is_never_a_fan_out_whatever_the_measure(session):
+    ctc = sb.resolve("employees.ctc", session.catalog, ("measure",))
+    group = sb.resolve("employees.department", session.catalog, ("category",))
+    assert sb.from_clause([ctc, group], session.catalog, measure=ctc) == 'FROM "employees"'
+
+
 def test_three_tables_are_refused(session):
     refs = [sb.resolve("employees.department", session.catalog),
             sb.resolve("salary_register.gross", session.catalog),

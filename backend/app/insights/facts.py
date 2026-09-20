@@ -39,8 +39,15 @@ _NOT_ADDABLE_WORDS = frozenset({"average", "avg", "mean", "median", "quartile", 
 _MEDIAN_NAMES = ("median", "p50")
 _LOWER_QUARTILE_NAMES = ("p25", "q1", "lower_quartile")
 _UPPER_QUARTILE_NAMES = ("p75", "q3", "upper_quartile")
-_WORDS = {"avg": "average", "ctc": "CTC", "pct": "percentage", "qty": "quantity",
+_WORDS = {"avg": "average", "pct": "percentage", "qty": "quantity",
           "amt": "amount", "num": "number"}
+# The acronyms an Indian HR file is full of, so neither a sentence nor a heading writes "Ctc"
+# or "Tds". One place to add "ESI" when a file turns up with it.
+ACRONYMS = frozenset({"CTC", "LOP", "PF", "TDS", "HRA", "FY", "ID"})
+# Title case: everything is capitalised except these, and the first word always is. Long
+# prepositions ("against", "between") are capitalised, which is what every style guide does.
+_MINOR_WORDS = frozenset({"a", "an", "and", "as", "at", "but", "by", "for", "from", "in",
+                          "of", "on", "or", "per", "the", "to", "vs", "with"})
 
 
 @dataclass(frozen=True)
@@ -392,8 +399,35 @@ def _named_column(shape: _Shape, options: tuple[str, ...]) -> int | None:
 
 
 def _humanise(column: str) -> str:
-    """A column name as the words an analyst says: avg_ctc -> "average CTC"."""
-    return " ".join(_WORDS.get(word.lower(), word.lower()) for word in column.split("_") if word)
+    """A column name as the words an analyst says: avg_ctc -> "average CTC", total_lop -> "total LOP"."""
+    return " ".join(_WORDS.get(word.lower(), word.upper() if word.upper() in ACRONYMS
+                               else word.lower())
+                    for word in column.split("_") if word)
+
+
+def titled(text: str) -> str:
+    """A heading, title-cased, from words that are already the file's own.
+
+    Here rather than in whichever module writes the heading, because this is the same knowledge
+    `_humanise` uses: it is how this app writes an analyst's own words back to them. `analyses`
+    titles every guided analysis with it.
+
+    Why not `str.title()`: it writes "Ctc", "Tds" and "Hra", which is the first thing that makes
+    a generated page look generated. A word the file did not write in lower case is left exactly
+    as it is, because the header is the analyst's spelling and not ours: "iOS", "eNPS" and "DOJ"
+    all survive. Only header-derived text goes through this — a value out of the data keeps its
+    own spelling, since retyping somebody's team name is not a formatting decision.
+    """
+    words = " ".join(text.split()).split(" ")
+    return " ".join(_titled_word(word, first=index == 0) for index, word in enumerate(words))
+
+
+def _titled_word(word: str, *, first: bool) -> str:
+    if word.upper() in ACRONYMS:
+        return word.upper()
+    if word.lower() in _MINOR_WORDS and not first:
+        return word.lower()
+    return word[:1].upper() + word[1:] if word.islower() else word
 
 
 def _cap(text: str) -> str:

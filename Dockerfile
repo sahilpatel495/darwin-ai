@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # One image: FastAPI serves the API and the built single-page app, on $PORT.
-# Build and try it:  make smoke   (or: docker build -t verity:dev . && docker run -p 8000:8000 verity:dev)
+# Build and try it:  make smoke   (or: docker build -t darwinlens:dev . && docker run -p 8000:8000 darwinlens:dev)
 
 # ---- Stage 1: build the single-page app. Node never reaches the final image. ----
 FROM node:22-slim AS frontend
@@ -20,7 +20,7 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:$PATH" \
-    WORK_DIR=/tmp/verity \
+    WORK_DIR=/tmp/darwinlens \
     DEMO_DATA_DIR=/app/demo_data \
     PYTHONPATH=/app/backend
 WORKDIR /app
@@ -43,7 +43,7 @@ COPY --from=frontend /frontend/dist frontend/dist
 
 # A normal user that owns nothing under /app: a bug in the app cannot rewrite the app.
 # Uploads and DuckDB spill files go to WORK_DIR under /tmp, the only place it writes.
-RUN useradd --uid 1000 --create-home verity
+RUN useradd --uid 1000 --create-home darwinlens
 USER 1000
 
 EXPOSE 8000

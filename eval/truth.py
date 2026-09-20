@@ -1,7 +1,7 @@
 """Ground truth for the golden questions: plain pandas over demo_data/_clean, nothing else.
 
-Why this file must never import the app. The eval asks "did Verity get the right number?".
-If the expected number came from Verity's own ingestion, SQL or metric code, a bug there would
+Why this file must never import the app. The eval asks "did DarwinLens get the right number?".
+If the expected number came from DarwinLens's own ingestion, SQL or metric code, a bug there would
 agree with itself and score as correct. So the expected answers are worked out a second,
 independent way: from the generator's clean facts, before any export mess was added.
 

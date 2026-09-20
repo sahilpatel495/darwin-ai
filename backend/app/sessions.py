@@ -162,6 +162,9 @@ class Session:
     id: str
     conn: duckdb.DuckDBPyConnection
     catalog: Catalog
+    # Who uploaded these files (app.auth). The id, not the token: tokens expire and are reissued,
+    # and a guest who signs up keeps their id, so their loaded data comes with them.
+    user_id: str = ""
     history: list[Turn] = field(default_factory=list)
     answer_cache: dict[str, Answer] = field(default_factory=dict)
     created_at: float = 0.0
@@ -378,15 +381,17 @@ class SessionStore:
         self._sessions: OrderedDict[str, Session] = OrderedDict()  # least recently used first
         self._lock = threading.Lock()  # routes run on a thread pool
 
-    def create(self) -> Session:
-        # The id is the only credential a session has (it travels in the URL), so it comes
-        # from the OS random source. It is also a folder name, hence hex.
+    def create(self, user_id: str = "") -> Session:
+        """A session for one user. The API always names them; the default is for the tests that
+        build a store directly, where there is no HTTP layer and therefore nobody to own it."""
+        # The id is no longer a credential on its own (the route checks the owner's token), but
+        # it is still unguessable and still a folder name, hence hex from the OS random source.
         session_id = secrets.token_hex(16)
         folder = settings.work_dir / session_id
         conn = new_locked_connection(settings.duckdb_memory_limit, settings.duckdb_threads, folder / "duckdb_tmp")
         now = time.time()
         session = Session(
-            id=session_id, conn=conn, created_at=now, last_used=now, work_dir=folder,
+            id=session_id, conn=conn, user_id=user_id, created_at=now, last_used=now, work_dir=folder,
             catalog=Catalog(session_id=session_id, version=0, fingerprint="",
                             glossary=[m.model_copy(deep=True) for m in DEFAULT_GLOSSARY]))
         with self._lock:
@@ -413,6 +418,13 @@ class SessionStore:
             _close_all([session])
             raise KeyError(session_id)
         return session
+
+    def ids_for_user(self, user_id: str) -> list[str]:
+        """Every session this user still has in memory, so deleting their account can drop them.
+        Ids only: the caller deletes through the app's one delete path, which also clears the
+        overview computed from those files."""
+        with self._lock:
+            return [s.id for s in self._sessions.values() if s.user_id == user_id]
 
     def delete(self, session_id: str) -> None:
         """The user asked for their data to be gone. Unknown ids are not an error."""

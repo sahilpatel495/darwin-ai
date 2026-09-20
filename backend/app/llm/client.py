@@ -136,7 +136,7 @@ def _spend_one_call() -> None:
         if _budget["calls"] >= config.settings.llm_calls_per_day:
             raise LLMUnavailable(
                 "This app has reached its daily limit of AI model calls. "
-                "Please try again tomorrow, or run Verity locally with your own API key."
+                "Please try again tomorrow, or run DarwinLens locally with your own API key."
             )
         _budget["calls"] += 1
 

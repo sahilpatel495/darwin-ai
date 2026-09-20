@@ -88,7 +88,8 @@ class Settings:
     duckdb_threads: int = int(_env("DUCKDB_THREADS", "2"))
     session_ttl_s: int = int(_env("SESSION_TTL_S", "7200"))
     max_sessions: int = int(_env("MAX_SESSIONS", "20"))
-    # Abuse limits. There are no accounts, so "a user" is a client IP (see app.limits).
+    # Abuse limits. "A user" is the client address AND the signed-in user id (app.auth), because
+    # an office shares one address and one person can mint as many guest accounts as they like.
     asks_per_ip_per_hour: int = int(_env("ASKS_PER_IP_PER_HOUR", "40"))
     asks_per_ip_per_day: int = int(_env("ASKS_PER_IP_PER_DAY", "200"))
     asks_per_session: int = int(_env("ASKS_PER_SESSION", "150"))
@@ -106,8 +107,16 @@ class Settings:
     llm_calls_per_day: int = int(_env("LLM_CALLS_PER_DAY", "3000"))
     crosscheck: bool = _env("CROSSCHECK", "on") == "on"
     llm_cache_dir: str = _env("LLM_CACHE_DIR", "")  # set by the eval runner only
-    work_dir: Path = Path(_env("WORK_DIR", "/tmp/verity"))
+    work_dir: Path = Path(_env("WORK_DIR", "/tmp/darwinlens"))
     demo_data_dir: Path = Path(_env("DEMO_DATA_DIR", "demo_data"))
+    # Accounts (app.auth). AUTH_SECRET signs sign-in tokens; unset means a random one per start,
+    # so a restart signs everybody out (the app logs one warning). repr=False: this value must
+    # never appear in a traceback or a %r of the settings.
+    auth_secret: str = field(default=_env("AUTH_SECRET", ""), repr=False)
+    # The users table. WORK_DIR is read again rather than referenced because a dataclass default
+    # cannot see another field; both read the same variable, so they cannot disagree.
+    auth_db_path: Path = Path(_env("AUTH_DB_PATH", "") or f'{_env("WORK_DIR", "/tmp/darwinlens")}/users.db')
+    token_ttl_s: int = int(_env("TOKEN_TTL_S", str(7 * 86400)))  # a week, then sign in again
 
 
 settings = Settings()

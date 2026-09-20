@@ -151,7 +151,7 @@ def date_bucket(column_sql: str, grain: str) -> str:
     return f"date_trunc('{grain}', {column_sql})"
 
 
-def from_clause(refs: Sequence[Ref], catalog: Catalog) -> str:
+def from_clause(refs: Sequence[Ref], catalog: Catalog, *, measure: Ref | None = None) -> str:
     """The FROM (and JOIN) the given columns need, using only relationships the analyst has
     left active.
 
@@ -160,6 +160,11 @@ def from_clause(refs: Sequence[Ref], catalog: Catalog) -> str:
     numbers rather than only widen the rows: an N:M link repeats rows on both sides, and
     totals computed over it are simply wrong. A missing link is refused too, because the
     alternative — a cross join — silently multiplies every row by every other row.
+
+    `measure` is the column the caller is about to aggregate, when repeating it would change
+    the answer (a sum, an average, a median or a count — never a min or a max). Given it, a 1:N
+    link is refused too when that column sits on the "one" side: one salary joined to twelve
+    payslips is added up twelve times, and a caveat under a wrong number is not a fix.
     """
     tables = list(dict.fromkeys(ref.table for ref in refs))
     if not tables:
@@ -183,9 +188,37 @@ def from_clause(refs: Sequence[Ref], catalog: Catalog) -> str:
         raise ValueError(f"The link between {left} and {right} matches many rows to many rows,"
                          " so joining them would count the same row more than once. Ask this"
                          " one file at a time.")
+    _refuse_fan_out(refs, link, measure)
     return (f"FROM {ident(left)} JOIN {ident(right)}"
             f" ON {ident(link.left_table)}.{ident(link.left_column)}"
             f" = {ident(link.right_table)}.{ident(link.right_column)}")
+
+
+def _refuse_fan_out(refs: Sequence[Ref], link: Relationship, measure: Ref | None) -> None:
+    """Stop a measure that is stored once per parent row from being added up once per child.
+
+    The refusal names both columns, because the analyst is looking at two pickers and has to
+    know which one to change, and it says what to pick instead rather than only what is wrong.
+    """
+    one = {"1:N": link.left_table, "N:1": link.right_table}.get(link.cardinality)
+    if measure is None or measure.table != one:
+        return  # 1:1 fans out nowhere, and a measure on the many side is counted once
+    other = next(ref for ref in refs if ref.table != measure.table)
+    noun, label = _row_noun(one), measure.profile.label
+    raise ValueError(f"{label} is stored once per {noun}, but {other.profile.label} has many"
+                     f" rows per {noun}, so this would count each {label} several times."
+                     " Pick a number from the same file as the group.")
+
+
+def _row_noun(table: str) -> str:
+    """What one row of a table is, for a sentence an analyst reads: "employees" -> "employee".
+
+    # ponytail: a trailing "s" is dropped and nothing else. Ceiling: "per staff master" for a
+    # table nobody pluralised. Upgrade path: none worth it — the alternative phrasing, "once
+    # per row of staff_master", is the one people skip over.
+    """
+    words = table.replace("_", " ")
+    return words[:-1] if words.endswith("s") and not words.endswith("ss") else words
 
 
 def _active_link(left: str, right: str, catalog: Catalog) -> Relationship | None:

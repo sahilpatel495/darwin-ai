@@ -26,6 +26,7 @@ from math import floor, isfinite, log10
 from typing import Any
 
 from app.contracts import Catalog, TableProfile
+from app.insights.facts import titled as _titled
 from app.insights.models import (
     AnalysisCatalog,
     AnalysisInput,
@@ -60,6 +61,10 @@ _NICE_STEPS = (1, 2, 2.5, 5, 10)
 _STRONG_CORRELATION, _WEAK_CORRELATION = 0.7, 0.3
 _MEASURE_WORDS = {"sum": "total", "average": "average", "median": "median",
                   "min": "lowest", "max": "highest"}
+# Aggregates a repeated row moves. Joining one employee to twelve payslips adds their salary up
+# twelve times, but the *smallest* of a value listed twelve times is still that value, so min
+# and max are safe across a 1:N link and refusing them would be a false alarm.
+_REPEATS_MATTER = frozenset({"sum", "average", "count", "median"})
 # presentation picks the same formats from a result's column kinds; a patched chart (see
 # _bar_of) has to say it itself.
 _VALUE_FORMATS = {"currency": "currency_inr", "percent": "percent"}
@@ -72,7 +77,8 @@ _AGGREGATE = AnalysisOption(key="aggregate", label="How to combine",
 
 # The ten analyses, in the order the picker shows them. The first nine are mirrored in
 # frontend/src/fixtures/analyses.json; `compare` is the tenth. An option with no `choices` is
-# filled by the UI from the chosen column's own values (see _group_value).
+# filled by the UI from `ColumnChoice.values` for the column the analyst picked (see
+# `catalog`), and checked again on the way in by `_group_value`.
 KINDS: list[AnalysisKind] = [
     AnalysisKind(
         key="breakdown", name="Break down", description="Split one number by a group.",
@@ -151,9 +157,15 @@ KINDS: list[AnalysisKind] = [
         example="Engineering against Sales on average CTC",
         inputs=[AnalysisInput(key="measure", label="What to measure", accepts=_MEASURE),
                 AnalysisInput(key="by", label="Which column", accepts=_CATEGORY)],
+        # No fixed choices: these two are filled from the values of whichever column fills
+        # "Which column", which is what the label has to say or the picker looks broken.
         options=[_AGGREGATE,
-                 AnalysisOption(key="group_a", label="First group", choices=[]),
-                 AnalysisOption(key="group_b", label="Second group", choices=[])],
+                 AnalysisOption(key="group_a",
+                                label="First group (one of the chosen column's values)",
+                                choices=[]),
+                 AnalysisOption(key="group_b",
+                                label="Second group (one of the chosen column's values)",
+                                choices=[])],
     ),
 ]
 
@@ -180,8 +192,17 @@ def catalog(session: SessionLike) -> AnalysisCatalog:
             kind = column_kind(profile)
             if kind == "text":
                 continue
+            # A category publishes its own values, so the compare picker has something to
+            # offer; the profiler already capped that list at 30 and never fills it for a
+            # personal-data column (DECISIONS #3), so this copies a list rather than making
+            # one. `None` means "more values than the profiler lists", which is not a short
+            # list of groups — `_group_value` refuses those columns too, so the two agree.
+            # These strings go to the data's own owner as plain text in a dropdown; what a
+            # model is shown is built separately by `prompt_context`, under its own rules.
+            values = list(profile.values or []) if kind == "category" else []
             columns.append(ColumnChoice(ref=f"{table.name}.{profile.name}", label=profile.label,
-                                        table_label=_table_label(table, tables), kind=kind))
+                                        table_label=_table_label(table, tables), kind=kind,
+                                        values=values))
     return AnalysisCatalog(kinds=KINDS, columns=columns)
 
 
@@ -258,10 +279,10 @@ def _breakdown(session: SessionLike, refs: dict[str, Ref], options: dict[str, st
     group_name, measure_name = _aliases(group.column, _measure_alias(func, measure))
     sql = (f"SELECT {_col(group)} AS {ident(group_name)},"
            f" {aggregate(func, _col(measure))} AS {ident(measure_name)}"
-           f" {from_clause([measure, group], session.catalog)}"
+           f" {_source([measure, group], session.catalog, measure, func)}"
            " GROUP BY 1 ORDER BY 2 DESC, 1")
     phrase, by = _phrase(func, measure), _words(group.profile.label)
-    return run_tile(session, tile_id="analysis-breakdown", title=f"{_cap(phrase)} by {by}",
+    return run_tile(session, tile_id="analysis-breakdown", title=_titled(f"{phrase} by {by}"),
                     kind="breakdown", sql=sql, chart_type="bar",
                     ask=f"How has {phrase} by {by} changed over time?")
 
@@ -273,13 +294,14 @@ def _trend(session: SessionLike, refs: dict[str, Ref], options: dict[str, str]) 
     names = _aliases(when.column, *([group.column] if group else []),
                      _measure_alias(func, measure))
     grouped = f", {_col(group)} AS {ident(names[1])}" if group else ""
+    source = _source([measure, when] + ([group] if group else []),
+                     session.catalog, measure, func)
     sql = (f"SELECT {date_bucket(_col(when), grain)} AS {ident(names[0])}{grouped},"
-           f" {aggregate(func, _col(measure))} AS {ident(names[-1])}"
-           f" {from_clause([measure, when] + ([group] if group else []), session.catalog)}"
+           f" {aggregate(func, _col(measure))} AS {ident(names[-1])} {source}"
            f" GROUP BY {'1, 2' if group else '1'} ORDER BY {'1, 2' if group else '1'}")
     phrase = _phrase(func, measure)
     split = f", split by {_words(group.profile.label)}" if group else ""
-    return run_tile(session, tile_id="analysis-trend", title=f"{_cap(phrase)} by {grain}{split}",
+    return run_tile(session, tile_id="analysis-trend", title=_titled(f"{phrase} by {grain}{split}"),
                     # A grouped trend is read across its two groupings; an ungrouped one over time.
                     kind="comparison" if group else "trend", sql=sql, chart_type="line",
                     ask=f"What is behind the change in {phrase}?")
@@ -293,10 +315,11 @@ def _top_n(session: SessionLike, refs: dict[str, Ref], options: dict[str, str]) 
     group_name, measure_name = _aliases(group.column, _measure_alias(func, measure))
     sql = (f"SELECT {_col(group)} AS {ident(group_name)},"
            f" {aggregate(func, _col(measure))} AS {ident(measure_name)}"
-           f" {from_clause([measure, group], session.catalog)}"
+           f" {_source([measure, group], session.catalog, measure, func)}"
            f" GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT {top}")
     phrase, by = _phrase(func, measure), _words(group.profile.label)
-    return run_tile(session, tile_id="analysis-top-n", title=f"Top {top} {_plural(by)} by {phrase}",
+    return run_tile(session, tile_id="analysis-top-n",
+                    title=_titled(f"Top {top} {_plural(by)} by {phrase}"),
                     kind="breakdown", sql=sql, chart_type="bar",
                     ask=f"What is different about the top {by}?")
 
@@ -325,7 +348,7 @@ def _distribution(session: SessionLike, refs: dict[str, Ref], options: dict[str,
            f" {aggregate('count', column)} AS {ident(count_name)}"
            f" FROM {table} WHERE {column} IS NOT NULL GROUP BY 1 ORDER BY 1")
     label = _words(measure.profile.label)
-    tile = run_tile(session, tile_id="analysis-distribution", title=f"How {label} is spread",
+    tile = run_tile(session, tile_id="analysis-distribution", title=_titled(f"How {label} is spread"),
                     kind="distribution", sql=sql, chart_type="histogram",
                     ask=f"Who sits in the top 10% of {label}?")
     if None in (median, values[1], values[2]):
@@ -358,7 +381,7 @@ def _share(session: SessionLike, refs: dict[str, Ref], options: dict[str, str]) 
     whole = func in ("sum", "count")
     group_name, measure_name = _aliases(group.column, _measure_alias(func, measure))
     totals = (f"SELECT {_col(group)} AS grouped, {aggregate(func, _col(measure))} AS measured"
-              f" {from_clause([measure, group], session.catalog)} GROUP BY 1")
+              f" {_source([measure, group], session.catalog, measure, func)} GROUP BY 1")
     if whole:
         # A group genuinely called "Other" merges with the remainder. The total stays right.
         sql = (f"WITH totals AS ({totals}), ranked AS (SELECT grouped, measured,"
@@ -373,7 +396,7 @@ def _share(session: SessionLike, refs: dict[str, Ref], options: dict[str, str]) 
     # A donut has to show a whole: only a total or a count is one, and only up to six slices.
     donut = whole and group.profile.distinct_count <= MAX_SLICES
     return run_tile(session, tile_id="analysis-share",
-                    title=f"Share of {phrase} by {by}" if whole else f"{_cap(phrase)} by {by}",
+                    title=_titled(f"Share of {phrase} by {by}" if whole else f"{phrase} by {by}"),
                     kind="share" if whole else "breakdown", sql=sql,
                     chart_type="donut" if donut else "bar",
                     ask=f"How has the share of {phrase} by {by} moved over time?")
@@ -390,13 +413,14 @@ def _pivot(session: SessionLike, refs: dict[str, Ref], options: dict[str, str]) 
                                                    _measure_alias(func, measure))
     sql = (f"SELECT {_col(rows)} AS {ident(row_name)}, {_col(across)} AS {ident(column_name)},"
            f" {aggregate(func, _col(measure))} AS {ident(measure_name)}"
-           f" {from_clause([measure, rows, across], session.catalog)}"
+           f" {_source([measure, rows, across], session.catalog, measure, func)}"
            " GROUP BY 1, 2 ORDER BY 1, 2")
     phrase = _phrase(func, measure)
     down, right = _words(rows.profile.label), _words(across.profile.label)
     # run_tile keeps the rules' chart when there is too much to plot, which is exactly the
     # "else a table" case: too many values on either side and the heatmap becomes unreadable.
-    return run_tile(session, tile_id="analysis-pivot", title=f"{_cap(phrase)} by {down} and {right}",
+    return run_tile(session, tile_id="analysis-pivot",
+                    title=_titled(f"{phrase} by {down} and {right}"),
                     kind="comparison", sql=sql, chart_type="heatmap",
                     ask=f"Where is {phrase} highest across {down} and {right}?")
 
@@ -420,7 +444,7 @@ def _correlation(session: SessionLike, refs: dict[str, Ref], options: dict[str, 
     sql = (f"SELECT {_col(first)} AS {ident(x)}, {_col(second)} AS {ident(y)}"
            f" {source} {both_present} ORDER BY 1, 2 LIMIT {ROW_CAP}")
     one, two = _words(first.profile.label), _words(second.profile.label)
-    tile = run_tile(session, tile_id="analysis-correlation", title=f"{one} against {two}",
+    tile = run_tile(session, tile_id="analysis-correlation", title=_titled(f"{one} against {two}"),
                     kind="relationship", sql=sql, chart_type="scatter",
                     ask=f"Does {one} still move with {two} within each group?")
     coefficient, compared = values[0], values[1]
@@ -448,10 +472,11 @@ def _change(session: SessionLike, refs: dict[str, Ref], options: dict[str, str])
     """
     measure, when, group = refs["measure"], refs["date"], refs.get("by")
     func, grain = options["aggregate"], options["grain"]
+    source = _source([measure, when] + ([group] if group else []),
+                     session.catalog, measure, func)
     periods = (f"SELECT {date_bucket(_col(when), grain)} AS period"
                f"{f', {_col(group)} AS grouped' if group else ''},"
-               f" {aggregate(func, _col(measure))} AS measured"
-               f" {from_clause([measure, when] + ([group] if group else []), session.catalog)}"
+               f" {aggregate(func, _col(measure))} AS measured {source}"
                f" WHERE {_col(when)} IS NOT NULL GROUP BY {'1, 2' if group else '1'}")
     two = (f"SELECT {'grouped, ' if group else ''}"
            " sum(measured) FILTER (WHERE period = (SELECT boundary FROM earlier_period)) AS earlier_value,"
@@ -474,7 +499,8 @@ def _change(session: SessionLike, refs: dict[str, Ref], options: dict[str, str])
                f" earlier_value AS {ident(earlier)}, later_value AS {ident(later)}"
                " FROM two ORDER BY 2 DESC, 1")
         tile = run_tile(session, tile_id="analysis-change",
-                        title=f"Change in {phrase} by {grain}, split by {_words(group.profile.label)}",
+                        title=_titled(f"Change in {phrase} by {grain},"
+                                      f" split by {_words(group.profile.label)}"),
                         # facts reads the first measure, which is why the change column is first.
                         kind="breakdown", sql=sql,
                         ask=f"What changed in {phrase} between the last two {grain}s?")
@@ -488,8 +514,8 @@ def _change(session: SessionLike, refs: dict[str, Ref], options: dict[str, str])
            f" (SELECT boundary FROM latest_period) AS {ident(now)},"
            f" later_value AS {ident(later)},"
            f" later_value - earlier_value AS {ident(change_name)} FROM two")
-    tile = run_tile(session, tile_id="analysis-change", title=f"Change in {phrase} by {grain}",
-                    kind="kpi", sql=sql,
+    tile = run_tile(session, tile_id="analysis-change",
+                    title=_titled(f"Change in {phrase} by {grain}"), kind="kpi", sql=sql,
                     ask=f"What changed in {phrase} between the last two {grain}s?")
     return tile.model_copy(update=_change_words(tile, phrase, grain, _value_kind(func, measure)))
 
@@ -517,7 +543,7 @@ def _outliers(session: SessionLike, refs: dict[str, Ref], options: dict[str, str
            f" FROM {table}, bounds WHERE {column} < {low} OR {column} > {high}"
            f" ORDER BY {column} DESC, {', '.join(visible)}")
     label = _words(measure.profile.label)
-    tile = run_tile(session, tile_id="analysis-outliers", title=f"Unusual {label} values",
+    tile = run_tile(session, tile_id="analysis-outliers", title=_titled(f"Unusual {label} values"),
                     kind="distribution", sql=sql, chart_type="table",
                     ask=f"What do the unusual {label} rows have in common?")
     if values[0] is None:
@@ -552,11 +578,14 @@ def _compare(session: SessionLike, refs: dict[str, Ref], options: dict[str, str]
     group_name, measure_name = _aliases(group.column, _measure_alias(func, measure))
     sql = (f"SELECT {_col(group)} AS {ident(group_name)},"
            f" {aggregate(func, _col(measure))} AS {ident(measure_name)}"
-           f" {from_clause([measure, group], session.catalog)}"
+           f" {_source([measure, group], session.catalog, measure, func)}"
            f" WHERE {_col(group)} IN ({_literal(first)}, {_literal(second)})"
            " GROUP BY 1 ORDER BY 2 DESC, 1")
     phrase = _phrase(func, measure)
-    tile = run_tile(session, tile_id="analysis-compare", title=f"{_cap(phrase)}: {first} vs {second}",
+    # Only the headers are title-cased: the two group names are the data's own spelling, and a
+    # team really called "iOS" must not be rewritten into "Ios" by a heading.
+    tile = run_tile(session, tile_id="analysis-compare",
+                    title=f"{_titled(phrase)}: {first} vs {second}",
                     kind="comparison", sql=sql, chart_type="bar",
                     ask=f"Why is {phrase} different between {first} and {second}?")
     return tile.model_copy(update=_compare_words(tile, first, second,
@@ -670,6 +699,16 @@ def _bar_of(tile: InsightTile, *, x: str, y: str, kind: ValueKind) -> InsightTil
         "value_format": _VALUE_FORMATS.get(kind, "number"),
     })
     return tile.model_copy(update={"chart": chart})
+
+
+def _source(refs: list[Ref], catalog: Catalog, measure: Ref, func: str) -> str:
+    """The FROM clause, telling `from_clause` which column is about to be aggregated.
+
+    That is what lets it refuse a join that would repeat the measure — one salary added up once
+    per payslip — while leaving the common cross-file question (a payslip amount grouped by the
+    employee's department) alone. A min or a max is unmoved by repeats, so it declares nothing.
+    """
+    return from_clause(refs, catalog, measure=measure if func in _REPEATS_MATTER else None)
 
 
 def _col(ref: Ref) -> str:

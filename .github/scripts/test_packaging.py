@@ -41,13 +41,14 @@ def test_env_example_documents_every_setting() -> None:
 
 
 def test_env_example_sets_nothing_but_empty_api_keys() -> None:
-    """A committed file must never carry a secret. Only the key lines are live, and they are
-    empty, so a reader sees where keys go and nothing else changes when the file is copied."""
+    """A committed file must never carry a secret. Only the secret lines are live (the model keys
+    and the token-signing secret), and they are empty, so a reader sees where secrets go and
+    nothing else changes when the file is copied."""
     live = [line for line in _read(".env.example").splitlines() if line and not line.startswith("#")]
     assert live, "expected the API key lines to be uncommented so users can see where keys go"
     for line in live:
         name, _, value = line.partition("=")
-        assert name.endswith("_API_KEY") and value == "", line
+        assert (name.endswith("_API_KEY") or name == "AUTH_SECRET") and value == "", line
 
 
 def test_every_documented_setting_may_be_left_empty() -> None:

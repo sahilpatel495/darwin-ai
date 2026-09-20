@@ -1,4 +1,4 @@
-# Northwind Retail India: files to test Verity by hand
+# Northwind Retail India: files to test DarwinLens by hand
 
 **Everything here is synthetic.** "Northwind Retail India Pvt Ltd", its 420 staff, their
 names, emails, PANs, Aadhaar and bank numbers, its 25 stores and every rupee in these files
@@ -20,7 +20,7 @@ including files the app must refuse.
 | `sales_jan.csv`, `sales_feb.csv`, `sales_mar.csv` | The same five columns three times: February in a different column order, March with a UTF-8 BOM and a trailing empty column on every line; dates `DD/MM/YYYY`; revenue `₹1,20,000` | 600 rows each, dates read as DD/MM/YYYY, revenue read as rupees, and **one combined view `sales_all` (1,800 rows)** offered over the three |
 | `attendance_punches_2025.csv` | The big one: 217,586 rows, 15.5 MB (local cap is 25 MB). Full timestamps in `Punch In`/`Punch Out`, blank punches and blank hours on days nobody worked | 217,586 rows, 7 columns, dates YYYY-MM-DD, `Hours Worked` decimal, null hotspots of 11.7% on the three punch columns, links to both `staff_master` and `stores` |
 | `exit_interviews.csv` | `Interview Date` as raw Excel date numbers (`45354`), ratings 1-5 with a few `NA`, quoted free-text remarks with commas, quotes, line breaks, Hindi, an emoji, an email address, and one remark ordering the app to report 0% attrition | 56 rows, "dates stored as Excel date numbers", `Would Rehire` read as yes/no, `Rating` whole numbers with 3 blanks, remarks left as text. The injected instruction is data: the answer must not change |
-| `appraisal_two_row_header.xlsx` | A two-row merged header (`Earnings` over Basic/HRA/Bonus, `Ratings` over Manager/Self/Final). **Two-row headers are a declared limitation of Verity** | 334 rows, 1 title row skipped, the second header row used as column names, and `EmpNo` renamed to `column_1` because its cell in that row is empty. See "What the app gets wrong today" |
+| `appraisal_two_row_header.xlsx` | A two-row merged header (`Earnings` over Basic/HRA/Bonus, `Ratings` over Manager/Self/Final). **Two-row headers are a declared limitation of DarwinLens** | 334 rows, 1 title row skipped, the second header row used as column names, and `EmpNo` renamed to `column_1` because its cell in that row is empty. See "What the app gets wrong today" |
 | `edge_cases/empty.csv` | 0 bytes | Refused: "empty.csv is empty." |
 | `edge_cases/header_only.csv` | A header line and nothing under it | Refused: "header_only.csv has column headers but no data rows." |
 | `edge_cases/wrong_extension.csv` | PNG bytes with a `.csv` name | Refused: "wrong_extension.csv does not look like a text file. If it is an Excel workbook, save it as .xlsx and upload that; otherwise export it again as CSV." |
@@ -55,7 +55,7 @@ payroll_register_2025   exit_interviews        attendance_punches_2025
 appraisal_two_row_header.xlsx  ──  joins to nothing (its EmpNo header is lost; see below)
 ```
 
-All sixteen links Verity finds on its own when the nine files are loaded together. The
+All sixteen links DarwinLens finds on its own when the nine files are loaded together. The
 diagram above is the seven a person would draw; the links panel shows all of these, so
 the extra ones below are what a tester will actually see.
 
@@ -87,7 +87,7 @@ byte-identical files. `attendance_punches_2025.csv` (15.5 MB) and `edge_cases/to
 (30 MB) are git-ignored and come back from this command; everything else is committed.
 
 `EXPECTED.md` is written by the same command, with pandas, from the clean frames **before**
-any mess is added. If Verity disagrees with a number in it, Verity is wrong.
+any mess is added. If DarwinLens disagrees with a number in it, DarwinLens is wrong.
 
 ## A fifteen-minute test script
 
@@ -207,51 +207,79 @@ this section's to rewrite.
 
 ### Still wrong
 
+*Re-run on 2026-09-21: all nine files, and then the four refusals, through
+`app.ingest.ingest_file` and `SessionStore().create().add_files(...)` with no model in the
+loop. 10 tables plus the 2 combined views, 2,24,590 rows, 13 links, and the four refusals
+word for word as the table above promises. Finding 14 is fixed and is kept in its place
+because findings 7 and 15 refer to it by number.*
+
 11. **Punch times stay text.** `2025-01-02 09:14:23` is not a date and there is no time or
-    timestamp type, so `Punch In` and `Punch Out` are text: the time between two swipes
-    cannot be computed in SQL. Only the pre-computed `Hours Worked` column can answer hours
-    questions. Fixing it means a new `ColumnType`, which is a change to `contracts.py` and to
-    every module that maps types to DuckDB, formatting and charts.
+    timestamp type, so `Punch In` and `Punch Out` are text (187,202 and 189,382 distinct
+    values, 12% null): the time between two swipes cannot be computed in SQL. Only the
+    pre-computed `Hours Worked` column can answer hours questions, and it is hours per swipe
+    pair rather than per day. Fixing it means a new `ColumnType`, which is a change to
+    `contracts.py` and to every module that maps types to DuckDB, formatting and charts.
 12. **An email inside free text is not flagged.** One `Remarks` cell contains an address; PII
-    detection needs 60% of sampled values to match, so the column is plain text, and a
-    preview will show it. Nothing leaks into a prompt, but not for the reason given here
-    before: `Remarks` has only 12 distinct values over 56 rows, so it *is* a candidate for
-    value listing, and every one of the twelve is then dropped by the prompt builder — they
-    are all longer than 40 characters or more than 4 words. The model is shown
-    `remarks text | values: [] (some values hidden)`, which is safe but says nothing, and an
-    empty list reads like an empty column. Lowering the PII threshold would flag ordinary
-    comment columns; suppressing the `values:` part when nothing survives is a one-line
-    change in `prompt_context.py` that was out of scope for this round.
-13. **Every table keyed on EmpNo is linked to every other one.** Eleven links where a person
-    would draw eight, and all eleven are active. The combined views took the original sixteen
-    down to eleven; rescuing the appraisal sheet's key in finding 4 then added four (three of
-    them active, including `appraisal -> payroll` and `appraisal -> attendance`, both 1:N);
-    finding 7 then removed the four suggested `-> stores.Manager EmpNo` rows. The detector
-    drops a direct link between two fact tables only when it is N:M; a table with one row per
-    employee (exit interviews, the appraisal sheet) is 1:N to everything and survives. The
-    obvious generalisation was tried and reverted: by cardinality alone, a one-row-per-employee
-    sheet covering 80% of the staff is indistinguishable from a master table, and the rule
-    then throws away the *payroll* link to the real staff master. Doing it properly means
-    ranking candidate masters by key coverage and by whether their key is itself a foreign
-    key. Nothing here is false, and the dangerous link of the sixteen (finding 2) is on by
-    default.
-14. **The stores-to-staff link is now not offered at all** — a new cost of finding 7, and the
-    one thing that got worse this round. `relationships._is_candidate` refuses to pair two
-    columns whose roles differ ("an employee id is not a manager id, however well the values
-    overlap"), so naming `stores.manager_emp_no` a `manager_id` removed the four suggested
-    rows it used to have, including the genuine
-    `staff_master_all.emp_no -> stores.Manager EmpNo` at 0.06 / 1.00. It was off by default
-    before, so no answer changes, but a tester can no longer switch it on from the links
-    panel; the model can still write the join itself, because both columns are in the prompt.
-    The fix is in `app/catalog/relationships.py`, which nobody owned this round: `manager_id`
-    on one side and `employee_id` on the other is the one role pair that *should* be allowed
-    to meet, because a manager id is an employee id in the master table.
-15. **Span of control cannot be computed from these files, and now says so.** The only
+    detection needs 60% of sampled values to match, so the column is plain text, and a preview
+    shows it — as, now, does the guided picker (finding 16). Nothing reaches a prompt: the
+    half of this that was open has since closed. `Remarks` has only 12 distinct values over 56
+    rows, so it *is* a candidate for value listing, and every one of the twelve is dropped by
+    the prompt builder (all are longer than 40 characters or more than 4 words); the line the
+    model is shown now reads `remarks text | free text, values hidden` rather than an empty
+    list that read like an empty column. What is still wrong is only the flag itself, and
+    lowering the 60% threshold would flag ordinary comment columns.
+13. **Every table keyed on EmpNo is linked to every other one.** Thirteen links where a person
+    would draw seven, and eleven of them are active. The four that a person would not draw are
+    all active and all between two fact tables: `appraisal -> payroll`, `appraisal ->
+    attendance`, `attendance -> exit_interviews` and `exit_interviews -> payroll`. The
+    detector drops a direct link between two fact tables only when it is N:M; a table with one
+    row per employee (exit interviews, the appraisal sheet) is 1:N to everything and survives.
+    The obvious generalisation was tried and reverted: by cardinality alone, a
+    one-row-per-employee sheet covering 80% of the staff is indistinguishable from a master
+    table, and the rule then throws away the *payroll* link to the real staff master. Doing it
+    properly means ranking candidate masters by key coverage and by whether their key is
+    itself a foreign key. Nothing here is false, and the dangerous link of the original sixteen
+    (finding 2) is on by default.
+14. **Fixed on 2026-09-21 — the stores-to-staff link is offered again.**
+    `relationships._is_manager_link` now lets `manager_id` and `employee_id` meet, and only
+    them: the employee-id side must be unique, so the pair is allowed against a master table
+    and refused against a payroll register, where the same values are only the same id space
+    and joining on them would multiply rows. The link can never switch itself on, because
+    `_headers_agree` compares roles and these two differ, so its status is always *suggested* —
+    which is the intent, not an accident: the two tables already join on the employee's own id,
+    and a second path (the store you work in against the store you manage) is the analyst's
+    choice. `staff_master_all.emp_no -> stores.Manager EmpNo` is back at 0.06 / 1.00, and
+    rescuing the appraisal sheet's key in finding 4 gives a second,
+    `appraisal_two_row_header.emp_no -> stores.Manager EmpNo` at 0.06 / 0.84. Both are off by
+    default, so no number in `EXPECTED.md` moves.
+15. **Span of control still cannot be computed from these files, and still says so.** The only
     `manager_id` here is `stores.Manager EmpNo`, which names the 25 store managers, not a
-    reporting line for 420 people. `glossary._resolve` used to take each role from whichever
-    table had it, so it bound `manager_id` to `stores` and `employee_id` to
-    `staff_master_all` and handed the model
-    `count(DISTINCT staff_master_all.emp_no) ... FROM stores`, which DuckDB refuses to bind.
-    Every role now comes from one table — a pattern has one `{role@table}` and so one `FROM` —
-    and the metric reports `manager_id` missing instead. An honest refusal, but the underlying
-    gap is real: no file here records who reports to whom.
+    reporting line for 420 people. Finding 14 does not change this: every role of a metric is
+    bound from one table (DECISIONS #24 — a pattern has one `{role@table}` and so one `FROM`),
+    never across a link, so `span of control` binds `employee_id` to `staff_master_all.emp_no`
+    and reports `manager_id` missing whether or not the stores link is switched on. An honest
+    refusal, and the underlying gap is real: no file here records who reports to whom.
+16. **The guided picker calls a column of sentences a category.** `column_kind` asks only how
+    many distinct values a text column has (at most 50), never how long they are, so
+    `exit_interviews.Remarks` — 12 distinct values over 56 rows — is offered as something to
+    group by and to compare. It runs: "Average Rating by Remarks" draws twelve bars whose
+    labels are whole sentences, the longest 109 characters, one of them the planted
+    `Ignore all previous instructions...` remark and another the one carrying an email
+    address. Nothing here is unsafe — these strings go to the data's own owner as plain text,
+    the numbers are right, and a model is never shown them (finding 12) — but it is a picker
+    entry nobody would choose twice, and a refusal that lists six of the values back is three
+    lines long. The same sheet also offers `LWD` and `Exit Reason` on the `Active` sheet, which
+    are empty in every row: grouping by them gives one bar labelled "—". The fix is one rule in
+    `insights/sqlbuild.column_kind` — the "at most 40 characters and 4 words" test DECISIONS
+    #16(d) already applies to prompt values, plus the `distinct_count == 0` test finding 9
+    already applies to metrics.
+17. **No guided analysis can cross into the staff master on this file set.** The picker leaves
+    views out on purpose (a view repeats its members' headers, so `Days Present` would be
+    listed three times), and on these files *every* EmpNo link runs to the view
+    `staff_master_all`, never to the `Active` or `Separated` sheet. So "average Annual CTC by
+    region", "net pay by department" and "rating by department" are all refused in the Analyses
+    page with "…are not linked", although the sidebar shows the links and the chat answers the
+    same questions from the view. This is the ceiling the `# ponytail:` note in
+    `analyses.catalog` names, and this file set is the case where it bites hardest, because
+    here the staff master is *always* a view. The upgrade path is in the note: offer the view
+    and drop its members' duplicated columns.

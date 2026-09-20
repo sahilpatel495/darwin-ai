@@ -120,7 +120,7 @@ def test_report_files_round_trip(tmp_path):
     write_report(report(), tmp_path)
     assert load_report(tmp_path / "report.json") == report(generated_at=load_report(tmp_path / "report.json").generated_at)
     assert json.loads((tmp_path / "report.json").read_text())["total"] == 6
-    assert (tmp_path / "REPORT.md").read_text().startswith("# Verity evaluation report")
+    assert (tmp_path / "REPORT.md").read_text().startswith("# DarwinLens evaluation report")
 
 
 def test_a_missing_or_unreadable_report_is_simply_no_report(tmp_path):
@@ -299,7 +299,7 @@ def test_report_md_holds_both_sections_whichever_set_was_run_last(tmp_path):
 
     write_report(challenge_report(), tmp_path, question_set="challenge")
     both = (tmp_path / "REPORT.md").read_text()
-    assert both.startswith("# Verity evaluation report")
+    assert both.startswith("# DarwinLens evaluation report")
     assert "## Challenge set (never tuned)" in both and "join-01" in both
 
     write_report(report(), tmp_path)  # a later golden pass must not drop the challenge section

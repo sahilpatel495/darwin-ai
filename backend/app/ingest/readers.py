@@ -72,7 +72,8 @@ def read_raw_tables(path: Path, original_name: str) -> list[RawTable]:
     if extension not in TEXT_EXTENSIONS + EXCEL_EXTENSIONS:
         supported = ", ".join(TEXT_EXTENSIONS + EXCEL_EXTENSIONS)
         raise IngestError(
-            f"{name} is not a file type Verity can read. Upload one of these instead: {supported}."
+            f"{name} is not a file type DarwinLens can read. "
+            f"Upload one of these instead: {supported}."
         )
     # The API caps uploads while streaming them to disk. Checking again here keeps the
     # guarantee for every other caller, because both readers load the file into memory.
@@ -284,12 +285,12 @@ def _bounded(rows, name: str, rows_left: int, cells_left: int) -> list[list[str 
     for row in rows:
         if len(row) > MAX_COLUMNS:
             raise IngestError(
-                f"{name} has more than {MAX_COLUMNS:,} columns, which Verity cannot analyse. "
+                f"{name} has more than {MAX_COLUMNS:,} columns, which DarwinLens cannot analyse. "
                 "Keep only the columns you need and upload it again."
             )
         if len(out) >= rows_left:
             raise IngestError(
-                f"{name} has more than {MAX_ROWS:,} rows, which Verity cannot analyse. "
+                f"{name} has more than {MAX_ROWS:,} rows, which DarwinLens cannot analyse. "
                 "Split it into smaller files and upload those. If your data is shorter than "
                 "that, delete the empty rows below it, save the file and upload it again."
             )
@@ -301,7 +302,7 @@ def _bounded(rows, name: str, rows_left: int, cells_left: int) -> list[list[str 
         width = max(width, len(row))
         if width * (len(out) + 1) > cells_left:
             raise IngestError(
-                f"{name} has more than {MAX_CELLS:,} cells (rows times columns), which Verity "
+                f"{name} has more than {MAX_CELLS:,} cells (rows times columns), which DarwinLens "
                 "cannot analyse. Keep only the rows and columns you need and upload it again."
             )
         out.append([cell if cell != "" else None for cell in row])

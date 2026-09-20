@@ -1,8 +1,8 @@
 # Run the whole app locally:  docker compose up --build   then open http://localhost:8000
 services:
-  verity:
+  darwinlens:
     build: .
-    image: verity:dev
+    image: darwinlens:dev
     ports:
       - "8000:8000"
     # API keys come from .env (copy .env.example). Without the file the app still starts and

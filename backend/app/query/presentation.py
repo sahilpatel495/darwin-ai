@@ -165,21 +165,26 @@ def _is_year_column(name: str, values: list[Any]) -> bool:
 # --------------------------------------------------------------------------- display strings
 
 
-def to_display(value: Any, kind: ValueKind) -> str:
+def to_display(value: Any, kind: ValueKind, *, month: bool = False) -> str:
     """Indian formatting: 1234567 -> "12,34,567"; currency -> "₹12.35 L" / "₹1.20 Cr" from
     1 lakh up, else "₹45,000"; percent -> "12.5%"; dates -> "04 Apr 2025"; None -> "—".
+
+    `month` writes a date as "Jan 2025". It is a property of the *column*, not of the value, so
+    only `build_table` decides it (see `_is_month_column`); one date in a column of real dates
+    that happens to fall on the 1st still names its day.
 
     Never raises: a value that does not fit its kind is shown as plain text."""
     if value is None or (isinstance(value, (float, Decimal)) and not math.isfinite(value)):
         return "—"
     if isinstance(value, bool):
         return "Yes" if value else "No"
+    day = "%b %Y" if month else "%d %b %Y"
     if isinstance(value, datetime):  # before `date`: a datetime is also a date
-        return value.strftime("%d %b %Y" if value.time() == time.min else "%d %b %Y %H:%M")
+        return value.strftime(day if value.time() == time.min else "%d %b %Y %H:%M")
     if isinstance(value, date):
-        return value.strftime("%d %b %Y")
+        return value.strftime(day)
     if kind == "date":
-        return _iso_text_as_date(str(value))
+        return _iso_text_as_date(str(value), day)
     if kind not in _MEASURES or not isinstance(value, (int, float, Decimal)):
         return str(value)
 
@@ -202,9 +207,9 @@ def _number(number: Decimal, kind: ValueKind) -> str:
     return _plain(number, 1 - number.adjusted() if is_small_rate else 2, trim=True)
 
 
-def _iso_text_as_date(text: str) -> str:
+def _iso_text_as_date(text: str, day: str = "%d %b %Y") -> str:
     try:
-        return date.fromisoformat(text[:10]).strftime("%d %b %Y")
+        return date.fromisoformat(text[:10]).strftime(day)
     except ValueError:
         return text
 
@@ -253,13 +258,47 @@ def _json_safe(value: Any) -> Any:
     return str(value)  # intervals, lists, structs, UUIDs: readable text, never a crash
 
 
+def _as_plain_date(value: Any) -> date | None:
+    """The plain calendar date this cell is, or None. A timestamp carrying a time of day is a
+    moment, not a date, so it is never read as a month."""
+    if isinstance(value, datetime):
+        return value.date() if value.time() == time.min else None
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
+
+
+def _is_month_column(values: list[Any]) -> bool:
+    """Is every date in this column the first of a month?
+
+    Then the day is noise and the column reads as "Jan 2025": that is what `date_trunc('month')`
+    and a "Pay Period" column written `Jan-2025` both produce, and "01 Jan 2025" invites the
+    reader to think something happened on the 1st. Decided per column so the table, the chart
+    and every sentence built from the display strings say the same thing.
+
+    # ponytail: read off the rows in hand. Ceiling: a truncated result, or a column whose dated
+    # events all genuinely fall on the 1st, loses the day. Upgrade path: take the answer from
+    # the source ColumnProfile when the projection maps to one.
+    """
+    dates = [_as_plain_date(v) for v in values if v is not None]
+    return bool(dates) and all(d is not None and d.day == 1 for d in dates)
+
+
 def build_table(result: ExecResult, kinds: list[ValueKind]) -> ResultTable:
     """Raw JSON-safe values for charts and export, and a parallel grid of display strings, which
     are the only form of a number the narrator is ever given."""
+    # Sliced so a caller that passed the wrong number of kinds still fails in the strict zip
+    # below, with the message it has always failed with, rather than on an index here.
+    months = [kind == "date" and _is_month_column([row[i] for row in result.rows])
+              for i, kind in enumerate(kinds[:len(result.columns)])]
     return ResultTable(
         columns=list(result.columns),
         rows=[[_json_safe(v) for v in row] for row in result.rows],
-        display=[[to_display(v, k) for v, k in zip(row, kinds, strict=True)] for row in result.rows],
+        display=[[to_display(v, k, month=m) for v, k, m in zip(row, kinds, months, strict=True)]
+                 for row in result.rows],
         row_count=len(result.rows),
         truncated=result.truncated,
     )

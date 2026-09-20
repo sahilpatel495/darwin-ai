@@ -16,9 +16,11 @@ handler already answers those without leaking DuckDB's text, which can quote a c
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from starlette.concurrency import run_in_threadpool
 
+from app.auth import current_user
+from app.contracts import User
 from app.insights import analyses, dashboard
 from app.insights.models import AnalysisCatalog, AnalysisRequest, Dashboard, InsightTile
 from app.sessions import SessionLike
@@ -26,8 +28,11 @@ from app.sessions import SessionLike
 router = APIRouter(prefix="/api/sessions/{session_id}", tags=["insights"])
 
 
-def _session(session_id: str) -> SessionLike:
-    """This session, or the app's human 404 for an expired one.
+def _session(session_id: str, user: User) -> SessionLike:
+    """This user's session, or the app's human 404 for one that is expired or not theirs.
+
+    Costing nothing does not make these routes public: the tiles are computed from somebody's
+    HR file, so they are behind the same token and the same ownership check as an answer.
 
     `app.main` imports this module, so importing it back at module level would be a cycle;
     the import lives in here instead. That is one line, where a setter called from main would
@@ -40,32 +45,33 @@ def _session(session_id: str) -> SessionLike:
     """
     from app import main
 
-    return main._session(session_id)
+    return main._session(session_id, user)
 
 
 @router.get("/dashboard", response_model=Dashboard)
-async def get_dashboard(session_id: str) -> Dashboard:
+async def get_dashboard(session_id: str, user: User = Depends(current_user)) -> Dashboard:
     """Everything we can say about these files without a model: sections of computed tiles.
 
     The engine caches it per catalog version, so only the first call after an upload runs
     queries; a reload is a dict lookup. In a thread either way, because the first call is a
     dozen DuckDB queries and the event loop has other requests to serve.
     """
-    return await run_in_threadpool(dashboard.build, _session(session_id))
+    return await run_in_threadpool(dashboard.build, _session(session_id, user))
 
 
 @router.get("/analyses", response_model=AnalysisCatalog)
-async def get_analyses(session_id: str) -> AnalysisCatalog:
+async def get_analyses(session_id: str, user: User = Depends(current_user)) -> AnalysisCatalog:
     """The picker: the ten analyses, and which of this session's columns may fill each slot.
 
     Personal-data and identifier columns are absent from the column list — the engine leaves
     them out, so the UI cannot offer "average employee id by name" in the first place.
     """
-    return await run_in_threadpool(analyses.catalog, _session(session_id))
+    return await run_in_threadpool(analyses.catalog, _session(session_id, user))
 
 
 @router.post("/analyses/run", response_model=InsightTile)
-async def run_analysis(session_id: str, body: AnalysisRequest) -> InsightTile:
+async def run_analysis(session_id: str, body: AnalysisRequest,
+                       user: User = Depends(current_user)) -> InsightTile:
     """One guided analysis: catalog identifiers into SQL, guarded, run, formatted, read out.
 
     A ValueError here is the engine refusing the request in one sentence aimed at the person
@@ -77,7 +83,7 @@ async def run_analysis(session_id: str, body: AnalysisRequest) -> InsightTile:
     """
     from app.main import ApiProblem
 
-    session = _session(session_id)
+    session = _session(session_id, user)
     try:
         return await run_in_threadpool(analyses.run, session, body)
     except ValueError as e:

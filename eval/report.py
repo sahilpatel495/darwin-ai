@@ -215,7 +215,7 @@ def render_markdown(report: EvalReport, hide_holdout_failures: bool = False,
     every_run = " in every run" if report.runs > 1 else ""
 
     lines = [
-        "# Verity evaluation report",
+        "# DarwinLens evaluation report",
         "",
         (f"Generated {report.generated_at} with `{report.model}`: {report.total} questions, "
          f"{report.runs} run(s) each. Expected answers are computed with pandas from the clean "

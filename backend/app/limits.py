@@ -1,8 +1,10 @@
 """Per-user limits, so a public demo on free model quotas cannot be drained or knocked over.
 
 The free tiers give the whole app a few hundred thousand tokens a day, so one visitor in a
-loop could use up everybody's answers. There are no accounts, so "a user" is a client IP
-address (see `client_ip`). Three small pieces:
+loop could use up everybody's answers. "A user" is a client IP address (see `client_ip`) *and*
+the signed-in user id (app.auth), because neither alone is enough: an office shares one address,
+and one person can hold as many guest accounts as they like. A question is charged to both, so
+whichever runs out first stops it. Three small pieces:
 
 - SlidingWindow: "at most N in the last W seconds" per key.
 - ConcurrencyGate: "at most N at the same time", in total and per key.
@@ -23,9 +25,23 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 
 from app.config import Settings
+from app.contracts import Usage
 
 HOUR, DAY = 3600, 86400
 BUSY_RETRY_S = 5  # a question takes a few seconds, so a slot is free again about this soon
+
+# The three ways in (app.auth), each the cheapest thing on the site to hammer. Not in Settings:
+# they protect the login form, not the model budget, and nobody hosting this needs to tune them.
+# Sign-in gets the shortest window because a wrong password is also what a real person does.
+SIGNUPS_PER_HOUR = 5
+LOGINS_PER_WINDOW, LOGIN_WINDOW_S = 10, 600
+GUESTS_PER_HOUR = 20
+
+
+def _user_key(user_id: str) -> str:
+    """Namespaced so a user id can never land on an address's count. Ids are hex, addresses are
+    dotted or colonned, so they could not collide anyway; the prefix says so in the data."""
+    return f"user:{user_id}"
 
 
 class LimitExceeded(Exception):
@@ -45,7 +61,12 @@ def client_ip(forwarded_for: str, socket_host: str | None, hops: int = 1) -> str
     entries than that did not come through them, so the socket address is used instead, as it is
     when there is no header at all. Never set `hops` above the number of proxies actually in
     front: one hop too many reads the entry just before the real client, which is the first
-    thing the client itself can write, and every visitor can then be anyone they like. Only the right-hand end is ever split, so a 16 KB header of
+    thing the client itself can write, and every visitor can then be anyone they like. With no
+    proxy in front at all — running the container straight on a public port — the right value is
+    `TRUSTED_PROXY_HOPS=0`, which ignores the header and counts the socket. That is not a nicety
+    any more: these windows are what bounds password guessing on `/api/auth/login` (app.auth), so
+    the default of 1 with nothing appending the header means an attacker rotating this header has
+    no limit at all. Only the right-hand end is ever split, so a 16 KB header of
     commas is not parsed into a 16 KB list. Anything that does not parse as an address is
     ignored, so header text never becomes a dictionary key. An IPv6 customer is handed a whole
     /64, so the /64 is the user: otherwise one laptop has 2^64 identities.
@@ -103,6 +124,12 @@ class SlidingWindow:
             if not hits:  # a limit of zero: this kind of request is switched off
                 return False, int(window_s)
             return False, max(1, math.ceil(hits[0] + window_s - now))  # when the oldest hit expires
+
+    def count(self, key: str, window_s: float, now: float) -> int:
+        """How many hits are still inside the window, charging nothing. The usage meter reads
+        this, so the number a person is shown comes from the counter that would refuse them."""
+        with self._lock:
+            return sum(1 for t in self._hits.get(key, ()) if now - t < window_s)
 
     def refund(self, key: str) -> None:
         """Give back the newest hit (it turned out to cost nothing). Unknown keys are fine:
@@ -180,6 +207,7 @@ class Limits:
         self._settings, self._clock = settings, clock
         self._asks_hour, self._asks_day, self._asks_session = SlidingWindow(), SlidingWindow(), SlidingWindow()
         self._sessions, self._uploads = SlidingWindow(), SlidingWindow()
+        self._signups, self._logins, self._guests = SlidingWindow(), SlidingWindow(), SlidingWindow()
         self._gate = ConcurrencyGate(settings.max_concurrent_asks, settings.max_concurrent_asks_per_ip)
         self._ingest_slot = threading.BoundedSemaphore(1)
 
@@ -209,21 +237,57 @@ class Limits:
         self._charge(self._uploads, ip, limit, HOUR, _reached(limit, "upload", "an hour"),
                      "You can upload again in {wait}.")
 
+    def signup(self, ip: str) -> None:
+        """Creating accounts is free for the visitor and costs us a row and a scrypt hash each."""
+        self._charge(self._signups, ip, SIGNUPS_PER_HOUR, HOUR,
+                     _reached(SIGNUPS_PER_HOUR, "new account", "an hour"), "You can create another in {wait}.")
+
+    def login(self, ip: str) -> None:
+        """Bounds password guessing. Charged per attempt, not per failure: a script that knows
+        the email would otherwise get its guesses free until the first one lands."""
+        self._charge(self._logins, ip, LOGINS_PER_WINDOW, LOGIN_WINDOW_S,
+                     "There have been too many sign-in attempts from your network.",
+                     "You can try again in {wait}.")
+
+    def new_guest(self, ip: str) -> None:
+        """A guest needs no form, so it is the one account anybody can mint in a loop. Well above
+        what a person clicking "try the live demo" in several tabs would ever reach."""
+        self._charge(self._guests, ip, GUESTS_PER_HOUR, HOUR,
+                     _reached(GUESTS_PER_HOUR, "guest sign-in", "an hour"), "You can try again in {wait}.")
+
+    def usage(self, user_id: str) -> Usage:
+        """What the profile page shows: this user's spend, read from the counters that refuse
+        them, so the meter and the refusal can never disagree. The sizes shown are the
+        per-address ones because that is the limit a person actually meets first."""
+        now, key, s = self._clock(), _user_key(user_id), self._settings
+        return Usage(asks_this_hour=self._asks_hour.count(key, HOUR, now), asks_per_hour=s.asks_per_ip_per_hour,
+                     asks_today=self._asks_day.count(key, DAY, now), asks_per_day=s.asks_per_ip_per_day)
+
     @contextmanager
-    def question(self, ip: str, session_id: str) -> Iterator[None]:
+    def question(self, ip: str, session_id: str, user_id: str = "") -> Iterator[None]:
         """Admit one question or raise LimitExceeded. The concurrency slot is held for the
         length of the `with` block.
 
         The gate goes first, so a busy refusal uses up no allowance. If one of the counts then
         refuses, the counts already charged are given back and leaving the `with` frees the
         slot: a refused question costs the visitor nothing.
+
+        The same hourly and daily sizes are charged twice, once to the address and once to the
+        user id, which is the pair a person cannot escape: a new guest account does not reset
+        the address, and a phone on mobile data does not reset the account. `user_id` is empty
+        only where there is no account layer (the limiter's own tests); the API always passes one.
         """
         s = self._settings
+        user = [(self._asks_hour, _user_key(user_id), s.asks_per_ip_per_hour, HOUR,
+                 _reached(s.asks_per_ip_per_hour, "question", "an hour"), "You can ask again in {wait}."),
+                (self._asks_day, _user_key(user_id), s.asks_per_ip_per_day, DAY,
+                 _reached(s.asks_per_ip_per_day, "question", "a day"), "You can ask again in {wait}.")] if user_id else []
         charges = (
             (self._asks_hour, ip, s.asks_per_ip_per_hour, HOUR,
              _reached(s.asks_per_ip_per_hour, "question", "an hour"), "You can ask again in {wait}."),
             (self._asks_day, ip, s.asks_per_ip_per_day, DAY,
              _reached(s.asks_per_ip_per_day, "question", "a day"), "You can ask again in {wait}."),
+            *user,
             # Keyed by session, not address: it bounds one shared or leaked session link,
             # wherever the questions come from.
             (self._asks_session, session_id, s.asks_per_session, DAY,
@@ -242,9 +306,13 @@ class Limits:
                 raise
             yield
 
-    def refund_question(self, ip: str, session_id: str) -> None:
-        """The answer came from the shared answer cache: no model was called, so it is free."""
-        for window, key in ((self._asks_hour, ip), (self._asks_day, ip), (self._asks_session, session_id)):
+    def refund_question(self, ip: str, session_id: str, user_id: str = "") -> None:
+        """The answer came from the shared answer cache: no model was called, so it is free.
+        Every counter `question` charged gives its hit back, the user's two included."""
+        refunds = [(self._asks_hour, ip), (self._asks_day, ip), (self._asks_session, session_id)]
+        if user_id:
+            refunds += [(self._asks_hour, _user_key(user_id)), (self._asks_day, _user_key(user_id))]
+        for window, key in refunds:
             window.refund(key)
 
     def _charge(self, window: SlidingWindow, key: str, limit: int, span: int, message: str, next_step: str) -> None:

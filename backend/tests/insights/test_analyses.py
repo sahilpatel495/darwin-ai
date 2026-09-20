@@ -16,9 +16,11 @@ from app.contracts import ColumnProfile, DataHealth, TableProfile
 from app.insights import analyses
 from app.insights.models import AnalysisRequest
 from app.insights.runner import ROW_CAP
+from app.sessions import SessionStore
 from tests.fixtures import CANARY_EMAIL, CANARY_NAME, make_session
 
-FIXTURE_JSON = Path(__file__).resolve().parents[3] / "frontend/src/fixtures/analyses.json"
+ROOT = Path(__file__).resolve().parents[3]
+FIXTURE_JSON = ROOT / "frontend/src/fixtures/analyses.json"
 
 # One valid request per kind, reused by the tests that must hold for all ten.
 REQUESTS = {
@@ -91,6 +93,36 @@ def test_a_column_is_labelled_the_way_the_file_labels_it(session):
     assert choice.label == "ctc" and choice.table_label == "employees.csv"
 
 
+def test_a_category_publishes_its_own_values_and_nothing_else_does(session):
+    """The compare pickers are filled from here. A number and a date have no group to pick, and
+    listing a date's distinct values would put row data on the screen for nothing."""
+    columns = {choice.ref: choice for choice in analyses.catalog(session).columns}
+    assert columns["employees.department"].values == ["Engineering", "HR", "Sales"]
+    assert columns["employees.ctc"].values == []
+    assert columns["employees.date_of_joining"].values == []
+
+
+def test_a_category_the_profiler_did_not_list_offers_an_empty_list_rather_than_guessing(session):
+    """Above the profiler's own cap `values` is None, which is not a short list of groups —
+    and `_group_value` refuses those columns too, so the picker and the runner agree."""
+    department = next(c for t in session.catalog.tables if t.name == "employees"
+                      for c in t.columns if c.name == "department")
+    department.values = None
+    choice = next(c for c in analyses.catalog(session).columns
+                  if c.ref == "employees.department")
+    assert choice.values == []
+
+
+def test_compare_publishes_two_open_groups_that_say_where_the_choices_come_from(session):
+    """The tenth analysis could not be run from the picker: its two group lists were empty and
+    nothing on the option said they are filled from the column the analyst picks."""
+    compare = next(kind for kind in analyses.KINDS if kind.key == "compare")
+    groups = [option for option in compare.options if option.key in ("group_a", "group_b")]
+    assert len(groups) == 2
+    assert all(option.choices == [] for option in groups)
+    assert all("values" in option.label.lower() for option in groups)
+
+
 def test_a_workbook_that_gave_several_tables_names_the_sheet(session):
     """One file, two tables: "Salary_Register_2025.xlsx" alone would be ambiguous."""
     pay = next(t for t in session.catalog.tables if t.name == "salary_register")
@@ -122,7 +154,7 @@ def test_breakdown(session):
     """Engineering (24, 18, 30 L) averages 24 L; Sales (15, 12, 11 L) 12.67 L; HR is 9 L
     because the employee with no CTC is not counted as a zero."""
     tile = analyses.run(session, REQUESTS["breakdown"])
-    assert tile.title == "Average ctc by department"
+    assert tile.title == "Average CTC by Department"
     assert tile.table.columns == ["department", "average_ctc"]
     assert tile.table.display == [["Engineering", "₹24.00 L"], ["Sales", "₹12.67 L"],
                                  ["HR", "₹9.00 L"]]
@@ -138,8 +170,8 @@ def test_trend(session):
     assert tile.table.columns == ["month", "total_days_present"]
     assert [row[1] for row in tile.table.rows] == [168, 176, 160]
     assert tile.chart.type == "line" and tile.chart.x == "month"
-    assert tile.statement == ("Total days present by month went from 168 (01 Jan 2025)"
-                              " to 160 (01 Mar 2025).")
+    assert tile.statement == ("Total Days Present by Month went from 168 (Jan 2025)"
+                              " to 160 (Mar 2025).")
 
 
 def test_a_trend_split_by_a_group_draws_one_line_per_group(session):
@@ -149,13 +181,13 @@ def test_a_trend_split_by_a_group_draws_one_line_per_group(session):
                               "by": "employees.department"}, options={"aggregate": "sum"}))
     assert tile.chart.type == "line" and tile.chart.series == "department"
     assert tile.table.columns == ["pay_month", "department", "total_gross"]
-    assert tile.table.display[0] == ["01 Jan 2025", "Engineering", "₹6.00 L"]
+    assert tile.table.display[0] == ["Jan 2025", "Engineering", "₹6.00 L"]
 
 
 def test_top_n(session):
     """Only three departments exist, so a top 5 is all of them, highest first."""
     tile = analyses.run(session, REQUESTS["top_n"])
-    assert tile.title == "Top 5 departments by total ctc"
+    assert tile.title == "Top 5 Departments by Total CTC"
     assert tile.table.display == [["Engineering", "₹72.00 L"], ["Sales", "₹38.00 L"],
                                  ["HR", "₹9.00 L"]]
     assert tile.chart.type == "bar"
@@ -166,7 +198,7 @@ def test_distribution(session):
     """Seven CTC values from 9 L to 30 L: median 15 L, quartiles 11.5 L and 21 L. The 2.1 M
     span buckets into round 2.5 L bands, not into 2.1 L tenths."""
     tile = analyses.run(session, REQUESTS["distribution"])
-    assert tile.title == "How ctc is spread"
+    assert tile.title == "How CTC Is Spread"
     assert tile.chart.type == "histogram" and tile.chart.x == "ctc_band"
     assert tile.table.display[:2] == [["₹7.50 L", "1"], ["₹10.00 L", "2"]]
     assert tile.statement == ("Half of ctc falls between ₹11.50 L and ₹21.00 L,"
@@ -212,7 +244,7 @@ def test_a_share_of_averages_never_adds_averages_together(session):
         options={"aggregate": "average"}))
     assert "'Other'" not in tile.sql
     assert tile.chart.type == "bar" and tile.kind == "breakdown"
-    assert tile.title == "Average ctc by department"
+    assert tile.title == "Average CTC by Department"
     assert "share" not in tile.statement
     assert tile.statement == ("Engineering is highest at ₹24.00 L and HR lowest at ₹9.00 L,"
                               " across 3 groups.")
@@ -231,7 +263,7 @@ def test_a_share_of_a_count_is_still_a_donut_of_the_whole(session):
 def test_pivot(session):
     """Sales has both Mumbai employees; every other department/location pair has one."""
     tile = analyses.run(session, REQUESTS["pivot"])
-    assert tile.title == "Number of employees by department and location"
+    assert tile.title == "Number of Employees by Department and Location"
     assert tile.chart.type == "heatmap"
     assert tile.table.row_count == 7
     assert tile.statement == "Sales / Mumbai is the largest at 2, across 7 combinations."
@@ -260,9 +292,9 @@ def test_change(session):
     tile = analyses.run(session, REQUESTS["change"])
     assert tile.table.columns == ["previous_pay_month", "previous_total_gross",
                                   "current_pay_month", "current_total_gross", "change_in_gross"]
-    assert tile.table.display[0] == ["01 Jan 2025", "₹10.52 L", "01 Feb 2025", "₹10.52 L", "₹0"]
-    assert tile.statement == ("Total gross is unchanged at ₹10.52 L between 01 Jan 2025"
-                              " and 01 Feb 2025.")
+    assert tile.table.display[0] == ["Jan 2025", "₹10.52 L", "Feb 2025", "₹10.52 L", "₹0"]
+    assert tile.statement == ("Total gross is unchanged at ₹10.52 L between Jan 2025"
+                              " and Feb 2025.")
 
 
 def test_a_change_with_only_one_period_says_there_is_nothing_to_compare(session):
@@ -274,7 +306,7 @@ def test_a_change_with_only_one_period_says_there_is_nothing_to_compare(session)
         options={"aggregate": "sum", "grain": "year"}))
     assert tile.table.rows[0][1] is None
     assert tile.statement == ("There is only one year of total gross in this data"
-                              " (01 Jan 2025), so there is nothing to compare it with.")
+                              " (Jan 2025), so there is nothing to compare it with.")
 
 
 def test_a_change_split_by_a_group_is_drawn_as_a_bar_of_the_change(session):
@@ -329,11 +361,32 @@ def test_outliers_say_nothing_about_groups_because_there_are_none(session):
 def test_compare(session):
     """24 L against 12.67 L: a gap of 11.33 L, which is 89.5% of the lower figure."""
     tile = analyses.run(session, REQUESTS["compare"])
-    assert tile.title == "Average ctc: Engineering vs Sales"
+    assert tile.title == "Average CTC: Engineering vs Sales"
     assert tile.chart.type == "bar"
     assert tile.statement == ("Engineering is ahead at ₹24.00 L, ₹11.33 L more than"
                               " Sales at ₹12.67 L.")
     assert tile.insights == ["That is 89.5% higher."]
+
+
+def test_every_value_the_picker_publishes_runs_end_to_end(session):
+    """What the picker offers has to be exactly what `run` accepts: a value in the list that
+    raises is the dead button this analysis was published with."""
+    department = next(c for c in analyses.catalog(session).columns
+                      if c.ref == "employees.department")
+    assert len(department.values) > 1
+    for first, second in zip(department.values, department.values[1:], strict=False):
+        tile = analyses.run(session, AnalysisRequest(
+            kind="compare", inputs={"measure": "employees.ctc", "by": "employees.department"},
+            options={"aggregate": "average", "group_a": first, "group_b": second}))
+        assert tile.title.endswith(f": {first} vs {second}")
+        assert f"'{first}'" in tile.sql and f"'{second}'" in tile.sql
+
+
+def test_compare_with_no_group_chosen_asks_for_one_by_name(session):
+    with pytest.raises(ValueError, match="Choose a value for"):
+        analyses.run(session, AnalysisRequest(
+            kind="compare", inputs={"measure": "employees.ctc", "by": "employees.department"},
+            options={"aggregate": "average", "group_b": "Sales"}))
 
 
 def test_compare_takes_the_catalogs_spelling_of_a_group_not_the_requests(session):
@@ -365,14 +418,41 @@ def test_columns_from_two_files_are_joined_through_the_active_link(session):
                                  ["HR", "₹2.70 L"]]
 
 
-def test_a_fan_out_risk_is_carried_on_the_tile(session):
-    """One employee has many payslips, so summing the employee-side CTC across that join
-    counts the same salary twice. The number is still shown; the warning is not optional."""
+def test_a_measure_from_the_one_side_grouped_by_the_many_side_is_refused(session):
+    """One employee has many payslips, so summing the employee-side CTC across that join adds
+    the same salary up once per payslip. This used to run and carry a caveat: the caveat sat
+    under a number that was simply wrong, which is the one thing this app must not do."""
+    with pytest.raises(ValueError) as caught:
+        analyses.run(session, AnalysisRequest(
+            kind="trend", inputs={"measure": "employees.ctc",
+                                  "date": "salary_register.pay_month"},
+            options={"aggregate": "sum"}))
+    assert str(caught.value) == (
+        "ctc is stored once per employee, but pay_month has many rows per employee, so this"
+        " would count each ctc several times."
+        " Pick a number from the same file as the group.")
+
+
+@pytest.mark.parametrize("aggregate", ["average", "count", "median"])
+def test_the_refusal_covers_every_aggregate_a_repeated_row_moves(session, aggregate):
+    """An average over repeated rows is weighted by how many payslips each person has, and a
+    count of employees across the link counts payslips. Both are wrong, not merely caveated."""
+    with pytest.raises(ValueError, match="count each ctc several times"):
+        analyses.run(session, AnalysisRequest(
+            kind="trend", inputs={"measure": "employees.ctc",
+                                  "date": "salary_register.pay_month"},
+            options={"aggregate": aggregate}))
+
+
+@pytest.mark.parametrize(("aggregate", "expected"), [("min", 900000.0), ("max", 3000000.0)])
+def test_the_highest_and_lowest_still_run_across_the_link(session, aggregate, expected):
+    """The smallest of a value listed twelve times is still that value, so a repeated row
+    changes nothing here and refusing it would be a false alarm."""
     tile = analyses.run(session, AnalysisRequest(
         kind="trend", inputs={"measure": "employees.ctc",
                               "date": "salary_register.pay_month"},
-        options={"aggregate": "sum"}))
-    assert any("more than once" in caveat for caveat in tile.caveats), tile.caveats
+        options={"aggregate": aggregate}))
+    assert [row[1] for row in tile.table.rows] == [expected, expected]
 
 
 def test_columns_from_files_that_are_not_linked_are_refused(session):
@@ -383,6 +463,45 @@ def test_columns_from_files_that_are_not_linked_are_refused(session):
             kind="breakdown", inputs={"measure": "attendance_q2.days_present",
                                       "by": "employees.department"},
             options={"aggregate": "sum"}))
+
+
+# ---- titles ----------------------------------------------------------------------------------
+
+
+def test_every_title_is_title_cased_from_the_files_own_headers(session):
+    """"Average ctc by department" reads as a machine's guess at a heading. The words are the
+    file's own, the small ones stay small, and the acronyms an HR file is full of stay in
+    capitals — str.title() would write "Ctc"."""
+    assert analyses.run(session, REQUESTS["breakdown"]).title == "Average CTC by Department"
+    assert analyses.run(session, REQUESTS["trend"]).title == "Total Days Present by Month"
+    assert analyses.run(session, REQUESTS["top_n"]).title == "Top 5 Departments by Total CTC"
+    assert analyses.run(session, REQUESTS["distribution"]).title == "How CTC Is Spread"
+    assert analyses.run(session, REQUESTS["share"]).title == "Share of Total CTC by Department"
+    assert analyses.run(session, REQUESTS["pivot"]).title == \
+        "Number of Employees by Department and Location"
+    assert analyses.run(session, REQUESTS["correlation"]).title == \
+        "Days Present Against Days Absent"
+    assert analyses.run(session, REQUESTS["change"]).title == "Change in Total Gross by Month"
+    assert analyses.run(session, REQUESTS["outliers"]).title == "Unusual CTC Values"
+
+
+def test_a_group_value_in_a_title_keeps_the_spelling_the_data_uses(session):
+    """Only the headers are title-cased. A team really called "iOS" or "PreSales" must not be
+    rewritten into somebody else's name by a heading."""
+    session.conn.execute("UPDATE employees SET department = 'iOS' WHERE department = 'HR'")
+    department = next(c for t in session.catalog.tables if t.name == "employees"
+                      for c in t.columns if c.name == "department")
+    department.values = ["Engineering", "Sales", "iOS"]
+    tile = analyses.run(session, AnalysisRequest(
+        kind="compare", inputs={"measure": "employees.ctc", "by": "employees.department"},
+        options={"aggregate": "average", "group_a": "iOS", "group_b": "Sales"}))
+    assert tile.title == "Average CTC: iOS vs Sales"
+
+
+def test_the_chart_title_is_the_tiles_title(session):
+    """One heading, not two: the card and the picture must not disagree."""
+    tile = analyses.run(session, REQUESTS["breakdown"])
+    assert tile.chart.title == tile.title
 
 
 # ---- what a request may and may not say -----------------------------------------------------
@@ -485,6 +604,71 @@ def test_an_identifier_is_refused_as_a_group(session):
     with pytest.raises(ValueError, match="identifies a row"):
         analyses.run(session, AnalysisRequest(
             kind="breakdown", inputs={"measure": "employees.ctc", "by": "employees.emp_id"}))
+
+
+# ---- the bundled sample files, through the real ingestion ------------------------------------
+
+
+@pytest.fixture
+def sample():
+    """`demo_data` read in the way an upload is read. A picker that works against a hand-built
+    catalog and not against a real one is not working."""
+    if not (ROOT / "demo_data" / "employees.csv").exists():
+        pytest.skip("demo_data is not generated")
+    session = SessionStore().create()
+    session.load_sample()
+    yield session
+    session.close()
+
+
+def test_compare_runs_on_the_sample_data_from_the_picker_alone(sample):
+    """Pick a column, take two of the values the picker published for it, run. That is the whole
+    journey the tenth analysis could not complete, and it is done here with nothing typed."""
+    department = next(choice for choice in analyses.catalog(sample).columns
+                      if choice.ref == "employees.department")
+    first, second = department.values[0], department.values[1]
+    tile = analyses.run(sample, AnalysisRequest(
+        kind="compare", inputs={"measure": "employees.ctc", "by": "employees.department"},
+        options={"aggregate": "average", "group_a": first, "group_b": second}))
+    assert tile.title == f"Average CTC: {first} vs {second}"
+    assert {row[0] for row in tile.table.rows} == {first, second}
+    assert first in tile.statement and second in tile.statement
+
+
+def test_the_cross_file_fan_out_is_refused_on_the_sample_data(sample):
+    """Average CTC by review cycle: one salary, two reviews, and the total was double. The
+    sentence has to name both columns, because the analyst is looking at two pickers."""
+    with pytest.raises(ValueError) as caught:
+        analyses.run(sample, AnalysisRequest(
+            kind="breakdown", inputs={"measure": "employees.ctc",
+                                      "by": "performance_reviews.review_cycle"},
+            options={"aggregate": "sum"}))
+    assert str(caught.value) == (
+        "ctc is stored once per employee, but Review Cycle has many rows per employee, so this"
+        " would count each ctc several times."
+        " Pick a number from the same file as the group.")
+
+
+def test_the_same_two_files_the_other_way_round_still_run_on_the_sample_data(sample):
+    """The rating lives on the many side, so counting it per department is not a fan-out. This
+    is the question the refusal above must not take away."""
+    tile = analyses.run(sample, AnalysisRequest(
+        kind="breakdown", inputs={"measure": "performance_reviews.rating",
+                                  "by": "employees.department"},
+        options={"aggregate": "average"}))
+    assert sorted(tile.tables_used) == ["employees", "performance_reviews"]
+    assert tile.title == "Average Rating by Department" and tile.table.row_count == 6
+
+
+def test_a_pay_month_column_reads_as_months_all_the_way_to_the_sentence(sample):
+    """The polish that has to agree everywhere: the table, the chart's rows and the computed
+    sentence are all built from the one decision `build_table` made about the column."""
+    tile = analyses.run(sample, AnalysisRequest(
+        kind="trend", inputs={"measure": "salary_register_2025_register.gross",
+                              "date": "salary_register_2025_register.pay_month"},
+        options={"aggregate": "sum", "grain": "month"}))
+    assert tile.table.display[0][0] == "Jan 2025" and tile.table.display[-1][0] == "Dec 2025"
+    assert tile.statement.endswith("(Dec 2025).") and "01 Jan 2025" not in tile.statement
 
 
 # ---- data that is legal, empty or not a number ----------------------------------------------

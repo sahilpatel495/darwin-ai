@@ -19,6 +19,16 @@ def table(columns: list[str], kinds: list[str], rows: list[list], truncated: boo
 PAY_KINDS = ["text", "currency"]
 
 
+def test_a_column_name_is_read_out_with_its_acronyms_in_capitals():
+    """The name of a column is the only wording this module invents, and "Total Lop" is the
+    first thing that makes a computed page look computed."""
+    kinds = ["integer", "currency"]
+    statement, lines = describe(table(["total_lop", "avg_ctc"], kinds, [[12, 1200000]]),
+                                kinds, "kpi", "")
+    assert statement == "Average CTC is ₹12.00 L."
+    assert lines == ["Total LOP: 12."]
+
+
 def pay(*pairs) -> ResultTable:
     return table(["department", "total_gross"], PAY_KINDS, [list(p) for p in pairs])
 

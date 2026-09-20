@@ -1,7 +1,7 @@
 [project]
-name = "verity"
+name = "darwinlens"
 version = "0.1.0"
-description = "Plain-English questions over messy spreadsheets, with answers you can verify."
+description = "DarwinLens: see your HR data clearly. Verify every answer."
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.115",

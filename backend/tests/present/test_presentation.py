@@ -65,6 +65,8 @@ def test_to_display_cases_from_the_brief(value, kind, expected):
         (datetime(2025, 1, 1), "date", "01 Jan 2025"),
         (datetime(2025, 1, 1, 14, 30), "date", "01 Jan 2025 14:30"),
         ("2025-04-04", "date", "04 Apr 2025"),
+        (date(2025, 4, 1), "date", "01 Apr 2025"),  # the day is dropped per column, not per value
+
         (float("nan"), "decimal", "—"),
         (2025, "text", "2025"),
         ("Bengaluru", "text", "Bengaluru"),
@@ -74,6 +76,19 @@ def test_to_display_cases_from_the_brief(value, kind, expected):
 )
 def test_to_display_edge_cases(value, kind, expected):
     assert to_display(value, kind) == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (date(2025, 1, 1), "Jan 2025"),
+        (datetime(2025, 1, 1), "Jan 2025"),
+        ("2025-01-01", "Jan 2025"),
+        (None, "—"),
+    ],
+)
+def test_to_display_writes_a_month_when_the_caller_says_the_column_is_monthly(value, expected):
+    assert to_display(value, "date", month=True) == expected
 
 
 def test_half_is_rounded_up_the_way_a_payslip_does_it():
@@ -175,10 +190,37 @@ def test_build_table_is_json_safe_with_parallel_display_strings():
     assert table.columns == result.columns
     assert table.rows == [["2025-01-01", "Engineering", 1200000.0, 57.14, True],
                           ["2025-02-01", None, None, None, False]]
-    assert table.display == [["01 Jan 2025", "Engineering", "₹12.00 L", "57.1%", "Yes"],
-                             ["01 Feb 2025", "—", "—", "—", "No"]]
+    # Both dates in that column are the first of a month, so the column is written as months.
+    assert table.display == [["Jan 2025", "Engineering", "₹12.00 L", "57.1%", "Yes"],
+                             ["Feb 2025", "—", "—", "—", "No"]]
     assert table.row_count == 2 and table.truncated is True
     table.model_dump_json()  # the API serialises this; NaN or Decimal would break it
+
+
+def test_a_month_column_drops_the_day_and_a_dated_one_next_to_it_keeps_it():
+    """`date_trunc('month', ...)` and a Pay Month column hold nothing but first-of-month dates,
+    where "01 Jan 2025" invites the reader to think something happened on the 1st. The decision
+    is per column: a real joining date in the next column still names its day."""
+    result = ExecResult(
+        columns=["month", "joined_on", "total_gross"],
+        duck_types=["DATE", "DATE", "DOUBLE"],
+        rows=[(date(2025, 1, 1), date(2025, 1, 1), 1200000.0),
+              (date(2025, 2, 1), date(2025, 2, 14), 900000.0)],
+    )
+    table = build_table(result, ["date", "date", "currency"])
+    assert table.display == [["Jan 2025", "01 Jan 2025", "₹12.00 L"],
+                             ["Feb 2025", "14 Feb 2025", "₹9.00 L"]]
+
+
+def test_a_column_of_timestamps_and_one_with_no_dates_at_all_keep_their_formatting():
+    """A punch time is not a month even when it falls on the 1st, and an all-empty column has
+    nothing to read a pattern from: both must come out exactly as they did before."""
+    result = ExecResult(
+        columns=["punched_at", "left_on"], duck_types=["TIMESTAMP", "DATE"],
+        rows=[(datetime(2025, 1, 1, 9, 14), None), (datetime(2025, 2, 1, 9, 2), None)],
+    )
+    table = build_table(result, ["date", "date"])
+    assert table.display == [["01 Jan 2025 09:14", "—"], ["01 Feb 2025 09:02", "—"]]
 
 
 # --------------------------------------------------------------------------- choose_chart

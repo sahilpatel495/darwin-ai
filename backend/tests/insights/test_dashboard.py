@@ -204,11 +204,14 @@ def test_the_monthly_pay_trend_matches_pandas(sample, clean):
     months = clean["payroll"].groupby("pay_month").gross.sum().sort_index()
     assert card.table.rows == [[when.isoformat(), float(total)] for when, total in months.items()]
     assert card.chart.type == "line"
+    # Every pay month is the first of a month, so the column is written as months: the day on
+    # a pay period is noise, and "01 Jan 2025" reads as something that happened on the 1st.
     assert card.statement == (
         f"Gross pay by month went from {to_display(float(months.iloc[0]), 'currency')}"
-        f" ({to_display(months.index[0], 'date')}) to"
+        f" ({to_display(months.index[0], 'date', month=True)}) to"
         f" {to_display(float(months.iloc[-1]), 'currency')}"
-        f" ({to_display(months.index[-1], 'date')}).")
+        f" ({to_display(months.index[-1], 'date', month=True)}).")
+    assert card.table.display[0][0] == "Jan 2025"
 
 
 def test_the_fixture_numbers_can_be_counted_by_eye(fixture_session):

@@ -73,7 +73,7 @@ def test_anything_but_an_exact_listed_name_is_a_human_404(client, demo, name):
 def test_zip_holds_exactly_the_listed_files_and_the_readme(client, demo):
     response = client.get("/api/sample/download")
     assert response.status_code == 200
-    assert "verity-sample-hr-data.zip" in response.headers["content-disposition"]
+    assert "darwinlens-sample-hr-data.zip" in response.headers["content-disposition"]
     with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
         assert sorted(archive.namelist()) == ["README.md", "Salary_Register_2025.xlsx", "employees.csv"]
         assert archive.read("employees.csv") == EMPLOYEES.encode("utf-8")

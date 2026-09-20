@@ -1,6 +1,7 @@
 """The HTTP boundary: uploads, human errors, and the streamed answer."""
 
 import asyncio
+import dataclasses
 import json
 import time
 
@@ -8,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 
-from app import main, sessions
+from app import auth, main, sessions
 from app.config import Settings
 from app.contracts import AskRequest
 from app.limits import LimitExceeded, Limits
@@ -21,10 +22,25 @@ PAYROLL = "Emp Code,Pay Month,Gross\n001,01/01/2025,\"₹2,00,000\"\n002,01/01/2
 
 
 @pytest.fixture
-def client(monkeypatch):
+def client(monkeypatch, tmp_path):
+    """A signed-in visitor, because every /api/sessions route now needs one (app.auth).
+
+    The guest token rides on every request as a default header, so these tests stay about
+    uploads and answers. Accounts live in this test's own file; limits start at zero.
+    """
     pipeline._SHARED_CACHE.clear()
+    monkeypatch.setattr(auth, "settings", dataclasses.replace(auth.settings, auth_db_path=tmp_path / "users.db"))
     monkeypatch.setattr(main, "limits", Limits(main.settings))  # every test starts with nothing counted
-    return TestClient(main.app)
+    client = TestClient(main.app)
+    client.headers["Authorization"] = f"Bearer {guest_token(client)}"
+    return client
+
+
+def guest_token(client) -> str:
+    """The token "try the live demo" gets: an account with no sign-up (docs/DESIGN_SYSTEM §9)."""
+    res = client.post("/api/auth/guest")
+    assert res.status_code == 200, res.text
+    return res.json()["token"]
 
 
 def new_session(client) -> str:
@@ -115,16 +131,26 @@ def limited(monkeypatch, **sizes) -> None:
     monkeypatch.setattr(main, "llm", FakeLLM({}))
 
 
-def ask(client, sid, question="hi", spoof="1.1.1.1"):
+def ask(client, sid, question="hi", spoof="1.1.1.1", token=""):
+    headers = {"x-forwarded-for": f"{spoof}, {VISITOR}"}
     return client.post(f"/api/sessions/{sid}/ask", json={"question": question},
-                       headers={"x-forwarded-for": f"{spoof}, {VISITOR}"})
+                       headers={**headers, "Authorization": f"Bearer {token}"} if token else headers)
+
+
+def visitor(client) -> tuple[str, str]:
+    """Somebody else: their own guest account and their own session, because a session belongs
+    to the account that made it and questions are counted against both (app.limits)."""
+    token = guest_token(client)
+    return token, client.post("/api/sessions", headers={"Authorization": f"Bearer {token}"}).json()["session_id"]
 
 
 def test_rate_limit_uses_the_proxy_appended_address_not_the_client_supplied_one(client, monkeypatch):
     limited(monkeypatch, asks_per_ip_per_hour=1)
     sid = new_session(client)
     assert ask(client, sid, spoof="1.1.1.1").status_code == 200
-    assert ask(client, sid, spoof="2.2.2.2").status_code == 429  # a new spoofed first hop does not reset the limit
+    # Neither a new spoofed first hop nor a brand-new account resets what the address has spent.
+    token, other_sid = visitor(client)
+    assert ask(client, other_sid, spoof="2.2.2.2", token=token).status_code == 429
 
 
 def test_the_trusted_entry_is_counted_from_the_right_by_trusted_proxy_hops(client, monkeypatch):
@@ -134,13 +160,17 @@ def test_the_trusted_entry_is_counted_from_the_right_by_trusted_proxy_hops(clien
     monkeypatch.setattr(main, "settings", main.settings.__class__(trusted_proxy_hops=2))
     sid = new_session(client)
 
-    def ask_via_cdn(visitor, cdn="70.0.0.1"):
-        return client.post(f"/api/sessions/{sid}/ask", json={"question": "hi"},
-                           headers={"x-forwarded-for": f"1.1.1.1, {visitor}, {cdn}"})
+    def ask_via_cdn(address, cdn="70.0.0.1", session=sid, token=""):
+        headers = {"x-forwarded-for": f"1.1.1.1, {address}, {cdn}"}
+        return client.post(f"/api/sessions/{session}/ask", json={"question": "hi"},
+                           headers={**headers, "Authorization": f"Bearer {token}"} if token else headers)
 
     assert ask_via_cdn(VISITOR).status_code == 200
     assert ask_via_cdn(VISITOR, cdn="70.0.0.2").status_code == 429  # same visitor, another CDN node
-    assert ask_via_cdn("198.51.100.7").status_code == 200  # a different visitor still has their own
+    # A different visitor (their own address and their own account) still has their own allowance,
+    # through the same CDN node as the first one: the bucket is the visitor, not the proxy.
+    token, other_sid = visitor(client)
+    assert ask_via_cdn("198.51.100.7", session=other_sid, token=token).status_code == 200
 
 
 def test_a_refused_question_is_a_human_429_that_says_when_to_come_back(client, monkeypatch):
@@ -197,7 +227,8 @@ def test_the_slot_is_freed_when_the_browser_goes_away_before_reading_the_answer(
     limited(monkeypatch, max_concurrent_asks=1)
     sid = new_session(client)
     gone = Request({"type": "http", "headers": [(b"x-forwarded-for", VISITOR.encode())], "client": ("10.0.0.1", 1)})
-    asyncio.run(main.ask(sid, AskRequest(question="hi"), gone))  # the route is called; its stream is never read
+    owner = auth.find(main.store.get(sid).user_id)
+    asyncio.run(main.ask(sid, AskRequest(question="hi"), gone, owner))  # called directly; its stream is never read
     deadline = time.monotonic() + 5
     while True:  # the worker thread owns the slot, so it comes back without anybody reading the stream
         try:
@@ -249,7 +280,9 @@ def test_preview_formats_rows_the_way_answers_do_and_never_calls_the_model(clien
     assert table["rows"][0] == ["001", "Engineering", 2400000.0]
     assert table["display"][0] == ["001", "Engineering", "₹24.00 L"]  # leading zeros kept, rupees as in answers
     assert table["row_count"] == 3 and table["truncated"] is False
-    assert preview(client, sid, "payroll").json()["display"][0][1] == "01 Jan 2025"  # dates too
+    # Dates too, and a column holding nothing but first-of-month dates reads as the month
+    # (app.query.presentation._is_month_column), exactly as it does in an answer.
+    assert preview(client, sid, "payroll").json()["display"][0][1] == "Jan 2025"
 
 
 def test_preview_limit_is_honoured_capped_and_says_when_there_is_more(client):

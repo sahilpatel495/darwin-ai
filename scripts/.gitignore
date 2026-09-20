@@ -1,0 +1,4 @@
+# Load-test output: timestamped JSON and the server log from each run. Measurements of one
+# machine on one day, reproduced by `make loadtest`; the numbers that matter are quoted in
+# docs/CAPACITY.md, which is committed.
+.loadtest/

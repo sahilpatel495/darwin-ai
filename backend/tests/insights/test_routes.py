@@ -13,8 +13,10 @@ each of the two months, so ₹18.00 L in total.
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
-from app import main
+from app import auth, main
 from app.insights import dashboard
 from app.insights.analyses import KINDS
 from app.insights.dashboard import MAX_TILES, QUALITY_SECTION
@@ -42,11 +44,15 @@ PII_VALUES = ("Asha Rao", "asha.rao@example.com", "Arjun Mehta")
 
 
 @pytest.fixture
-def client(monkeypatch):
+def client(monkeypatch, tmp_path):
     dashboard.clear_cache()  # the overview cache is process-level; one test must not answer another
+    monkeypatch.setattr(auth, "settings", dataclasses.replace(auth.settings, auth_db_path=tmp_path / "users.db"))
     monkeypatch.setattr(main, "limits", Limits(main.settings))  # every test starts with nothing counted
     monkeypatch.setattr(main, "llm", None)  # any model call from these routes would now crash the request
     with TestClient(main.app) as client:
+        # Costing nothing does not make these routes public: they read somebody's HR file, so
+        # they need the same token as an answer. A guest is what "try the live demo" gets.
+        client.headers["Authorization"] = f"Bearer {client.post('/api/auth/guest').json()['token']}"
         yield client
     dashboard.clear_cache()
 
@@ -129,7 +135,8 @@ def test_a_breakdown_comes_back_with_the_hand_checked_numbers_and_a_bar(client, 
 def test_a_trend_buckets_the_dates_and_sums_both_months(client, sid):
     tile = run(client, sid, "trend", {"measure": "payroll.gross", "date": "payroll.pay_month"},
                aggregate="sum", grain="month").json()
-    assert tile["table"]["display"] == [["01 Jan 2025", "₹9.00 L"], ["01 Feb 2025", "₹9.00 L"]]
+    # A pay-month column holds nothing but first-of-month dates, so it is written as months.
+    assert tile["table"]["display"] == [["Jan 2025", "₹9.00 L"], ["Feb 2025", "₹9.00 L"]]
     assert tile["kind"] == "trend" and tile["chart"]["type"] == "line"
 
 

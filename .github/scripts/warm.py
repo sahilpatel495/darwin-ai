@@ -1,4 +1,4 @@
-"""Ask every starter question against a running Verity, so first visitors get fast answers.
+"""Ask every starter question against a running DarwinLens, so first visitors get fast answers.
 
 Why: the free host sleeps when idle and free model quotas are slow. Running this after each
 deploy wakes the app and fills its shared answer cache for the sample data, which is what the
@@ -65,8 +65,8 @@ def main(base_url: str) -> int:
     except (OSError, http.client.HTTPException) as e:  # unreachable, timed out, or dropped mid-reply
         print(f"Could not reach {base}: {e}. Check the address and that the app is deployed.")
         return 1
-    except (ValueError, KeyError):  # a reply that is not Verity's JSON, e.g. a web page at a mistyped address
-        print(f"{base} replied, but not the way Verity does. Check that the address is the deployed app.")
+    except (ValueError, KeyError):  # a reply that is not DarwinLens's JSON, e.g. a web page at a mistyped address
+        print(f"{base} replied, but not the way DarwinLens does. Check that the address is the deployed app.")
         return 1
     if failed:
         print(f"{failed} question(s) ended in an error and were not cached. Run this again in a minute.")

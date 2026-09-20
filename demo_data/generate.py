@@ -1,4 +1,4 @@
-"""Generate Verity's synthetic demo company: the clean facts first, then the messy exports.
+"""Generate DarwinLens's synthetic demo company: the clean facts first, then the messy exports.
 
 Run from the repo root:
     uv run python demo_data/generate.py
@@ -334,7 +334,7 @@ def _write_salary_register(payroll: list[dict], bonuses: list[dict], rng: random
         if index in repeated:
             register.append(cells)
     # The footer carries the true totals (the payroll system added them up before the glitch),
-    # so an analyst can check Verity's answer against the file they already trust.
+    # so an analyst can check DarwinLens's answer against the file they already trust.
     register.append(["Grand Total", None, inr(sum(r["gross"] for r in payroll)),
                      inr(sum(r["deductions"] or 0 for r in payroll)),
                      inr(sum(r["net"] for r in payroll)), sum(r["lop_days"] for r in payroll)])

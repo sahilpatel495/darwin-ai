@@ -1,4 +1,4 @@
-"""Northwind Retail India: a second messy data set, for hand-testing Verity.
+"""Northwind Retail India: a second messy data set, for hand-testing DarwinLens.
 
 Run from the repo root:
     uv run python test_files/generate.py
@@ -543,7 +543,7 @@ def _write_exits(exits: list[dict]) -> None:
 
 
 def _write_appraisal(appraisals: list[dict]) -> None:
-    """A two-row merged header: Earnings and Ratings spanning their sub-columns. Verity
+    """A two-row merged header: Earnings and Ratings spanning their sub-columns. DarwinLens
     declares two-row headers unsupported; this file is here so the tester can see how."""
     book = Workbook()
     sheet = book.active
@@ -751,9 +751,9 @@ def _write_expected(frames: dict[str, pd.DataFrame]) -> None:
         "",
         "Written by `test_files/generate.py` from the clean frames, with pandas, before any",
         "mess was added. Nothing here is typed by hand, so these numbers are what the files",
-        "really contain, not what the app says they contain. If Verity disagrees with a",
-        "number below, Verity is wrong (or the question was read differently: the note under",
-        "each answer says exactly what was counted).",
+        "really contain, not what the app says they contain. If DarwinLens disagrees with",
+        "a number below, DarwinLens is wrong (or the question was read differently: the",
+        "note under each answer says exactly what was counted).",
         "",
         "All amounts are in rupees. \"Order matters\" means the ranking is part of the answer.",
         "Two lines sharing a rank number are a tie: either order is right, and an app that",

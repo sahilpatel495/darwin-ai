@@ -22,7 +22,7 @@ from app.contracts import ErrorResponse
 
 router = APIRouter(prefix="/api/sample", tags=["sample"])
 
-ZIP_NAME = "verity-sample-hr-data.zip"
+ZIP_NAME = "darwinlens-sample-hr-data.zip"
 
 # One plain sentence per file, saying what it is and where it is deliberately messy
 # (demo_data/README.md has the full list). A file nobody has described gets "".
@@ -38,8 +38,8 @@ DESCRIPTIONS: dict[str, str] = {
     "attendance_q2.csv": "Attendance for April to June 2025; the other half of attendance_q1.csv.",
     "performance_reviews.xlsx": "Two 2025 review cycles rated 1 to 5, where the employee column is "
     "called Employee ID and ten reviews say Not Rated instead of a number.",
-    "sales.csv": "800 product orders with nothing to do with HR, to show Verity is not wired to "
-    "HR data in particular.",
+    "sales.csv": "800 product orders with nothing to do with HR, to show DarwinLens is not wired "
+    "to HR data in particular.",
 }
 
 
