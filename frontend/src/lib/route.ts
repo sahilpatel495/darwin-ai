@@ -81,13 +81,19 @@ const OPEN: Route['name'][] = ['home', 'signin', 'signup', 'how', 'trust', 'gall
 /**
  * Where this route should send someone instead, or null to let them stay (§6).
  *
- * Two rules and no more: a visitor cannot open somebody's work, and someone already signed in has
- * no use for the sign-in page. Onboarding is deliberately NOT here — it is sent once per visit by
- * the shell, because a rule that redirected every visit to `#/home` could never be left.
+ * Two rules and no more: a visitor cannot open somebody's work, and a MEMBER has no use for the
+ * two auth screens. Onboarding is deliberately NOT here — it is sent once per visit by the shell,
+ * because a rule that redirected every visit to `#/home` could never be left.
+ *
+ * `guest` is the whole reason the second rule names members rather than everyone signed in. A
+ * guest holds a token, so they are signed in — and sign-up is the one screen they most need:
+ * "Create an account" in the avatar menu, the card in Settings and the landing all send them
+ * there to keep the work they have already done. Bouncing them to their projects made that button
+ * do nothing at all.
  */
-export function guard(route: Route, signedIn: boolean): string | null {
+export function guard(route: Route, signedIn: boolean, guest = false): string | null {
   if (!signedIn) return OPEN.includes(route.name) ? null : HOME
-  if (route.name === 'signin' || route.name === 'signup') return PROJECTS
+  if (!guest && (route.name === 'signin' || route.name === 'signup')) return PROJECTS
   return null
 }
 

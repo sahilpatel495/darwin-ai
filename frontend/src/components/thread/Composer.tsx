@@ -118,7 +118,7 @@ export default function Composer({
           // One background per variant, never both: two `bg-canvas*` utilities on one element are
           // decided by the order of the built stylesheet, not by the order written here.
           'flex flex-col border shadow-level-2 transition-[border-color,transform] duration-200',
-          'focus-within:-translate-y-px focus-within:border-primary',
+          'focus-within:-translate-y-px focus-within:border-primary focus-within:ring-1 focus-within:ring-primary',
           hero ? 'rounded-xxxl border-hairline bg-canvas p-3' : 'rounded-xxl border-hairline-soft bg-canvas/85 p-2 backdrop-blur-md',
         )}
       >
@@ -144,6 +144,10 @@ export default function Composer({
           className={cx(
             'w-full resize-none bg-transparent px-3 text-body-md text-ink [field-sizing:content]',
             'placeholder:text-steel disabled:text-stone',
+            // The box around it is the focus indicator (its border turns cobalt and thickens into
+            // a ring), so the textarea's own outline would draw a second rectangle inside it.
+            // Important, because the global :focus-visible rule is unlayered and would win.
+            'outline-none! focus-visible:outline-none!',
             // 88px: three 24px lines plus the padding, because `field-sizing` would otherwise
             // shrink the hero box to one line and the invitation with it.
             hero ? 'min-h-[5.5rem] py-2' : 'max-h-28 min-h-9 py-1.5',

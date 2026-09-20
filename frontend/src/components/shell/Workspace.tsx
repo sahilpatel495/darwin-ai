@@ -22,6 +22,9 @@ export interface WorkspaceProps extends PageProps {
   onSessionExpired: () => void
   /** An answer landed. The shell re-reads the allowance. */
   onAnswered: () => void
+  /** The `how-i-got-this` hint, made by the shell (which owns `tipsSeen`) and drawn by the thread
+   *  under the first answer. Null once it has been dismissed. */
+  firstAnswerTip?: React.ReactNode
 }
 
 /**
@@ -31,7 +34,7 @@ export interface WorkspaceProps extends PageProps {
  * `initialQuestion` of its own; the ids below are the seam.
  */
 function askInComposer(question: string) {
-  const box = document.querySelector<HTMLTextAreaElement>('#darwinlens-question, #verity-question')
+  const box = document.querySelector<HTMLTextAreaElement>('#darwinlens-question')
   if (!box) return
   const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
   setValue?.call(box, question) // React listens for the input event, not for an assignment to .value
@@ -68,6 +71,7 @@ export default function Workspace({
   onProjectChange,
   onSessionExpired,
   onAnswered,
+  firstAnswerTip,
 }: WorkspaceProps) {
   // The handover waits for the composer to exist — the thread is behind the loading state until
   // the catalog is in — and fires once. Keyed by the question, not a boolean: StrictMode runs this
@@ -113,7 +117,7 @@ export default function Workspace({
           keyboard journey of their own, and this is still the way straight past them. */}
       <button
         type="button"
-        onClick={() => document.querySelector<HTMLTextAreaElement>('#darwinlens-question, #verity-question')?.focus()}
+        onClick={() => document.querySelector<HTMLTextAreaElement>('#darwinlens-question')?.focus()}
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-full focus:bg-canvas focus:px-4 focus:py-2 focus:text-button-md focus:text-primary-deep focus:shadow-level-2"
       >
         Skip to your question
@@ -132,6 +136,7 @@ export default function Workspace({
             savedAnswerIds={project.savedAnswerIds}
             onToggleSaved={toggleSaved}
             onSessionExpired={onSessionExpired}
+            firstAnswerTip={firstAnswerTip}
           />
         )}
       </main>

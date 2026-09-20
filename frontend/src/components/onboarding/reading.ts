@@ -46,6 +46,9 @@ export function readingStages(catalog: Catalog): ReadingStage[] {
   // they dropped in.
   const files = catalog.tables.filter((t) => !t.is_view)
   const rows = files.reduce((sum, t) => sum + t.row_count, 0)
+  // Neither is a second sheet. One workbook with a Register and a Bonuses sheet is two tables and
+  // one file, so counting tables told someone who dropped in three files that we had read four.
+  const fileCount = new Set(files.map((t) => t.source_file)).size
 
   const titleRows = files.reduce((sum, t) => sum + t.health.skipped_title_rows, 0)
   const totalRows = files.reduce((sum, t) => sum + t.health.dropped_total_rows, 0)
@@ -69,7 +72,7 @@ export function readingStages(catalog: Catalog): ReadingStage[] {
     {
       id: 'read',
       label: 'Read your files',
-      detail: `${plural(files.length, 'file')}, ${rows.toLocaleString('en-IN')} rows`,
+      detail: `${plural(fileCount, 'file')}, ${rows.toLocaleString('en-IN')} rows`,
       glyph: 'table',
     },
     {

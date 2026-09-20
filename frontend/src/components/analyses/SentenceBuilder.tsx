@@ -29,8 +29,6 @@ export interface SentenceBuilderProps {
   labels: Record<string, string>
   inputs: Record<string, string>
   options: Record<string, string>
-  /** What the run will be called, already built by the page: the same line names the chip. */
-  title: string
   onInput: (key: string, ref: string) => void
   onOption: (key: string, value: string) => void
   onRun: () => void
@@ -102,7 +100,6 @@ export default function SentenceBuilder({
   labels,
   inputs,
   options,
-  title,
   onInput,
   onOption,
   onRun,
@@ -240,17 +237,11 @@ export default function SentenceBuilder({
       {!blamed && problem && <Refusal problem={problem} />}
 
       <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-hairline-soft pt-6">
-        {/* The live title: the same pure sentence that names the chip, the saved tile and the
-            downloaded file, so the analyst knows what they are about to be given. */}
-        <p className="min-w-0 text-body-sm text-steel">
-          {ready ? (
-            <>
-              Called <span className="font-bold text-ink">{title}</span> when you save or download it.
-            </>
-          ) : (
-            'Fill every gap in the sentence to run it.'
-          )}
-        </p>
+        {/* Only while a gap is still open. When the sentence is complete it is already written out
+            in full, in 24px type, three inches above this line — and the line used to promise an
+            exact name ("Called Gross by Department…") that the server then title-cases into
+            something slightly different. A restatement that is also not quite true. */}
+        <p className="min-w-0 text-body-sm text-steel">{ready ? '' : 'Fill every gap in the sentence to run it.'}</p>
         <Button variant="action" onClick={onRun} loading={running} disabled={!ready}>
           Run
         </Button>
@@ -275,8 +266,11 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 function Choices({ option, value, onChange }: { option: AnalysisOption; value: string; onChange: (value: string) => void }) {
   return (
     // Six ways to combine do not fit 390px: PillTabs keeps its natural width and scrolls sideways
-    // rather than squeezing "Average" into an ellipsis.
+    // rather than squeezing "Average" into an ellipsis. `min-w-0 flex-1` is what lets it: inside
+    // the flex row above, a child will not shrink below its content without it, so the pills took
+    // 568px and the whole phone page scrolled sideways instead of the pills.
     <PillTabs
+      className="min-w-0 flex-1"
       size="sm"
       label={shortLabel(option.label)}
       active={value}

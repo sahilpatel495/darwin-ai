@@ -52,6 +52,19 @@ const GRID = 'var(--color-hairline-soft)'
 const AXIS = { stroke: 'var(--color-hairline)' }
 const shorten = (label: string): string => (label.length > 20 ? `${label.slice(0, 19)}…` : label) // full name is in the tooltip and table
 
+/**
+ * How much room the category names down the left of a horizontal bar chart need.
+ *
+ * Recharts' own `width="auto"` measures the rendered text, which is a race: inside the expand
+ * dialog it measures while the panel is still scaling in, comes back short, and clips the first
+ * letter off the longest department. Computing it from the string is not a race — 6.7px per
+ * character at the 12px tick size, with slack, and a ceiling so one long name cannot eat the plot.
+ */
+const categoryAxisWidth = (labels: string[]): number => {
+  const longest = labels.reduce((most, label) => Math.max(most, shorten(label).length), 0)
+  return Math.min(168, Math.max(56, Math.ceil(longest * 6.7) + 14))
+}
+
 /** The largest number the value axis has to show, so every tick on it can share one unit. */
 function axisMax(data: Series, stacked = false): number {
   const of = (values: (number | null)[]): number => {
@@ -122,8 +135,11 @@ function Legend({ names, colors }: { names: string[]; colors: string[] }) {
 interface Props {
   chart: ChartSpec
   data: Plotted
-  /** Taller, for the expanded dialog. Defaults to the shape's own height. */
-  height?: number
+  /** A floor, for the expanded dialog: the chart is drawn at least this tall. It is a minimum
+   *  and not a height, because a horizontal bar chart sizes itself by its row count — forcing a
+   *  20-row chart to a fixed 520px would squash in the dialog exactly what the reader opened the
+   *  dialog to see. */
+  minHeight?: number
 }
 
 const CHART_NAMES: Record<Plotted['kind'], string> = {
@@ -141,7 +157,7 @@ const CHART_NAMES: Record<Plotted['kind'], string> = {
 const countOf = (data: Plotted): number =>
   data.kind === 'donut' ? data.slices.length : data.kind === 'heatmap' ? data.rows.length * data.cols.length : data.points.length
 
-export default function ResultChart({ chart, data, height }: Props) {
+export default function ResultChart({ chart, data, minHeight }: Props) {
   const count = countOf(data)
   const label = `${chart.title}. ${CHART_NAMES[data.kind]} with ${count} ${count === 1 ? 'point' : 'points'}. Switch to the table for exact values.`
   const omitted = 'omitted' in data ? data.omitted : 0
@@ -150,15 +166,15 @@ export default function ResultChart({ chart, data, height }: Props) {
       {/* tnum is set once here and inherited by every <text> the chart draws. */}
       <div role="img" aria-label={label} className="tnum">
         {data.kind === 'scatter' ? (
-          <ScatterPlot data={data} height={height} />
+          <ScatterPlot data={data} minHeight={minHeight} />
         ) : data.kind === 'donut' ? (
-          <DonutPlot chart={chart} data={data} height={height} />
+          <DonutPlot chart={chart} data={data} minHeight={minHeight} />
         ) : data.kind === 'heatmap' ? (
           <HeatmapPlot chart={chart} data={data} />
         ) : data.kind === 'line' || data.kind === 'area' ? (
-          <LinePlot chart={chart} data={data} height={height} />
+          <LinePlot chart={chart} data={data} minHeight={minHeight} />
         ) : (
-          <BarPlot chart={chart} data={data} height={height} />
+          <BarPlot chart={chart} data={data} minHeight={minHeight} />
         )}
       </div>
       {omitted > 0 && (
@@ -195,14 +211,14 @@ export const barEndLabel = (format: ChartSpec['value_format']) => ({ x, y, width
  * names do not fit under vertical bars on a phone. Histogram bands touch; everything else has a
  * 2px gap so two fills never read as one.
  */
-function BarPlot({ chart, data, height }: { chart: ChartSpec; data: Series; height?: number }) {
+function BarPlot({ chart, data, minHeight }: { chart: ChartSpec; data: Series; minHeight?: number }) {
   const format = chart.value_format
   const draw = useDrawOnce()
   const stacked = data.kind === 'stacked_bar'
   const single = data.series.length === 1
   const valueTick = axisTicks(format, axisMax(data, stacked))
   const rowHeight = data.points.length * (data.series.length * 18 + 14) + (single ? 40 : 24)
-  const tall = height ?? (data.horizontal ? rowHeight : 280)
+  const tall = Math.max(minHeight ?? 0, data.horizontal ? rowHeight : 280)
   return (
     <>
       <ResponsiveContainer width="100%" height={tall}>
@@ -217,7 +233,16 @@ function BarPlot({ chart, data, height }: { chart: ChartSpec; data: Series; heig
           {data.horizontal ? (
             <>
               <XAxis type="number" tick={TICK} tickLine={false} axisLine={false} tickFormatter={valueTick} />
-              <YAxis type="category" dataKey="x" width="auto" tick={TICK} tickLine={false} axisLine={AXIS} tickFormatter={shorten} interval={0} />
+              <YAxis
+                type="category"
+                dataKey="x"
+                width={categoryAxisWidth(data.points.map((point) => String(point.x)))}
+                tick={TICK}
+                tickLine={false}
+                axisLine={AXIS}
+                tickFormatter={shorten}
+                interval={0}
+              />
             </>
           ) : (
             <>
@@ -255,14 +280,14 @@ function BarPlot({ chart, data, height }: { chart: ChartSpec; data: Series; heig
 
 /** A trend. The value axis is fitted to the data (165 to 172 is flat from zero), and an area
  *  fills from its own colour at 24% down to 0% (§12). */
-function LinePlot({ chart, data, height }: { chart: ChartSpec; data: Series; height?: number }) {
+function LinePlot({ chart, data, minHeight }: { chart: ChartSpec; data: Series; minHeight?: number }) {
   const format = chart.value_format
   const draw = useDrawOnce()
   const area = data.kind === 'area'
   const Chart = area ? AreaChart : LineChart
   return (
     <>
-      <ResponsiveContainer width="100%" height={height ?? 260}>
+      <ResponsiveContainer width="100%" height={Math.max(minHeight ?? 0, 260)}>
         <Chart data={data.points} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
           <defs>
             {area &&
@@ -316,7 +341,7 @@ function LinePlot({ chart, data, height }: { chart: ChartSpec; data: Series; hei
 
 /** Part of a whole, at a glance: at most six slices with the tail as "Other", and the total in
  *  the middle, which is the number the analyst quotes. */
-function DonutPlot({ chart, data, height }: { chart: ChartSpec; data: Extract<ChartData, { kind: 'donut' }>; height?: number }) {
+function DonutPlot({ chart, data, minHeight }: { chart: ChartSpec; data: Extract<ChartData, { kind: 'donut' }>; minHeight?: number }) {
   const format = chart.value_format
   const draw = useDrawOnce()
   const colour = (i: number) => (data.slices[i].name === 'Other' ? OTHER_COLOR : SERIES_COLORS[i])
@@ -324,7 +349,7 @@ function DonutPlot({ chart, data, height }: { chart: ChartSpec; data: Extract<Ch
   return (
     <>
       <div className="relative">
-        <ResponsiveContainer width="100%" height={height ?? 240}>
+        <ResponsiveContainer width="100%" height={Math.max(minHeight ?? 0, 240)}>
           <PieChart>
             <Tooltip
               isAnimationActive={false}
@@ -432,13 +457,13 @@ function HeatmapPlot({ chart, data }: { chart: ChartSpec; data: Extract<ChartDat
 
 /** Two measures rarely share a unit (CTC against rating), so the axes use plain short numbers
  *  and the tooltip shows the backend's own display strings for both. */
-function ScatterPlot({ data, height }: { data: Extract<ChartData, { kind: 'scatter' }>; height?: number }) {
+function ScatterPlot({ data, minHeight }: { data: Extract<ChartData, { kind: 'scatter' }>; minHeight?: number }) {
   const draw = useDrawOnce()
   const xLabel = humanize(data.xLabel)
   const yLabel = humanize(data.yLabel)
   const axis = { type: 'number' as const, tick: TICK, tickLine: false, domain: ['auto', 'auto'] as ['auto', 'auto'], tickFormatter: (v: number) => formatTick(v, 'number') }
   return (
-    <ResponsiveContainer width="100%" height={height ?? 300}>
+    <ResponsiveContainer width="100%" height={Math.max(minHeight ?? 0, 300)}>
       <ScatterChart margin={{ top: 8, right: 16, bottom: 20, left: 8 }}>
         <CartesianGrid stroke={GRID} />
         <XAxis {...axis} dataKey="x" name={xLabel} axisLine={AXIS} label={{ value: xLabel, position: 'insideBottom', offset: -12, fontSize: 12, fill: 'var(--color-steel)' }} />

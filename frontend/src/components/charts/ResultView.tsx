@@ -25,6 +25,9 @@ export interface ResultViewProps {
   type?: ChartSpec['type']
   /** Reports what the reader switched to, so the card can open the expanded view on the same shape. */
   onTypeChange?: (type: ChartSpec['type']) => void
+  /** A floor on the chart's height, for the expanded dialog — which is wider than the card and,
+   *  without this, exactly as short. A chart that sizes itself by its rows keeps its own height. */
+  minHeight?: number
 }
 
 const TYPE_LABELS: Record<ChartSpec['type'], string> = {
@@ -41,7 +44,7 @@ const TYPE_LABELS: Record<ChartSpec['type'], string> = {
   table: 'Table',
 }
 
-export default function ResultView({ chart, table, data, allowSwitch = false, type, onTypeChange }: ResultViewProps) {
+export default function ResultView({ chart, table, data, allowSwitch = false, type, onTypeChange, minHeight }: ResultViewProps) {
   // The type on screen. Null means "whatever the backend chose", so a new answer needs no effect
   // to reset it: a different answer is a different component.
   const [picked, setPicked] = useState<ChartSpec['type'] | null>(null)
@@ -68,7 +71,7 @@ export default function ResultView({ chart, table, data, allowSwitch = false, ty
     </>
   )
 
-  const visual = plotted && chart ? <ResultChart chart={chart} data={plotted} /> : tableView
+  const visual = plotted && chart ? <ResultChart chart={chart} data={plotted} minHeight={minHeight} /> : tableView
 
   // A tile and the board draw the picture alone: their own heading already says what it is.
   if (!allowSwitch) return <div>{visual}</div>

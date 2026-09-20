@@ -1,6 +1,6 @@
 // The landing hero's "photograph" (§4): a miniature of a real answer card that plays the whole
 // product in eight seconds — a question types itself, three checks tick, the figure counts up to
-// ₹20.40 Cr, three bars grow — and then starts again.
+// ₹54.67 Cr, three bars grow — and then starts again.
 //
 // It is a picture of the product, not the product: nothing here calls the API, and the figures are
 // the ones the sample company actually returns, so the loop never promises something a visitor
@@ -26,18 +26,25 @@ const T = {
   figureTo: 4800,
   barsFrom: 4500,
   barsTo: 5300,
-  loop: 8600,
+  // The answer is the point of the loop, so it holds for about seven seconds of the eleven and a
+  // half. At 8.6s the card sat empty for nearly half of every cycle, which on a landing hero reads
+  // as a product still loading rather than one that has already answered.
+  loop: 11600,
 } as const
 
 const STEPS = ['Read your files', 'Checked the query', 'Second model agreed'] as const
 
+// The sample company's own 2025 gross pay, by department: Engineering ₹20.40 Cr, Sales ₹12.05 Cr
+// and Support ₹8.52 Cr of a ₹54.67 Cr total across the 467 people who were paid. Copied from what
+// the live demo actually answers, so the hero is a photograph of the product rather than a
+// mock-up of it — press "Try the live demo", ask this question, and these are the figures back.
 const BARS = [
-  { label: 'Engineering', share: 1, value: '₹8.62 Cr' },
-  { label: 'Sales', share: 0.63, value: '₹5.44 Cr' },
-  { label: 'Operations', share: 0.41, value: '₹3.51 Cr' },
+  { label: 'Engineering', share: 1, value: '₹20.40 Cr' },
+  { label: 'Sales', share: 0.59, value: '₹12.05 Cr' },
+  { label: 'Support', share: 0.42, value: '₹8.52 Cr' },
 ] as const
 
-const TOTAL = 20.4
+const TOTAL = 54.67
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n))
 /** Ease-out: fast at the start, so a figure is readable long before it settles. */
 const ease = (t: number) => 1 - (1 - t) ** 3
@@ -145,7 +152,7 @@ export default function AppPreview({ className }: AppPreviewProps) {
           High confidence
         </span>
         <p className="mt-3 text-heading-lg text-ink-deep tnum">₹{figure.toFixed(2)} Cr</p>
-        <p className="mt-1 text-body-sm text-slate">Total salary cost across 1,284 people, 2025</p>
+        <p className="mt-1 text-body-sm text-slate">Total gross pay across 467 people, 2025</p>
 
         <div className="mt-4 space-y-2.5">
           {BARS.map((bar) => (
@@ -157,7 +164,7 @@ export default function AppPreview({ className }: AppPreviewProps) {
                   style={{ width: `${bars * bar.share * 100}%`, transition: 'none' }}
                 />
               </span>
-              <span className="w-[62px] shrink-0 text-right text-caption text-ink tnum">{bar.value}</span>
+              <span className="w-[74px] shrink-0 text-right text-caption text-ink tnum">{bar.value}</span>
             </div>
           ))}
         </div>

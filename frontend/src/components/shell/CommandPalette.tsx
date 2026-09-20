@@ -141,7 +141,11 @@ export default function CommandPalette({ open, onClose, projects, project, onAsk
             aria-label="Search pages, projects and questions"
             placeholder="Search or ask…"
             autoComplete="off"
-            className="min-w-0 flex-1 bg-transparent text-subtitle-md text-ink-deep placeholder:text-stone focus:outline-none"
+            // No ring of its own. Focus never leaves this box — the arrow keys move a highlight
+            // through the list below via aria-activedescendant — so the highlighted row is the
+            // focus indicator, and a second rectangle drawn around the text is just a box inside
+            // a box. Important, because the global :focus-visible rule in index.css is unlayered.
+            className="min-w-0 flex-1 bg-transparent text-subtitle-md text-ink-deep outline-none! placeholder:text-stone focus-visible:outline-none!"
           />
           <Kbd>Esc</Kbd>
         </div>

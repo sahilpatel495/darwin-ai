@@ -62,3 +62,13 @@ test('signing in takes you off the sign-in page and leaves you everywhere else',
     assert.equal(guard(parseRoute(hash), true), null, hash)
   }
 })
+
+test('a guest is signed in and still needs the sign-up page', () => {
+  // "Create an account" in the avatar menu, the card in Settings and the landing all send a guest
+  // to #/signup. Treating them as a member bounced them straight back, so the button did nothing.
+  assert.equal(guard(parseRoute('#/signup'), true, true), null)
+  assert.equal(guard(parseRoute('#/signin'), true, true), null)
+  for (const hash of ['#/home', '#/settings', '#/p/abc']) {
+    assert.equal(guard(parseRoute(hash), true, true), null, hash)
+  }
+})

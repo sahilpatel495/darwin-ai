@@ -15,6 +15,7 @@ import { Banner, Button, Card, Chip, Drawer } from '../ui'
 import { Glyph } from '../graphics'
 import { groupSuggestions, type Suggestion } from '../../lib/suggestions'
 import { columnLabel, plainAnswer } from '../../lib/tables'
+import { fileNamesFrom } from '../../lib/projects'
 import type { Turn } from '../../lib/projects'
 import type { Catalog, StepEvent } from '../../types'
 import AnswerStatement from '../answer/AnswerStatement'
@@ -45,6 +46,10 @@ export interface ThreadProps {
   /** A banner to render with the composer. §6 keeps "your files are no longer loaded" in the app
    *  shell, so this is the slot for it and the thread never invents one of its own. */
   notice?: ReactNode
+  /** The `how-i-got-this` hint (§7), drawn under the first real answer — the only place the
+   *  control it names exists. The shell owns which hints this reader has already dismissed, so it
+   *  hands the whole thing down ready-made or hands down nothing. */
+  firstAnswerTip?: ReactNode
 }
 
 interface Problem {
@@ -130,6 +135,7 @@ export default function Thread({
   suggestions,
   onOpenData,
   notice,
+  firstAnswerTip,
 }: ThreadProps) {
   const [live, setLive] = useState<LiveTurn[]>([])
   const [ran, setRan] = useState<Record<string, HowItRan>>({})
@@ -152,7 +158,9 @@ export default function Thread({
   const running = live.some((turn) => turn.state === 'running')
   const canAsk = sessionId !== null && !running
   const tables = catalog?.tables ?? NO_TABLES
-  const fileCount = tables.filter((table) => !table.is_view).length
+  // Files, not tables: one workbook with two sheets is two tables and one file. Counting tables
+  // made this chip say "7 files" two inches from a top bar saying 6, about the same project.
+  const fileCount = catalog ? fileNamesFrom(catalog).length : 0
 
   // Leaving the page must not leave a query running on the server, and a different session must
   // never show the previous one's half-finished question.
@@ -357,6 +365,9 @@ export default function Thread({
                         onToggleSaved={turn.answer.kind === 'answer' ? () => onToggleSaved(turn.answer.id) : undefined}
                         onAsk={askFrom(detail?.clarification ?? null)}
                       />
+                      {/* A clarifying question has no working to open, so the hint waits for the
+                          first turn that does. */}
+                      {i === 0 && turn.answer.kind === 'answer' && firstAnswerTip}
                     </article>
                   )
                 })}
@@ -389,7 +400,7 @@ export default function Thread({
           {/* Docked: a bar floating over the conversation, which scrolls under its blur (§8). In
               the empty state the composer is the hero above instead, so nothing is docked. */}
           {!empty && (
-            <div className="sticky bottom-0 z-10 mx-auto w-full max-w-[820px] px-4 pb-4 sm:px-6 print-hide">
+            <div className="sticky bottom-0 z-10 mx-auto w-full max-w-[820px] bg-linear-to-t from-canvas from-40% to-transparent px-4 pt-8 pb-4 sm:px-6 print-hide">
               {notice && <div className="mb-3">{notice}</div>}
               {composer}
             </div>

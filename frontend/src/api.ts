@@ -4,9 +4,9 @@
 import type { AnalysisCatalog, AnalysisRequest, Answer, AuthResponse, MeResponse, User, AskRequest, Catalog, Dashboard, ErrorResponse, EvalReport, InsightTile, Metric, ResultTable, StepEvent } from './types'
 
 const MOCK = import.meta.env.VITE_MOCK === '1'
-const SESSION_KEY = 'verity.session'
-const TOKEN_KEY = 'verity.token'
-const USER_KEY = 'verity.user'
+const SESSION_KEY = 'darwinlens.session'
+const TOKEN_KEY = 'darwinlens.token'
+const USER_KEY = 'darwinlens.user'
 
 // ---- Accounts. The token is the only credential; it lives in localStorage and rides on every
 // API call. With no token we silently become a guest, so "try the live demo" needs no sign-up.
@@ -24,6 +24,16 @@ const write = (key: string, value: string | null): void => {
   } catch {
     /* storage unavailable: the app still works for this page view */
   }
+}
+// The product was renamed on 2026-09-21 and its keys moved with it. Anyone who was signed in
+// under the old ones stays signed in: each value is moved across once, at start-up, and the old
+// key is removed so this never runs twice for the same browser.
+for (const key of [SESSION_KEY, TOKEN_KEY, USER_KEY]) {
+  const legacy = key.replace('darwinlens.', 'verity.')
+  const stored = read(legacy)
+  if (stored === null) continue
+  if (read(key) === null) write(key, stored)
+  write(legacy, null)
 }
 export const getToken = (): string | null => read(TOKEN_KEY)
 export function getStoredUser(): User | null {

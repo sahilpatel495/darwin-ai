@@ -64,6 +64,36 @@ test('a scruffy list from the server does not produce a scruffy card', () => {
   assert.equal(picked.filter((s) => s.kind === 'Pay').length, 1, 'the same question twice is one card')
 })
 
+test('the four cards spread across subjects before repeating one', () => {
+  // The sample company's catalog leads with five pay questions. Sorting by subject alone put all
+  // of them first, and a payroll officer opened the product to four cards that all said "Pay".
+  const payHeavy = [
+    'What is the total gross pay by department?',
+    'How did total gross pay change month by month?',
+    'What is the average gross pay by grade?',
+    'Which location has the highest average CTC?',
+    'What was the total bonus paid in 2025?',
+    'How has headcount changed month by month?',
+    'What is the attrition rate for FY25?',
+    'How many days were people absent in Q1?',
+  ]
+  const kinds = suggestionsFor(payHeavy, 'Payroll').map((s) => s.kind)
+  assert.equal(kinds[0], 'Pay', 'a payroll officer is still offered pay first')
+  assert.equal(new Set(kinds).size, 4, 'four cards, four subjects')
+
+  // And the one it does offer for a subject is the catalog's own first for that subject, because
+  // the server put its best question there.
+  const questions = suggestionsFor(payHeavy, 'Payroll').map((s) => s.question)
+  assert.equal(questions[0], 'What is the total gross pay by department?')
+
+  // With fewer subjects than cards, a second from a subject is right: variety never costs a card,
+  // and it never drops a question the files can answer.
+  const twoSubjects = ['What is the total gross pay by department?', 'What is the average gross pay by grade?', 'What is the attrition rate for FY25?']
+  const spread = suggestionsFor(twoSubjects, 'Payroll')
+  assert.deepEqual(spread.slice(0, 3).map((s) => s.kind), ['Pay', 'Attrition', 'Pay'], 'the second pay question waits its turn, it is not dropped')
+  assert.deepEqual([...spread.slice(0, 3)].map((s) => s.question).sort(), [...twoSubjects].sort())
+})
+
 test('more ideas are grouped by subject, each subject once', () => {
   const groups = groupSuggestions([...CATALOG, 'How many people were absent in March?'], 'HR analyst')
   const kinds = groups.map((group) => group.kind)

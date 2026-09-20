@@ -28,10 +28,6 @@ export interface SidebarProps {
   onGlossaryEdited: (glossary: Metric[]) => void
   onLinkStatusChanged: (linkId: string, status: 'active' | 'rejected') => void
   onAddFiles: () => void
-  /** Hints this reader has already dismissed, from the project record's `tipsSeen` (§10). */
-  tipsSeen?: readonly string[]
-  /** Called with the hint's id when it is dismissed, so the record can remember it for good. */
-  onTipSeen?: (id: string) => void
 }
 
 interface Problem {
@@ -48,18 +44,9 @@ export default function Sidebar({
   onGlossaryEdited,
   onLinkStatusChanged,
   onAddFiles,
-  tipsSeen = [],
-  onTipSeen,
 }: SidebarProps) {
   const [tab, setTab] = useState('files')
   const [problem, setProblem] = useState<Problem | null>(null)
-  // Until the shell hands down the project record's list, a dismissal lasts as long as the drawer
-  // is mounted — which is the whole visit to the project, so the hint never nags mid-session.
-  const [dismissed, setDismissed] = useState<string[]>([])
-  const dismissTip = (id: string) => {
-    setDismissed((all) => [...all, id])
-    onTipSeen?.(id)
-  }
 
   /** Both writes go through here, so a failure is always reported the same way, in one place. */
   async function call<T>(action: (sessionId: string) => Promise<T>): Promise<T | undefined> {
@@ -123,16 +110,17 @@ export default function Sidebar({
           active={tab}
           onChange={setTab}
           tabs={[
-            { id: 'files', label: `Files (${catalog.tables.filter((table) => !table.is_view).length})` },
+            // "Tables", not "Files": this tab has one row per table, and a workbook with two
+            // sheets gives two of them. Calling them files made the tab say 7 under a header
+            // saying 6 — the sentence above it already gets this right, so it sets the word.
+            { id: 'files', label: `Tables (${catalog.tables.filter((table) => !table.is_view).length})` },
             { id: 'links', label: `Links (${catalog.relationships.length + catalog.unions.length})` },
             { id: 'glossary', label: `Glossary (${catalog.glossary.length})` },
           ]}
         >
           <div className="pt-6">
             {tab === 'files' && <Files sessionId={sessionId} catalog={catalog} readOnly={readOnly} onAddFiles={onAddFiles} />}
-            {tab === 'links' && (
-              <Links catalog={catalog} readOnly={readOnly} onSetLink={setLink} tipsSeen={[...tipsSeen, ...dismissed]} onTipSeen={dismissTip} />
-            )}
+            {tab === 'links' && <Links catalog={catalog} readOnly={readOnly} onSetLink={setLink} />}
             {tab === 'glossary' && <Glossary glossary={catalog.glossary} readOnly={readOnly} onSave={saveMetrics} />}
           </div>
         </PillTabs>

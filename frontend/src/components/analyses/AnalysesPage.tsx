@@ -269,7 +269,6 @@ export default function AnalysesPage({ sessionId, project, onAsk, onProjectChang
                 labels={labels}
                 inputs={inputs}
                 options={options}
-                title={sentence}
                 onInput={(key, ref) => setInputs((previous) => ({ ...previous, [key]: ref }))}
                 onOption={(key, value) => setOptions((previous) => ({ ...previous, [key]: value }))}
                 onRun={run}

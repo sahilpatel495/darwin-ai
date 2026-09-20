@@ -8,12 +8,14 @@ import { labelOf } from '../../lib/tables'
 import type { Catalog } from '../../types'
 import type { Explanation } from '../education/explain'
 import { EXPLAIN } from '../education/explain'
-import { Button, ListRow, Tip, WhatsThis, cx } from '../ui'
+import { Button, ListRow, WhatsThis, cx } from '../ui'
 import type { LinkLine } from './wording'
 import { linkLine, unionLine } from './wording'
 
-/** The one hint in the drawer (§7). It says what to do; the "?" beside the heading says why. */
-export const LINKS_TIP = 'data-links'
+// There was a fourth hint here ("Remove any link you do not recognise — a wrong one can count the
+// same pay twice"). Three is the whole budget (§7), and this one was the weakest of the four: its
+// second half is already the second sentence of EXPLAIN.links, which the "?" beside the heading
+// below opens. One idea, said twice, two inches apart.
 
 type LinkStatus = 'active' | 'suggested' | 'rejected'
 
@@ -22,8 +24,6 @@ interface LinksProps {
   /** Files are not loaded: the links still read, but the server cannot be told about a change. */
   readOnly: boolean
   onSetLink: (linkId: string, status: 'active' | 'rejected') => Promise<void>
-  tipsSeen: readonly string[]
-  onTipSeen: (id: string) => void
 }
 
 interface LinkRowProps extends Pick<LinksProps, 'readOnly' | 'onSetLink'> {
@@ -106,7 +106,7 @@ function Heading({ children, explain }: { children: string; explain: Explanation
   )
 }
 
-export default function Links({ catalog, readOnly, onSetLink, tipsSeen, onTipSeen }: LinksProps) {
+export default function Links({ catalog, readOnly, onSetLink }: LinksProps) {
   const name = (table: string) => labelOf(table, catalog.tables)
   // The server lists links in use first, so a removed link would jump down the list the moment it
   // is clicked and leave another link's Remove button under the cursor. A fixed order keeps every
@@ -121,11 +121,6 @@ export default function Links({ catalog, readOnly, onSetLink, tipsSeen, onTipSee
     <div className="space-y-6">
       {relationships.length > 0 && (
         <section>
-          {!readOnly && (
-            <Tip id={LINKS_TIP} seen={tipsSeen} onDismiss={onTipSeen} className="mb-4">
-              Remove any link you do not recognise — a wrong one can count the same pay twice.
-            </Tip>
-          )}
           <Heading explain={EXPLAIN.links}>Links between your files</Heading>
           <ul className="-mx-3 mt-1">
             {relationships.map((link) => (

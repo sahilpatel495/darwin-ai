@@ -17,6 +17,8 @@ import { suggestionsFor } from '../../lib/suggestions'
 import type { Catalog, User } from '../../types'
 import AnalysesPage from '../analyses/AnalysesPage'
 import Board from '../board/Board'
+import { TIPS } from '../education/tips'
+import type { TipId } from '../education/tips'
 import OverviewPage from '../overview/OverviewPage'
 import Sidebar from '../sidebar/Sidebar'
 import { Banner, Dialog, Drawer, Tip } from '../ui'
@@ -219,7 +221,20 @@ export default function ProjectShell({
 
   // The band above the tabs: at most a problem, the way back to having files, and one hint.
   const showBanner = problem !== null && !adding
-  const showTip = !detached && !loading && !project.tipsSeen.includes('data-button')
+
+  /**
+   * Two of the three hints (§7) live in this band, under the top bar they point at: `data-button`
+   * at the right-hand Data button, `overview-tab` at the Overview tab. The third is under the first
+   * answer, which belongs to the thread.
+   *
+   * One at a time, in the order an analyst meets them: two hints stacked over the same screen is
+   * the coach-mark tour again, wearing a different coat. `overview-tab` waits for the first answer,
+   * because until then there is nothing for an overview to be an alternative to.
+   */
+  const unseen = (id: TipId) => !project.tipsSeen.includes(id)
+  const bandTip: TipId | null =
+    detached || loading ? null : unseen('data-button') ? 'data-button' : project.turns.length > 0 && unseen('overview-tab') ? 'overview-tab' : null
+  const dismissTip = (id: string) => update(withTipSeen(project, id))
 
   let page: React.ReactNode
   if (route.name === 'overview') page = <OverviewPage {...pageProps} />
@@ -236,6 +251,13 @@ export default function ProjectShell({
         onQuestionTaken={onQuestionTaken}
         onSessionExpired={onSessionExpired}
         onAnswered={onAnswered}
+        firstAnswerTip={
+          unseen('how-i-got-this') && (
+            <Tip id="how-i-got-this" seen={project.tipsSeen} onDismiss={dismissTip}>
+              {TIPS['how-i-got-this'].text}
+            </Tip>
+          )
+        }
       />
     )
 
@@ -243,13 +265,13 @@ export default function ProjectShell({
     <div className="flex min-h-0 flex-1 flex-col">
       {/* §6: one banner for the whole project. Whichever tab you are on, this is where the files
           being gone is said, and the only place it is said. */}
-      {(showBanner || detached || showTip) && (
+      {(showBanner || detached || bandTip) && (
         <div className="mx-auto w-full max-w-[1120px] shrink-0 space-y-3 px-4 pt-4 sm:px-6 print-hide">
           {showBanner && banner}
           {detached && <Reattach project={project} busy={busy} onFiles={onFiles} onSample={onSample} />}
-          {showTip && (
-            <Tip id="data-button" seen={project.tipsSeen} onDismiss={(id) => update(withTipSeen(project, id))}>
-              Everything read from your files — and what was cleaned up — is behind <strong className="font-bold">Data</strong>, up on the right.
+          {bandTip && (
+            <Tip id={bandTip} seen={project.tipsSeen} onDismiss={dismissTip}>
+              {TIPS[bandTip].text}
             </Tip>
           )}
         </div>

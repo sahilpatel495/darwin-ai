@@ -310,7 +310,9 @@ export default function AnswerStatement({ answer, mode, saved = false, onToggleS
           copy of its chart and table in the DOM, for a dialog nobody has asked for. */}
       {expanded && result && (
         <Dialog open onClose={() => setExpanded(false)} title={caption} size="xl">
-          <ResultView chart={answer.chart} table={result} allowSwitch type={chartType ?? undefined} onTypeChange={setChartType} />
+          {/* The dialog is wider than the card; without a floor it would be exactly as short, and
+              "open the chart larger" would only ever mean "wider". */}
+          <ResultView chart={answer.chart} table={result} allowSwitch type={chartType ?? undefined} onTypeChange={setChartType} minHeight={480} />
         </Dialog>
       )}
     </Card>

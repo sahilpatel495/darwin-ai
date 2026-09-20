@@ -199,9 +199,13 @@ function SectionTabs({ sections, loading, onRefresh }: { sections: DashboardSect
   return (
     <div className="sticky top-16 z-20 -mx-4 mt-8 mb-6 flex items-center justify-between gap-3 bg-canvas/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
       {sections.length > 1 ? (
+        // min-w-0: the pills already scroll sideways when there are more than fit, but a flex
+        // child will not shrink below its content without this — so on a phone six sections made
+        // the whole page 747px wide and Refresh sat off the right edge of it.
         <PillTabs
           label="Sections of this overview"
           size="sm"
+          className="min-w-0"
           active={active}
           onChange={jump}
           tabs={sections.map((section) => ({ id: sectionId(section.title), label: section.title }))}
@@ -209,7 +213,7 @@ function SectionTabs({ sections, loading, onRefresh }: { sections: DashboardSect
       ) : (
         <span />
       )}
-      <Button variant="quiet" size="sm" loading={loading} onClick={onRefresh}>
+      <Button variant="quiet" size="sm" className="shrink-0" loading={loading} onClick={onRefresh}>
         Refresh
       </Button>
     </div>

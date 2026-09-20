@@ -158,7 +158,12 @@ export default function AuthPage({ mode, session, user, onAuthed }: AuthPageProp
                 size="sm"
                 onClick={() => setShown((was) => !was)}
                 aria-label={shown ? 'Hide password' : 'Show password'}
-                className="absolute top-8 right-1.5"
+                // `absolute!`: Button's own base class list carries `relative` (for its loading
+                // spinner), and Tailwind emits `relative` after `absolute`, so a plain `absolute`
+                // here lost. The toggle then sat in the normal flow, under the hint and on top of
+                // the "What do you do?" legend. The button is its own containing block either way,
+                // so the spinner is unaffected.
+                className="absolute! top-8 right-1.5"
               >
                 {shown ? 'Hide' : 'Show'}
               </Button>

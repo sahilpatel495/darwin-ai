@@ -91,10 +91,17 @@ export default function Welcome({ user, session, catalog: loaded, onLoad, onAsk,
       <AuroraBackdrop intensity="panel" />
 
       <div className="relative mx-auto w-full max-w-[52rem] px-4 py-10 sm:px-6 sm:py-14">
+        {/* Step three draws a ring of its own while it reads the files, and two rings filling at
+            once — one of them already full — is a header arguing with the page under it. The step
+            counter stands down and leaves the way out. */}
         <div className="flex items-center justify-between gap-4">
-          <ProgressRing value={step / STEPS} size={48} label="Setting up DarwinLens">
-            {step}/{STEPS}
-          </ProgressRing>
+          {step < STEPS ? (
+            <ProgressRing value={step / STEPS} size={48} label="Setting up DarwinLens">
+              {step}/{STEPS}
+            </ProgressRing>
+          ) : (
+            <span />
+          )}
           <Button variant="quiet" onClick={skip}>
             Skip for now
           </Button>

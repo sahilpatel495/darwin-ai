@@ -84,13 +84,27 @@ export function suggestionsFor(questions: readonly string[], role: string | null
     return { kind, glyph, question: text }
   }
 
+  // How many questions about this subject have already been taken. Filled by the first sort and
+  // read by the second, which is what turns a sorted list into a round-robin.
+  const taken = new Map<string, number>()
+
   const fromCatalog = questions
     .map(pick)
     .filter((item): item is Suggestion => item !== null)
-    // A stable sort by how much this role cares about the subject: the catalog's own order is
-    // kept inside each subject, because the server put its best question first.
-    .map((item, index) => ({ item, index, at: rank(kindOf(item.question).key, order) }))
+    .map((item, index) => ({ item, index, at: rank(kindOf(item.question).key, order), key: kindOf(item.question).key, round: 0 }))
+    // First: by how much this role cares about the subject. The catalog's own order is kept inside
+    // each subject, because the server put its best question for that subject first.
     .sort((a, b) => a.at - b.at || a.index - b.index)
+    .map((entry) => {
+      const round = taken.get(entry.key) ?? 0
+      taken.set(entry.key, round + 1)
+      return { ...entry, round }
+    })
+    // Then: one question from every subject before a second from any of them. Four cards that all
+    // said "Pay" told the analyst this product answers one kind of question — and the sample's
+    // catalog leads with five pay questions, so that is exactly what they got. The role still
+    // decides which subject is offered first; it no longer decides all four.
+    .sort((a, b) => a.round - b.round || a.at - b.at || a.index - b.index)
     .map((entry) => entry.item)
 
   if (fromCatalog.length >= limit) return fromCatalog.slice(0, limit)

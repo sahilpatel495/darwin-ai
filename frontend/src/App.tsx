@@ -16,7 +16,7 @@ import AuthPage from './components/auth/AuthPage'
 import Home from './components/home/Home'
 import { createFromFiles, createFromSample, NothingRead } from './components/home/create'
 import Landing from './components/marketing/Landing'
-import { MarketingNav } from './components/marketing/MarketingChrome'
+import { MarketingFooter, MarketingNav } from './components/marketing/MarketingChrome'
 import Welcome from './components/onboarding/Welcome'
 import type { LoadSource } from './components/onboarding/Welcome'
 import CommandPalette from './components/shell/CommandPalette'
@@ -27,7 +27,7 @@ import { NOTHING_READ, problemFrom } from './components/shell/problem'
 import type { Problem } from './components/shell/problem'
 import SettingsPage from './components/settings/SettingsPage'
 import Gallery from './components/ui/Gallery'
-import { Toaster } from './components/ui'
+import { Toaster, toast } from './components/ui'
 import { getStoredUser } from './api'
 import { getProject, listProjects, onProjectsChanged, scopeProjectsTo } from './lib/projects'
 import type { ProjectRecord } from './lib/projects'
@@ -92,14 +92,21 @@ export default function App() {
     if (used && !(route.name === 'project' && route.id === fresh.project.id)) setFresh(null)
   }, [route, fresh])
 
-  // §6: a visitor cannot open somebody's work, and somebody signed in has no use for the sign-in
-  // page. Held until the session has answered, so nobody is bounced off their own bookmark while
-  // the token is still being checked.
+  // §6: a visitor cannot open somebody's work, and a member has no use for the two auth screens.
+  // A guest is signed in but still needs sign-up — it is how they keep what they have done — so
+  // the guard is told which they are. Held until the session has answered, so nobody is bounced
+  // off their own bookmark while the token is still being checked.
+  const isGuest = session.user !== null && session.user.kind !== 'member'
   useEffect(() => {
     if (session.status === 'starting') return
-    const elsewhere = guard(route, signedIn)
+    // The hash is the truth; `route` is a render behind it. Signing up sets the hash to #/welcome
+    // and turns `signedIn` on in the same tick, so this effect used to run once with the route it
+    // still thought it was on — #/signup — and send a brand-new member to their projects, over the
+    // top of the onboarding they were already on their way to. Nobody ever saw the three steps.
+    if (parseRoute(location.hash).name !== route.name) return
+    const elsewhere = guard(route, signedIn, isGuest)
     if (elsewhere) go(elsewhere)
-  }, [route, session.status, signedIn])
+  }, [route, session.status, signedIn, isGuest])
 
   // Onboarding runs once (§7), and once means once per visit rather than once per navigation: a
   // rule that redirected every arrival at `#/home` would be a room with no door.
@@ -153,7 +160,13 @@ export default function App() {
       const { project, catalog } = await createFromSample()
       opened(project, catalog)
     } catch (error) {
-      setDemoProblem(error instanceof NothingRead ? NOTHING_READ : problemFrom(error))
+      const problem = error instanceof NothingRead ? NOTHING_READ : problemFrom(error)
+      setDemoProblem(problem)
+      // The banner belongs to the landing page — but by the time the sample can fail, the guest
+      // account already exists, so the landing has been replaced by their (empty) projects screen
+      // and nobody ever reads it. Pressing "Try the live demo" and arriving nowhere, silently, is
+      // the worst version of this. The toast follows them to whichever screen they landed on.
+      toast(problem.nextStep ? `${problem.message} ${problem.nextStep}` : problem.message, 'error')
     } finally {
       setDemoBusy(false)
     }
@@ -219,6 +232,12 @@ export default function App() {
     }
   } else {
     switch (route.name) {
+      // A guest upgrading in place. The guard lets only a guest this far, and AuthPage is handed
+      // the guest's own user so signing up keeps their id, their projects and their questions.
+      case 'signin':
+      case 'signup':
+        screen = <AuthPage mode={route.name} session={session} user={session.user} onAuthed={onAuthed} />
+        break
       case 'welcome':
         screen = (
           <Welcome
@@ -274,12 +293,24 @@ export default function App() {
   }
 
   const onProjectPage = isProjectRoute(route) && project !== null
+  // A visitor reading How it works or Trust is on a marketing page, so it gets the marketing
+  // frame — both halves of it. The footer is not decoration here: it carries the line that says
+  // this is an independent prototype, which every page a visitor can reach has to state.
+  const marketingChrome = !signedIn && (route.name === 'how' || route.name === 'trust')
+
+  // The Ask tab is the one screen that must be exactly as tall as the window: the conversation
+  // scrolls inside it and the composer stays docked at the bottom however long the thread gets.
+  // With `min-h-full` the wrapper grows with the conversation, the page scrolls instead, and the
+  // composer scrolls away with it. Every other screen is a document and grows freely.
+  const askScreen = onProjectPage && route.name === 'project'
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className={`flex flex-col ${askScreen ? 'h-dvh overflow-hidden print:h-auto print:overflow-visible' : 'min-h-full'}`}>
       {/* The landing and the auth screens bring their own chrome (§7), so the only bar drawn here
           is the app's — plus the marketing nav for a visitor reading How it works or Trust. */}
-      {signedIn ? (
+      {/* A guest upgrading is on the auth screen, which brings its own full-height chrome (§7):
+          the app bar on top of it would push the split layout down and cut off the first field. */}
+      {signedIn && route.name !== 'signin' && route.name !== 'signup' ? (
         <TopBar
           route={route}
           project={onProjectPage ? project : null}
@@ -290,7 +321,7 @@ export default function App() {
           onSignOut={() => void session.signOut().then(() => go(HOME))}
         />
       ) : (
-        (route.name === 'how' || route.name === 'trust') && <MarketingNav />
+        marketingChrome && <MarketingNav />
       )}
 
       {/* Keyed by the route so the incoming page fades in and rises 12px (§4); nothing animates on
@@ -304,6 +335,8 @@ export default function App() {
       >
         {screen}
       </div>
+
+      {marketingChrome && <MarketingFooter />}
 
       {onProjectPage && project && <MobileTabBar route={route} projectId={project.id} />}
 

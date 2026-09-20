@@ -82,6 +82,18 @@ test('the counts are the catalog’s own, and a combined view is not counted as 
   const stages = byId(CATALOG)
   // Four files, not five: attendance_all is a view built from two of them.
   assert.match(stages.read.detail, /^4 files, 3,400 rows$/)
+
+  // Nor is a second sheet a second file. One workbook giving a Register and a Bonuses table is
+  // still one thing the analyst dropped in, and the rows of both are still read.
+  const workbook = {
+    ...CATALOG,
+    tables: [
+      table('salary_register', { source_file: 'Salary_Register_2025.xlsx', sheet: 'Register', row_count: 5088 }),
+      table('salary_bonuses', { source_file: 'Salary_Register_2025.xlsx', sheet: 'Bonuses', row_count: 150 }),
+      table('employees', { row_count: 500 }),
+    ],
+  }
+  assert.match(byId(workbook).read.detail, /^2 files, 5,738 rows$/)
   assert.equal(stages.clean.detail, '3 title rows skipped, 1 total row dropped, 6 repeated rows removed and 2 columns of ₹ amounts and dates read properly')
   assert.match(stages.links.detail, /^2 links/)
   assert.match(stages.combined.detail, /^2 files stacked into 1 view/)

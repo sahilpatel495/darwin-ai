@@ -22,17 +22,17 @@ export interface TipCopy {
 export const TIPS: Record<TipId, TipCopy> = {
   'data-button': {
     id: 'data-button',
-    where: 'The top bar, the first time a project has files.',
+    where: 'ProjectShell, under the top bar, the first time a project has files.',
     text: 'Data holds your files: what was cleaned while they were read, and which columns are kept away from the AI.',
   },
   'how-i-got-this': {
     id: 'how-i-got-this',
-    where: 'Under the first answer in a project.',
+    where: 'Thread, under the first real answer in a project.',
     text: 'Open “How I got this” to see the question as it was read and the query that produced this number.',
   },
   'overview-tab': {
     id: 'overview-tab',
-    where: 'Beside the Overview tab, once the first answer has arrived.',
+    where: 'ProjectShell, under the Overview tab, once the first answer has arrived.',
     text: 'Overview fills itself in from your files, with no question to write and no AI involved.',
   },
 }
