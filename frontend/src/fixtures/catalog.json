@@ -1,0 +1,620 @@
+{
+  "session_id": "fixture",
+  "version": 1,
+  "fingerprint": "fixture",
+  "tables": [
+    {
+      "name": "employees",
+      "source_file": "employees.csv",
+      "sheet": null,
+      "row_count": 8,
+      "columns": [
+        {
+          "name": "emp_id",
+          "label": "emp_id",
+          "type": "text",
+          "role": "employee_id",
+          "pii": null,
+          "is_identifier": true,
+          "is_unique": true,
+          "null_fraction": 0.0,
+          "distinct_count": 8,
+          "min": null,
+          "max": null,
+          "values": [
+            "E001",
+            "E002",
+            "E003",
+            "E004",
+            "E005",
+            "E006",
+            "E007",
+            "E008"
+          ]
+        },
+        {
+          "name": "name",
+          "label": "name",
+          "type": "text",
+          "role": "person_name",
+          "pii": "person_name",
+          "is_identifier": false,
+          "is_unique": true,
+          "null_fraction": 0.0,
+          "distinct_count": 8,
+          "min": null,
+          "max": null,
+          "values": null
+        },
+        {
+          "name": "email",
+          "label": "email",
+          "type": "text",
+          "role": null,
+          "pii": "email",
+          "is_identifier": false,
+          "is_unique": true,
+          "null_fraction": 0.0,
+          "distinct_count": 8,
+          "min": null,
+          "max": null,
+          "values": null
+        },
+        {
+          "name": "department",
+          "label": "department",
+          "type": "text",
+          "role": "department",
+          "pii": null,
+          "is_identifier": false,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 3,
+          "min": null,
+          "max": null,
+          "values": [
+            "Engineering",
+            "HR",
+            "Sales"
+          ]
+        },
+        {
+          "name": "location",
+          "label": "location",
+          "type": "text",
+          "role": "location",
+          "pii": null,
+          "is_identifier": false,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 4,
+          "min": null,
+          "max": null,
+          "values": [
+            "Bengaluru",
+            "Hyderabad",
+            "Mumbai",
+            "Pune"
+          ]
+        },
+        {
+          "name": "gender",
+          "label": "gender",
+          "type": "text",
+          "role": "gender",
+          "pii": null,
+          "is_identifier": false,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 2,
+          "min": null,
+          "max": null,
+          "values": [
+            "F",
+            "M"
+          ]
+        },
+        {
+          "name": "date_of_joining",
+          "label": "date_of_joining",
+          "type": "date",
+          "role": "join_date",
+          "pii": null,
+          "is_identifier": false,
+          "is_unique": true,
+          "null_fraction": 0.0,
+          "distinct_count": 8,
+          "min": "2017-11-20",
+          "max": "2024-01-08",
+          "values": null
+        },
+        {
+          "name": "exit_date",
+          "label": "exit_date",
+          "type": "date",
+          "role": "exit_date",
+          "pii": null,
+          "is_identifier": false,
+          "is_unique": false,
+          "null_fraction": 0.75,
+          "distinct_count": 2,
+          "min": "2025-03-31",
+          "max": "2025-06-30",
+          "values": null
+        },
+        {
+          "name": "ctc",
+          "label": "ctc",
+          "type": "currency",
+          "role": "ctc",
+          "pii": null,
+          "is_identifier": false,
+          "is_unique": false,
+          "null_fraction": 0.125,
+          "distinct_count": 7,
+          "min": "900000.0",
+          "max": "3000000.0",
+          "values": null
+        }
+      ],
+      "health": {
+        "rows": 8,
+        "columns": 9,
+        "skipped_title_rows": 0,
+        "dropped_total_rows": 0,
+        "duplicate_rows": 0,
+        "duplicates_removed": false,
+        "date_format": null,
+        "date_format_ambiguous": false,
+        "coercions": [],
+        "null_hotspots": {},
+        "pii_columns": [
+          "name",
+          "email"
+        ],
+        "preserved_id_columns": [],
+        "warnings": []
+      },
+      "is_view": false
+    },
+    {
+      "name": "salary_register",
+      "source_file": "Salary_Register_2025.xlsx",
+      "sheet": "Register",
+      "row_count": 16,
+      "columns": [
+        {
+          "name": "emp_code",
+          "label": "emp_code",
+          "type": "text",
+          "role": "employee_id",
+          "pii": null,
+          "is_identifier": true,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 8,
+          "min": null,
+          "max": null,
+          "values": [
+            "E001",
+            "E002",
+            "E003",
+            "E004",
+            "E005",
+            "E006",
+            "E007",
+            "E008"
+          ]
+        },
+        {
+          "name": "pay_month",
+          "label": "pay_month",
+          "type": "date",
+          "role": "pay_month",
+          "pii": null,
+          "is_identifier": false,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 2,
+          "min": "2025-01-01",
+          "max": "2025-02-01",
+          "values": null
+        },
+        {
+          "name": "gross",
+          "label": "gross",
+          "type": "currency",
+          "role": "gross",
+          "pii": null,
+          "is_identifier": false,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 8,
+          "min": "60000.0",
+          "max": "250000.0",
+          "values": null
+        },
+        {
+          "name": "net",
+          "label": "net",
+          "type": "currency",
+          "role": "net",
+          "pii": null,
+          "is_identifier": false,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 8,
+          "min": "48000.0",
+          "max": "200000.0",
+          "values": null
+        }
+      ],
+      "health": {
+        "rows": 16,
+        "columns": 4,
+        "skipped_title_rows": 3,
+        "dropped_total_rows": 1,
+        "duplicate_rows": 6,
+        "duplicates_removed": true,
+        "date_format": "DD/MM/YYYY",
+        "date_format_ambiguous": false,
+        "coercions": [
+          {
+            "column": "gross",
+            "to_type": "currency",
+            "detail": "Parsed ₹ strings with Indian digit grouping",
+            "unparseable": 3,
+            "examples": [
+              "TBD",
+              "N/A"
+            ]
+          },
+          {
+            "column": "pay_month",
+            "to_type": "date",
+            "detail": "Parsed day-first dates",
+            "unparseable": 0,
+            "examples": []
+          }
+        ],
+        "null_hotspots": {
+          "net": 0.08
+        },
+        "pii_columns": [],
+        "preserved_id_columns": [
+          "emp_code"
+        ],
+        "warnings": [
+          "3 values in gross could not be read as numbers and were left empty."
+        ]
+      },
+      "is_view": false
+    },
+    {
+      "name": "attendance_q1",
+      "source_file": "attendance_q1.csv",
+      "sheet": null,
+      "row_count": 24,
+      "columns": [
+        {
+          "name": "emp_id",
+          "label": "emp_id",
+          "type": "text",
+          "role": "employee_id",
+          "pii": null,
+          "is_identifier": true,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 8,
+          "min": null,
+          "max": null,
+          "values": [
+            "E001",
+            "E002",
+            "E003",
+            "E004",
+            "E005",
+            "E006",
+            "E007",
+            "E008"
+          ]
+        },
+        {
+          "name": "month",
+          "label": "month",
+          "type": "date",
+          "role": "date",
+          "pii": null,
+          "is_identifier": false,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 3,
+          "min": "2025-01-01",
+          "max": "2025-03-01",
+          "values": null
+        },
+        {
+          "name": "days_present",
+          "label": "days_present",
+          "type": "integer",
+          "role": "days_present",
+          "pii": null,
+          "is_identifier": false,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 3,
+          "min": "20",
+          "max": "22",
+          "values": null
+        },
+        {
+          "name": "days_absent",
+          "label": "days_absent",
+          "type": "integer",
+          "role": "days_absent",
+          "pii": null,
+          "is_identifier": false,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 3,
+          "min": "0",
+          "max": "2",
+          "values": null
+        }
+      ],
+      "health": {
+        "rows": 24,
+        "columns": 4,
+        "skipped_title_rows": 0,
+        "dropped_total_rows": 0,
+        "duplicate_rows": 0,
+        "duplicates_removed": false,
+        "date_format": null,
+        "date_format_ambiguous": false,
+        "coercions": [],
+        "null_hotspots": {},
+        "pii_columns": [],
+        "preserved_id_columns": [],
+        "warnings": []
+      },
+      "is_view": false
+    },
+    {
+      "name": "attendance_q2",
+      "source_file": "attendance_q2.csv",
+      "sheet": null,
+      "row_count": 24,
+      "columns": [
+        {
+          "name": "emp_id",
+          "label": "emp_id",
+          "type": "text",
+          "role": "employee_id",
+          "pii": null,
+          "is_identifier": true,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 8,
+          "min": null,
+          "max": null,
+          "values": [
+            "E001",
+            "E002",
+            "E003",
+            "E004",
+            "E005",
+            "E006",
+            "E007",
+            "E008"
+          ]
+        },
+        {
+          "name": "month",
+          "label": "month",
+          "type": "date",
+          "role": "date",
+          "pii": null,
+          "is_identifier": false,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 3,
+          "min": "2025-04-01",
+          "max": "2025-06-01",
+          "values": null
+        },
+        {
+          "name": "days_present",
+          "label": "days_present",
+          "type": "integer",
+          "role": "days_present",
+          "pii": null,
+          "is_identifier": false,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 3,
+          "min": "20",
+          "max": "22",
+          "values": null
+        },
+        {
+          "name": "days_absent",
+          "label": "days_absent",
+          "type": "integer",
+          "role": "days_absent",
+          "pii": null,
+          "is_identifier": false,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 3,
+          "min": "0",
+          "max": "2",
+          "values": null
+        }
+      ],
+      "health": {
+        "rows": 24,
+        "columns": 4,
+        "skipped_title_rows": 0,
+        "dropped_total_rows": 0,
+        "duplicate_rows": 0,
+        "duplicates_removed": false,
+        "date_format": null,
+        "date_format_ambiguous": false,
+        "coercions": [],
+        "null_hotspots": {},
+        "pii_columns": [],
+        "preserved_id_columns": [],
+        "warnings": []
+      },
+      "is_view": false
+    },
+    {
+      "name": "attendance_all",
+      "source_file": "attendance_q1.csv + attendance_q2.csv",
+      "sheet": null,
+      "row_count": 48,
+      "columns": [
+        {
+          "name": "emp_id",
+          "label": "emp_id",
+          "type": "text",
+          "role": "employee_id",
+          "pii": null,
+          "is_identifier": true,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 8,
+          "min": null,
+          "max": null,
+          "values": [
+            "E001",
+            "E002",
+            "E003",
+            "E004",
+            "E005",
+            "E006",
+            "E007",
+            "E008"
+          ]
+        },
+        {
+          "name": "month",
+          "label": "month",
+          "type": "date",
+          "role": "date",
+          "pii": null,
+          "is_identifier": false,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 6,
+          "min": "2025-01-01",
+          "max": "2025-06-01",
+          "values": null
+        },
+        {
+          "name": "days_present",
+          "label": "days_present",
+          "type": "integer",
+          "role": "days_present",
+          "pii": null,
+          "is_identifier": false,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 3,
+          "min": "20",
+          "max": "22",
+          "values": null
+        },
+        {
+          "name": "days_absent",
+          "label": "days_absent",
+          "type": "integer",
+          "role": "days_absent",
+          "pii": null,
+          "is_identifier": false,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 3,
+          "min": "0",
+          "max": "2",
+          "values": null
+        },
+        {
+          "name": "source_file",
+          "label": "source_file",
+          "type": "text",
+          "role": null,
+          "pii": null,
+          "is_identifier": false,
+          "is_unique": false,
+          "null_fraction": 0.0,
+          "distinct_count": 2,
+          "min": null,
+          "max": null,
+          "values": [
+            "attendance_q1.csv",
+            "attendance_q2.csv"
+          ]
+        }
+      ],
+      "health": {
+        "rows": 48,
+        "columns": 5,
+        "skipped_title_rows": 0,
+        "dropped_total_rows": 0,
+        "duplicate_rows": 0,
+        "duplicates_removed": false,
+        "date_format": null,
+        "date_format_ambiguous": false,
+        "coercions": [],
+        "null_hotspots": {},
+        "pii_columns": [],
+        "preserved_id_columns": [],
+        "warnings": []
+      },
+      "is_view": true
+    }
+  ],
+  "relationships": [
+    {
+      "id": "employees.emp_id->salary_register.emp_code",
+      "left_table": "employees",
+      "left_column": "emp_id",
+      "right_table": "salary_register",
+      "right_column": "emp_code",
+      "match_left": 1.0,
+      "match_right": 1.0,
+      "cardinality": "1:N",
+      "status": "active"
+    },
+    {
+      "id": "attendance_q1.emp_id->employees.emp_id",
+      "left_table": "attendance_q1",
+      "left_column": "emp_id",
+      "right_table": "employees",
+      "right_column": "emp_id",
+      "match_left": 1.0,
+      "match_right": 1.0,
+      "cardinality": "N:1",
+      "status": "active"
+    }
+  ],
+  "unions": [
+    {
+      "id": "attendance_all",
+      "view_name": "attendance_all",
+      "tables": [
+        "attendance_q1",
+        "attendance_q2"
+      ],
+      "status": "active"
+    }
+  ],
+  "glossary": [],
+  "suggested_questions": [
+    "What is the total gross pay by department?",
+    "How has headcount changed month by month?",
+    "What is the attrition rate for FY25?",
+    "Which location has the highest average CTC?"
+  ]
+}

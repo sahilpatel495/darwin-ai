@@ -1,0 +1,50 @@
+{
+  "id": "a4",
+  "kind": "clarify",
+  "question": "What is the average salary by department?",
+  "text": "\"Salary\" could mean more than one column in your data. Which one should I use?",
+  "clarification": {
+    "term": "salary",
+    "question": "Which salary figure do you mean?",
+    "options": [
+      {
+        "label": "CTC, annual (employees.ctc)",
+        "value": "employees.ctc"
+      },
+      {
+        "label": "Gross pay, monthly (salary_register.gross)",
+        "value": "salary_register.gross"
+      },
+      {
+        "label": "Net pay, monthly (salary_register.net)",
+        "value": "salary_register.net"
+      }
+    ]
+  },
+  "missing": null,
+  "chart": null,
+  "table": null,
+  "work": {
+    "interpretation": "",
+    "reading": "",
+    "plan": [],
+    "sql": null,
+    "tables_used": [],
+    "rows_scanned": 0,
+    "assumptions": [],
+    "caveats": [],
+    "metrics_used": [],
+    "attempts": [],
+    "payloads": [],
+    "cross_check": {
+      "status": "skipped",
+      "model": null,
+      "detail": "",
+      "sql": null
+    },
+    "cached": false,
+    "timings_ms": {}
+  },
+  "confidence": null,
+  "followups": []
+}

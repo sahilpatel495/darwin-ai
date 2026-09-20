@@ -1,0 +1,29 @@
+[project]
+name = "verity"
+version = "0.1.0"
+description = "Plain-English questions over messy spreadsheets, with answers you can verify."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",
+    "duckdb>=1.5",
+    "pandas>=2.2",
+    "openpyxl>=3.1",
+    "sqlglot>=30",
+    "pydantic>=2.8",
+    "openai>=1.50",
+    "pyyaml>=6",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.27", "ruff>=0.6"]
+
+[tool.pytest.ini_options]
+pythonpath = ["backend", "."]
+testpaths = ["backend/tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

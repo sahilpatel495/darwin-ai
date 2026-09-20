@@ -1,0 +1,86 @@
+{
+  "generated_at": "2026-09-20T21:00:00+05:30",
+  "model": "openai/gpt-oss-120b",
+  "runs": 3,
+  "total": 40,
+  "accuracy": 0.925,
+  "accuracy_holdout": 0.9,
+  "trust_score": 0.88,
+  "by_category": {
+    "totals": 1.0,
+    "joins": 0.9,
+    "hr_metrics": 0.8,
+    "unanswerable": 1.0
+  },
+  "p50_ms": 2400,
+  "p95_ms": 5200,
+  "repair_rate": 0.12,
+  "crosscheck_agreement": 0.86,
+  "calibration": {
+    "high": {
+      "n": 29,
+      "accuracy": 0.97
+    },
+    "medium": {
+      "n": 8,
+      "accuracy": 0.75
+    },
+    "low": {
+      "n": 3,
+      "accuracy": 0.33
+    }
+  },
+  "models": [
+    {
+      "model": "openai/gpt-oss-120b",
+      "accuracy": 0.925,
+      "p50_ms": 2400
+    },
+    {
+      "model": "deepseek-v4-flash",
+      "accuracy": 0.9,
+      "p50_ms": 4100
+    }
+  ],
+  "cases": [
+    {
+      "id": "tot-01",
+      "category": "totals",
+      "split": "dev",
+      "question": "What is the total gross pay for 2025?",
+      "expected_kind": "answer",
+      "got_kind": "answer",
+      "passed": true,
+      "confidence": "high",
+      "latency_ms": 2100,
+      "repairs": 0,
+      "note": ""
+    },
+    {
+      "id": "hr-03",
+      "category": "hr_metrics",
+      "split": "dev",
+      "question": "What is the attrition rate for FY25?",
+      "expected_kind": "answer",
+      "got_kind": "answer",
+      "passed": false,
+      "confidence": "medium",
+      "latency_ms": 3900,
+      "repairs": 1,
+      "note": "Used closing headcount instead of the average."
+    },
+    {
+      "id": "una-02",
+      "category": "unanswerable",
+      "split": "holdout",
+      "question": "What is our customer churn rate?",
+      "expected_kind": "refusal",
+      "got_kind": "refusal",
+      "passed": true,
+      "confidence": null,
+      "latency_ms": 1500,
+      "repairs": 0,
+      "note": ""
+    }
+  ]
+}

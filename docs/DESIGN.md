@@ -61,7 +61,7 @@ Multi-file upload (CSV, XLSX, multi-sheet) · cleaning + profiling · per-sessio
 Export CSV/PNG · answer feedback that appends to eval candidates · "exclude duplicates" toggle · mini SVG schema diagram · MCP endpoint over the same engine (Darwinbox ships an HCM MCP server; the FDE JD prefers MCP) · dark mode.
 
 **Deliberately out (stated in the write-up)**
-Auth and multi-tenancy · persistence across restarts · warehouses other than DuckDB · fine-tuning · RAG/vector search over rows · two-row merged headers · wide attendance-muster unpivot · small-n salary suppression · files over 25 MB on the hosted demo.
+Auth and multi-tenancy · persistence across restarts · warehouses other than DuckDB · fine-tuning · RAG/vector search over rows · two-row merged headers · wide attendance-muster unpivot · small-n salary suppression · files over 10 MB on the hosted demo (25 MB locally).
 
 Rule: never leave a half-working feature visible. A feature that is not green by its gate is removed from the UI, not hidden behind a bug.
 
@@ -208,7 +208,7 @@ Streaming is SSE over the POST response, read with `fetch`; headers `Cache-Contr
 | ai-pipeline | `llm`, `query` + tests |
 | frontend | `frontend/` against contract fixtures |
 | qa-eval | `demo_data/`, `eval/`, adversarial corpus, Playwright |
-| devops-docs | Dockerfile, compose, Makefile, Fly/Render config, CI, README skeleton |
+| devops-docs | Dockerfile, compose, Makefile, Render config, CI, README skeleton |
 
 | Phase | Clock (IST) | Work | Gate |
 |---|---|---|---|

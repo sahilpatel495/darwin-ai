@@ -1,0 +1,51 @@
+{
+  "id": "a5",
+  "kind": "refusal",
+  "question": "What is our customer churn rate?",
+  "text": "I can't answer that from the uploaded files: none of them contain customer or subscription data.",
+  "clarification": null,
+  "missing": "A table of customers with a start date and an end (churn) date.",
+  "chart": null,
+  "table": null,
+  "work": {
+    "interpretation": "Customer churn needs customer records with start and end dates.",
+    "reading": "",
+    "plan": [],
+    "sql": null,
+    "tables_used": [],
+    "rows_scanned": 0,
+    "assumptions": [],
+    "caveats": [],
+    "metrics_used": [],
+    "attempts": [],
+    "payloads": [
+      {
+        "purpose": "generate",
+        "provider": "groq",
+        "model": "openai/gpt-oss-120b",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You translate questions into one DuckDB SELECT..."
+          },
+          {
+            "role": "user",
+            "content": "TABLE employees (8 rows) from employees.csv\n  emp_id text [id, unique]\n  email text [PII:email, values hidden]\n\nQuestion: total gross pay by department"
+          }
+        ],
+        "cached": false,
+        "latency_ms": 840
+      }
+    ],
+    "cross_check": {
+      "status": "skipped",
+      "model": null,
+      "detail": "",
+      "sql": null
+    },
+    "cached": false,
+    "timings_ms": {}
+  },
+  "confidence": null,
+  "followups": []
+}

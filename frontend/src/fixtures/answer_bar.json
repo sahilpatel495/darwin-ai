@@ -1,0 +1,137 @@
+{
+  "id": "a1",
+  "kind": "answer",
+  "question": "What is the total gross pay by department?",
+  "text": "Engineering has the highest total gross pay at ₹12.00 L, followed by Sales at ₹6.33 L and HR at ₹2.70 L.",
+  "clarification": null,
+  "missing": null,
+  "chart": {
+    "type": "bar",
+    "x": "department",
+    "y": [
+      "total_gross"
+    ],
+    "series": null,
+    "title": "Total gross pay by department",
+    "note": null,
+    "value_format": "currency_inr"
+  },
+  "table": {
+    "columns": [
+      "department",
+      "total_gross"
+    ],
+    "rows": [
+      [
+        "Engineering",
+        1200000.0
+      ],
+      [
+        "Sales",
+        633334.0
+      ],
+      [
+        "HR",
+        270000.0
+      ]
+    ],
+    "display": [
+      [
+        "Engineering",
+        "₹12.00 L"
+      ],
+      [
+        "Sales",
+        "₹6.33 L"
+      ],
+      [
+        "HR",
+        "₹2.70 L"
+      ]
+    ],
+    "row_count": 3,
+    "truncated": false
+  },
+  "work": {
+    "interpretation": "Sum of gross pay from the salary register, grouped by each employee's department.",
+    "reading": "Joins employees to the salary register on employee ID, then adds up gross pay for each department.",
+    "plan": [
+      "Join employees to salary_register on emp_id = emp_code",
+      "Sum gross per department",
+      "Sort from highest to lowest"
+    ],
+    "sql": "SELECT e.department, sum(s.gross) AS total_gross\nFROM employees e JOIN salary_register s ON e.emp_id = s.emp_code\nGROUP BY e.department ORDER BY total_gross DESC",
+    "tables_used": [
+      "employees",
+      "salary_register"
+    ],
+    "rows_scanned": 24,
+    "assumptions": [
+      "All pay months in the file are included (Jan–Feb 2025)."
+    ],
+    "caveats": [
+      "6 exact duplicate rows in salary_register were excluded.",
+      "8% of net values are empty (not used here)."
+    ],
+    "metrics_used": [],
+    "attempts": [
+      {
+        "sql": "SELECT department, sum(gross) FROM salary_register GROUP BY 1",
+        "model": "openai/gpt-oss-120b",
+        "reason": "initial",
+        "error": "Column \"department\" not found in salary_register. Did you mean employees.department?"
+      },
+      {
+        "sql": "SELECT e.department, sum(s.gross) ...",
+        "model": "openai/gpt-oss-120b",
+        "reason": "guard_rejected",
+        "error": null
+      }
+    ],
+    "payloads": [
+      {
+        "purpose": "generate",
+        "provider": "groq",
+        "model": "openai/gpt-oss-120b",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You translate questions into one DuckDB SELECT..."
+          },
+          {
+            "role": "user",
+            "content": "TABLE employees (8 rows) from employees.csv\n  emp_id text [id, unique]\n  email text [PII:email, values hidden]\n\nQuestion: total gross pay by department"
+          }
+        ],
+        "cached": false,
+        "latency_ms": 840
+      }
+    ],
+    "cross_check": {
+      "status": "agreed",
+      "model": "deepseek-v4-flash",
+      "detail": "A second model wrote different SQL and got the same 3 rows.",
+      "sql": null
+    },
+    "cached": false,
+    "timings_ms": {
+      "generate": 840,
+      "execute": 12,
+      "narrate": 410
+    }
+  },
+  "confidence": {
+    "level": "high",
+    "score": 0.8,
+    "reasons": [
+      "A second model independently reached the same result.",
+      "One SQL repair was needed.",
+      "100% of join keys matched."
+    ]
+  },
+  "followups": [
+    "Split that by location",
+    "Show the monthly trend",
+    "Which department has the highest average gross?"
+  ]
+}

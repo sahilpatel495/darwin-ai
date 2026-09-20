@@ -1,0 +1,101 @@
+{
+  "id": "a2",
+  "kind": "answer",
+  "question": "What is the attrition rate for 2025?",
+  "text": "Attrition for 2025 is 28.6%: 2 exits against an average headcount of 7.",
+  "clarification": null,
+  "missing": null,
+  "chart": {
+    "type": "kpi",
+    "x": null,
+    "y": [
+      "attrition_pct"
+    ],
+    "series": null,
+    "title": "Attrition rate, 2025",
+    "note": null,
+    "value_format": "percent"
+  },
+  "table": {
+    "columns": [
+      "exits",
+      "avg_headcount",
+      "attrition_pct"
+    ],
+    "rows": [
+      [
+        2,
+        7.0,
+        28.6
+      ]
+    ],
+    "display": [
+      [
+        "2",
+        "7",
+        "28.6%"
+      ]
+    ],
+    "row_count": 1,
+    "truncated": false
+  },
+  "work": {
+    "interpretation": "Exits in 2025 divided by average headcount in 2025.",
+    "reading": "Counts employees whose exit date falls in 2025 and divides by the average of opening and closing headcount.",
+    "plan": [
+      "Count exits in 2025",
+      "Average opening and closing headcount",
+      "Divide and express as a percentage"
+    ],
+    "sql": "WITH ... SELECT exits, avg_headcount, round(100.0 * exits / avg_headcount, 1) AS attrition_pct FROM ...",
+    "tables_used": [
+      "employees"
+    ],
+    "rows_scanned": 8,
+    "assumptions": [],
+    "caveats": [],
+    "metrics_used": [
+      "attrition_rate"
+    ],
+    "attempts": [],
+    "payloads": [
+      {
+        "purpose": "generate",
+        "provider": "groq",
+        "model": "openai/gpt-oss-120b",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You translate questions into one DuckDB SELECT..."
+          },
+          {
+            "role": "user",
+            "content": "TABLE employees (8 rows) from employees.csv\n  emp_id text [id, unique]\n  email text [PII:email, values hidden]\n\nQuestion: total gross pay by department"
+          }
+        ],
+        "cached": false,
+        "latency_ms": 840
+      }
+    ],
+    "cross_check": {
+      "status": "disagreed",
+      "model": "deepseek-v4-flash",
+      "detail": "A second model got 25.0% by dividing by closing headcount instead of the average.",
+      "sql": null
+    },
+    "cached": false,
+    "timings_ms": {}
+  },
+  "confidence": {
+    "level": "medium",
+    "score": 0.6,
+    "reasons": [
+      "Used the vetted definition of attrition rate.",
+      "A second model reached a different number (25.0%)."
+    ]
+  },
+  "followups": [
+    "Break attrition down by department",
+    "Show exits by reason"
+  ]
+}
