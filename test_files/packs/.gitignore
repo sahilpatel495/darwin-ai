@@ -1,0 +1,10 @@
+# The unzipped pack folders are rebuilt by generate_packs.py on demand. The zips, the
+# generator, README.md and EXPECTED.md are the things worth keeping.
+benefits_and_claims/
+company_fintech_full/
+company_manufacturing_full/
+learning/
+leave_and_shifts/
+performance_and_engagement/
+recruitment/
+retail_sales/
