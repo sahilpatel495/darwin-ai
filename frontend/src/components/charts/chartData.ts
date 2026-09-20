@@ -105,9 +105,14 @@ export function buildChartData(chart: ChartSpec, table: ResultTable): ChartData 
     return hasNumber(points) ? { kind: 'grouped_bar', points, series } : fallback()
   }
 
+  // Chart types this renderer does not draw yet degrade to the nearest one it can: a two-way
+  // result falls back to the table; an area is a line; a histogram or donut is a bar.
+  if (chart.type === 'heatmap' || chart.type === 'stacked_bar') return fallback()
+  const kind = chart.type === 'line' || chart.type === 'area' ? 'line' : 'bar'
+
   // bar and line: one point per row, one series per measured column.
   if (yCols.length > MAX_SERIES) return fallback(TOO_MANY_GROUPS)
-  const rows = chart.type === 'bar' ? table.rows.slice(0, MAX_GROUPS) : table.rows
+  const rows = kind === 'bar' ? table.rows.slice(0, MAX_GROUPS) : table.rows
   const points = rows.map((row, r) => ({ x: display(r, xCol), values: yCols.map((c) => numberOrNull(row[c])) }))
-  return hasNumber(points) ? { kind: chart.type, points, series: yCols.map((c) => table.columns[c]) } : fallback()
+  return hasNumber(points) ? { kind, points, series: yCols.map((c) => table.columns[c]) } : fallback()
 }

@@ -1,7 +1,7 @@
 // The only file that talks to the backend. Lead-owned: it must match backend/app/main.py.
 // Set VITE_MOCK=1 to develop the UI against ./fixtures with no backend running.
 
-import type { Answer, AskRequest, Catalog, ErrorResponse, EvalReport, Metric, ResultTable, StepEvent } from './types'
+import type { AnalysisCatalog, AnalysisRequest, Answer, AskRequest, Catalog, Dashboard, ErrorResponse, EvalReport, InsightTile, Metric, ResultTable, StepEvent } from './types'
 
 const MOCK = import.meta.env.VITE_MOCK === '1'
 const SESSION_KEY = 'verity.session'
@@ -130,6 +130,16 @@ export const previewTable = (sessionId: string, tableName: string, limit = 50) =
   MOCK
     ? fixture<Answer>('answer_bar', 300).then((answer) => answer.table as ResultTable)
     : http<ResultTable>(`/api/sessions/${sessionId}/tables/${encodeURIComponent(tableName)}/preview?limit=${limit}`)
+
+// The no-AI half: computed by templates on the server, instant, works while models are busy.
+export const getDashboard = (sessionId: string) =>
+  MOCK ? fixture<Dashboard>('dashboard', 600) : http<Dashboard>(`/api/sessions/${sessionId}/dashboard`)
+
+export const getAnalyses = (sessionId: string) =>
+  MOCK ? fixture<AnalysisCatalog>('analyses', 200) : http<AnalysisCatalog>(`/api/sessions/${sessionId}/analyses`)
+
+export const runAnalysis = (sessionId: string, request: AnalysisRequest) =>
+  MOCK ? fixture<InsightTile>('tile', 500) : http<InsightTile>(`/api/sessions/${sessionId}/analyses/run`, json('POST', request))
 
 export const getEvalReport = () => (MOCK ? fixture<EvalReport>('eval_report', 300) : http<EvalReport>('/api/eval/report'))
 

@@ -1,0 +1,979 @@
+{
+  "session_id": "fixture",
+  "catalog_version": 1,
+  "generated_ms": 84,
+  "sections": [
+    {
+      "title": "People",
+      "description": "Who works here today.",
+      "tiles": [
+        {
+          "id": "kpi-headcount",
+          "title": "Active employees",
+          "kind": "kpi",
+          "statement": "430 people are active today.",
+          "insights": [
+            "70 have left since 2015",
+            "14% of everyone ever hired"
+          ],
+          "chart": {
+            "type": "kpi",
+            "x": null,
+            "y": [
+              "active_employees"
+            ],
+            "series": null,
+            "title": "Active employees",
+            "note": null,
+            "value_format": "number"
+          },
+          "table": {
+            "columns": [
+              "active_employees"
+            ],
+            "rows": [
+              [
+                430
+              ]
+            ],
+            "display": [
+              [
+                "430"
+              ]
+            ],
+            "row_count": 1,
+            "truncated": false
+          },
+          "sql": "SELECT count(*) AS active_employees FROM employees WHERE exit_date IS NULL",
+          "tables_used": [
+            "employees"
+          ],
+          "caveats": [],
+          "ask": "How has headcount changed year by year?"
+        },
+        {
+          "id": "break-dept",
+          "title": "Employees by department",
+          "kind": "breakdown",
+          "statement": "Engineering is the largest department with 168 people; Finance is the smallest with 32.",
+          "insights": [
+            "Top 2 departments hold 58% of people",
+            "Largest is 5.3× the smallest"
+          ],
+          "chart": {
+            "type": "bar",
+            "x": "department",
+            "y": [
+              "employees"
+            ],
+            "series": null,
+            "title": "Employees by department",
+            "note": null,
+            "value_format": "number"
+          },
+          "table": {
+            "columns": [
+              "department",
+              "employees"
+            ],
+            "rows": [
+              [
+                "Engineering",
+                168
+              ],
+              [
+                "Sales",
+                121
+              ],
+              [
+                "Support",
+                84
+              ],
+              [
+                "Operations",
+                55
+              ],
+              [
+                "HR",
+                40
+              ],
+              [
+                "Finance",
+                32
+              ]
+            ],
+            "display": [
+              [
+                "Engineering",
+                "168"
+              ],
+              [
+                "Sales",
+                "121"
+              ],
+              [
+                "Support",
+                "84"
+              ],
+              [
+                "Operations",
+                "55"
+              ],
+              [
+                "HR",
+                "40"
+              ],
+              [
+                "Finance",
+                "32"
+              ]
+            ],
+            "row_count": 6,
+            "truncated": false
+          },
+          "sql": "SELECT department, count(*) AS employees FROM employees GROUP BY 1 ORDER BY 2 DESC",
+          "tables_used": [
+            "employees"
+          ],
+          "caveats": [],
+          "ask": null
+        },
+        {
+          "id": "share-gender",
+          "title": "Gender mix",
+          "kind": "share",
+          "statement": "Women make up 41% of employees.",
+          "insights": [],
+          "chart": {
+            "type": "donut",
+            "x": "gender",
+            "y": [
+              "employees"
+            ],
+            "series": null,
+            "title": "Gender mix",
+            "note": null,
+            "value_format": "number"
+          },
+          "table": {
+            "columns": [
+              "gender",
+              "employees"
+            ],
+            "rows": [
+              [
+                "Male",
+                282
+              ],
+              [
+                "Female",
+                205
+              ],
+              [
+                "Not stated",
+                13
+              ]
+            ],
+            "display": [
+              [
+                "Male",
+                "282"
+              ],
+              [
+                "Female",
+                "205"
+              ],
+              [
+                "Not stated",
+                "13"
+              ]
+            ],
+            "row_count": 3,
+            "truncated": false
+          },
+          "sql": "SELECT gender, count(*) AS employees FROM employees GROUP BY 1",
+          "tables_used": [
+            "employees"
+          ],
+          "caveats": [],
+          "ask": null
+        },
+        {
+          "id": "stack-loc",
+          "title": "Departments across locations",
+          "kind": "comparison",
+          "statement": "Bengaluru holds the most people in every department except Sales, where Mumbai leads.",
+          "insights": [],
+          "chart": {
+            "type": "stacked_bar",
+            "x": "location",
+            "y": [
+              "employees"
+            ],
+            "series": "department",
+            "title": "Departments across locations",
+            "note": null,
+            "value_format": "number"
+          },
+          "table": {
+            "columns": [
+              "location",
+              "department",
+              "employees"
+            ],
+            "rows": [
+              [
+                "Bengaluru",
+                "Engineering",
+                62
+              ],
+              [
+                "Bengaluru",
+                "Sales",
+                28
+              ],
+              [
+                "Bengaluru",
+                "Support",
+                22
+              ],
+              [
+                "Mumbai",
+                "Engineering",
+                30
+              ],
+              [
+                "Mumbai",
+                "Sales",
+                41
+              ],
+              [
+                "Mumbai",
+                "Support",
+                16
+              ],
+              [
+                "Hyderabad",
+                "Engineering",
+                34
+              ],
+              [
+                "Hyderabad",
+                "Sales",
+                20
+              ],
+              [
+                "Hyderabad",
+                "Support",
+                19
+              ],
+              [
+                "Pune",
+                "Engineering",
+                26
+              ],
+              [
+                "Pune",
+                "Sales",
+                18
+              ],
+              [
+                "Pune",
+                "Support",
+                15
+              ],
+              [
+                "Gurugram",
+                "Engineering",
+                16
+              ],
+              [
+                "Gurugram",
+                "Sales",
+                14
+              ],
+              [
+                "Gurugram",
+                "Support",
+                12
+              ]
+            ],
+            "display": [
+              [
+                "Bengaluru",
+                "Engineering",
+                "62"
+              ],
+              [
+                "Bengaluru",
+                "Sales",
+                "28"
+              ],
+              [
+                "Bengaluru",
+                "Support",
+                "22"
+              ],
+              [
+                "Mumbai",
+                "Engineering",
+                "30"
+              ],
+              [
+                "Mumbai",
+                "Sales",
+                "41"
+              ],
+              [
+                "Mumbai",
+                "Support",
+                "16"
+              ],
+              [
+                "Hyderabad",
+                "Engineering",
+                "34"
+              ],
+              [
+                "Hyderabad",
+                "Sales",
+                "20"
+              ],
+              [
+                "Hyderabad",
+                "Support",
+                "19"
+              ],
+              [
+                "Pune",
+                "Engineering",
+                "26"
+              ],
+              [
+                "Pune",
+                "Sales",
+                "18"
+              ],
+              [
+                "Pune",
+                "Support",
+                "15"
+              ],
+              [
+                "Gurugram",
+                "Engineering",
+                "16"
+              ],
+              [
+                "Gurugram",
+                "Sales",
+                "14"
+              ],
+              [
+                "Gurugram",
+                "Support",
+                "12"
+              ]
+            ],
+            "row_count": 15,
+            "truncated": false
+          },
+          "sql": "SELECT location, department, count(*) AS employees FROM employees GROUP BY 1, 2",
+          "tables_used": [
+            "employees"
+          ],
+          "caveats": [],
+          "ask": null
+        }
+      ]
+    },
+    {
+      "title": "Pay",
+      "description": "What was paid, and how it is spread.",
+      "tiles": [
+        {
+          "id": "kpi-pay",
+          "title": "Gross pay, 2025",
+          "kind": "kpi",
+          "statement": "Total gross pay in 2025 was ₹54.67 Cr.",
+          "insights": [
+            "₹4.56 Cr a month on average"
+          ],
+          "chart": {
+            "type": "kpi",
+            "x": null,
+            "y": [
+              "total_gross"
+            ],
+            "series": null,
+            "title": "Gross pay, 2025",
+            "note": null,
+            "value_format": "currency_inr"
+          },
+          "table": {
+            "columns": [
+              "total_gross"
+            ],
+            "rows": [
+              [
+                546657000.0
+              ]
+            ],
+            "display": [
+              [
+                "₹54.67 Cr"
+              ]
+            ],
+            "row_count": 1,
+            "truncated": false
+          },
+          "sql": "SELECT sum(gross) AS total_gross FROM salary_register",
+          "tables_used": [
+            "salary_register"
+          ],
+          "caveats": [],
+          "ask": null
+        },
+        {
+          "id": "trend-pay",
+          "title": "Gross pay by month",
+          "kind": "trend",
+          "statement": "Gross pay rose from ₹4.38 Cr in Jan 2025 to ₹4.73 Cr in Dec 2025; the highest month was Nov 2025 at ₹4.76 Cr.",
+          "insights": [
+            "Up 8.0% over the year",
+            "Highest: Nov 2025"
+          ],
+          "chart": {
+            "type": "area",
+            "x": "pay_month",
+            "y": [
+              "total_gross"
+            ],
+            "series": null,
+            "title": "Gross pay by month",
+            "note": null,
+            "value_format": "currency_inr"
+          },
+          "table": {
+            "columns": [
+              "pay_month",
+              "total_gross"
+            ],
+            "rows": [
+              [
+                "2025-01-01",
+                43800000.0
+              ],
+              [
+                "2025-02-01",
+                44100000.0
+              ],
+              [
+                "2025-03-01",
+                44500000.0
+              ],
+              [
+                "2025-04-01",
+                44900000.0
+              ],
+              [
+                "2025-05-01",
+                45199999.99999999
+              ],
+              [
+                "2025-06-01",
+                45700000.0
+              ],
+              [
+                "2025-07-01",
+                46000000.0
+              ],
+              [
+                "2025-08-01",
+                46400000.0
+              ],
+              [
+                "2025-09-01",
+                46900000.00000001
+              ],
+              [
+                "2025-10-01",
+                47200000.0
+              ],
+              [
+                "2025-11-01",
+                47600000.0
+              ],
+              [
+                "2025-12-01",
+                47300000.00000001
+              ]
+            ],
+            "display": [
+              [
+                "2025-01",
+                "₹4.38 Cr"
+              ],
+              [
+                "2025-02",
+                "₹4.41 Cr"
+              ],
+              [
+                "2025-03",
+                "₹4.45 Cr"
+              ],
+              [
+                "2025-04",
+                "₹4.49 Cr"
+              ],
+              [
+                "2025-05",
+                "₹4.52 Cr"
+              ],
+              [
+                "2025-06",
+                "₹4.57 Cr"
+              ],
+              [
+                "2025-07",
+                "₹4.60 Cr"
+              ],
+              [
+                "2025-08",
+                "₹4.64 Cr"
+              ],
+              [
+                "2025-09",
+                "₹4.69 Cr"
+              ],
+              [
+                "2025-10",
+                "₹4.72 Cr"
+              ],
+              [
+                "2025-11",
+                "₹4.76 Cr"
+              ],
+              [
+                "2025-12",
+                "₹4.73 Cr"
+              ]
+            ],
+            "row_count": 12,
+            "truncated": false
+          },
+          "sql": "SELECT date_trunc('month', pay_month) AS pay_month, sum(gross) AS total_gross FROM salary_register GROUP BY 1 ORDER BY 1",
+          "tables_used": [
+            "salary_register"
+          ],
+          "caveats": [],
+          "ask": "Why did gross pay dip in December 2025?"
+        },
+        {
+          "id": "dist-ctc",
+          "title": "How annual CTC is spread",
+          "kind": "distribution",
+          "statement": "Half of employees earn between ₹6.2 L and ₹16.8 L; the median is ₹10.4 L.",
+          "insights": [
+            "Median ₹10.4 L",
+            "Top 10% earn above ₹28.0 L"
+          ],
+          "chart": {
+            "type": "histogram",
+            "x": "ctc_band",
+            "y": [
+              "employees"
+            ],
+            "series": null,
+            "title": "How annual CTC is spread",
+            "note": null,
+            "value_format": "number"
+          },
+          "table": {
+            "columns": [
+              "ctc_band",
+              "employees"
+            ],
+            "rows": [
+              [
+                "Under ₹5 L",
+                74
+              ],
+              [
+                "₹5–10 L",
+                161
+              ],
+              [
+                "₹10–15 L",
+                118
+              ],
+              [
+                "₹15–25 L",
+                92
+              ],
+              [
+                "₹25–40 L",
+                41
+              ],
+              [
+                "Over ₹40 L",
+                14
+              ]
+            ],
+            "display": [
+              [
+                "Under ₹5 L",
+                "74"
+              ],
+              [
+                "₹5–10 L",
+                "161"
+              ],
+              [
+                "₹10–15 L",
+                "118"
+              ],
+              [
+                "₹15–25 L",
+                "92"
+              ],
+              [
+                "₹25–40 L",
+                "41"
+              ],
+              [
+                "Over ₹40 L",
+                "14"
+              ]
+            ],
+            "row_count": 6,
+            "truncated": false
+          },
+          "sql": "SELECT ... width_bucket ...",
+          "tables_used": [
+            "employees"
+          ],
+          "caveats": [],
+          "ask": null
+        }
+      ]
+    },
+    {
+      "title": "Performance",
+      "description": "",
+      "tiles": [
+        {
+          "id": "heat-rating",
+          "title": "Ratings by grade",
+          "kind": "relationship",
+          "statement": "Rating 3 is the most common in every grade; grade L5 has the highest share of 5s.",
+          "insights": [],
+          "chart": {
+            "type": "heatmap",
+            "x": "grade",
+            "y": [
+              "employees"
+            ],
+            "series": "rating",
+            "title": "Ratings by grade",
+            "note": null,
+            "value_format": "number"
+          },
+          "table": {
+            "columns": [
+              "grade",
+              "rating",
+              "employees"
+            ],
+            "rows": [
+              [
+                "L1",
+                1,
+                6
+              ],
+              [
+                "L1",
+                2,
+                24
+              ],
+              [
+                "L1",
+                3,
+                42
+              ],
+              [
+                "L1",
+                4,
+                24
+              ],
+              [
+                "L1",
+                5,
+                6
+              ],
+              [
+                "L2",
+                1,
+                5
+              ],
+              [
+                "L2",
+                2,
+                20
+              ],
+              [
+                "L2",
+                3,
+                35
+              ],
+              [
+                "L2",
+                4,
+                20
+              ],
+              [
+                "L2",
+                5,
+                5
+              ],
+              [
+                "L3",
+                1,
+                4
+              ],
+              [
+                "L3",
+                2,
+                16
+              ],
+              [
+                "L3",
+                3,
+                28
+              ],
+              [
+                "L3",
+                4,
+                16
+              ],
+              [
+                "L3",
+                5,
+                4
+              ],
+              [
+                "L4",
+                1,
+                3
+              ],
+              [
+                "L4",
+                2,
+                12
+              ],
+              [
+                "L4",
+                3,
+                21
+              ],
+              [
+                "L4",
+                4,
+                12
+              ],
+              [
+                "L4",
+                5,
+                3
+              ],
+              [
+                "L5",
+                1,
+                2
+              ],
+              [
+                "L5",
+                2,
+                8
+              ],
+              [
+                "L5",
+                3,
+                14
+              ],
+              [
+                "L5",
+                4,
+                8
+              ],
+              [
+                "L5",
+                5,
+                2
+              ]
+            ],
+            "display": [
+              [
+                "L1",
+                "1",
+                "6"
+              ],
+              [
+                "L1",
+                "2",
+                "24"
+              ],
+              [
+                "L1",
+                "3",
+                "42"
+              ],
+              [
+                "L1",
+                "4",
+                "24"
+              ],
+              [
+                "L1",
+                "5",
+                "6"
+              ],
+              [
+                "L2",
+                "1",
+                "5"
+              ],
+              [
+                "L2",
+                "2",
+                "20"
+              ],
+              [
+                "L2",
+                "3",
+                "35"
+              ],
+              [
+                "L2",
+                "4",
+                "20"
+              ],
+              [
+                "L2",
+                "5",
+                "5"
+              ],
+              [
+                "L3",
+                "1",
+                "4"
+              ],
+              [
+                "L3",
+                "2",
+                "16"
+              ],
+              [
+                "L3",
+                "3",
+                "28"
+              ],
+              [
+                "L3",
+                "4",
+                "16"
+              ],
+              [
+                "L3",
+                "5",
+                "4"
+              ],
+              [
+                "L4",
+                "1",
+                "3"
+              ],
+              [
+                "L4",
+                "2",
+                "12"
+              ],
+              [
+                "L4",
+                "3",
+                "21"
+              ],
+              [
+                "L4",
+                "4",
+                "12"
+              ],
+              [
+                "L4",
+                "5",
+                "3"
+              ],
+              [
+                "L5",
+                "1",
+                "2"
+              ],
+              [
+                "L5",
+                "2",
+                "8"
+              ],
+              [
+                "L5",
+                "3",
+                "14"
+              ],
+              [
+                "L5",
+                "4",
+                "8"
+              ],
+              [
+                "L5",
+                "5",
+                "2"
+              ]
+            ],
+            "row_count": 25,
+            "truncated": false
+          },
+          "sql": "SELECT e.grade, p.rating, count(*) ...",
+          "tables_used": [
+            "employees",
+            "performance_reviews"
+          ],
+          "caveats": [],
+          "ask": null
+        }
+      ]
+    },
+    {
+      "title": "Data quality",
+      "description": "",
+      "tiles": [
+        {
+          "id": "quality",
+          "title": "What to check in your data",
+          "kind": "quality",
+          "statement": "1 of 7 tables needs a look: 3 amounts in the salary register could not be read.",
+          "insights": [
+            "6 duplicate rows removed",
+            "4 personal-data columns hidden from the AI",
+            "93% of employees have pay records"
+          ],
+          "chart": null,
+          "table": null,
+          "sql": "",
+          "tables_used": [],
+          "caveats": [],
+          "ask": null
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "id": "break-dept",
+  "title": "Employees by department",
+  "kind": "breakdown",
+  "statement": "Engineering is the largest department with 168 people; Finance is the smallest with 32.",
+  "insights": [
+    "Top 2 departments hold 58% of people",
+    "Largest is 5.3× the smallest"
+  ],
+  "chart": {
+    "type": "bar",
+    "x": "department",
+    "y": [
+      "employees"
+    ],
+    "series": null,
+    "title": "Employees by department",
+    "note": null,
+    "value_format": "number"
+  },
+  "table": {
+    "columns": [
+      "department",
+      "employees"
+    ],
+    "rows": [
+      [
+        "Engineering",
+        168
+      ],
+      [
+        "Sales",
+        121
+      ],
+      [
+        "Support",
+        84
+      ],
+      [
+        "Operations",
+        55
+      ],
+      [
+        "HR",
+        40
+      ],
+      [
+        "Finance",
+        32
+      ]
+    ],
+    "display": [
+      [
+        "Engineering",
+        "168"
+      ],
+      [
+        "Sales",
+        "121"
+      ],
+      [
+        "Support",
+        "84"
+      ],
+      [
+        "Operations",
+        "55"
+      ],
+      [
+        "HR",
+        "40"
+      ],
+      [
+        "Finance",
+        "32"
+      ]
+    ],
+    "row_count": 6,
+    "truncated": false
+  },
+  "sql": "SELECT department, count(*) AS employees FROM employees GROUP BY 1 ORDER BY 2 DESC",
+  "tables_used": [
+    "employees"
+  ],
+  "caveats": [],
+  "ask": null
+}

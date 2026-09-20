@@ -118,7 +118,7 @@ export interface Clarification {
 }
 
 export interface ChartSpec {
-  type: 'kpi' | 'bar' | 'line' | 'grouped_bar' | 'scatter' | 'table'
+  type: 'kpi' | 'bar' | 'line' | 'area' | 'grouped_bar' | 'stacked_bar' | 'donut' | 'histogram' | 'heatmap' | 'scatter' | 'table'
   x: string | null
   y: string[]
   series: string | null
@@ -191,6 +191,7 @@ export interface Answer {
   clarification: Clarification | null
   missing: string | null
   retry_after_s: number | null
+  insights: string[]
   chart: ChartSpec | null
   table: ResultTable | null
   work: Work
@@ -233,6 +234,77 @@ export interface EvalReport {
   calibration: Record<string, { n: number; accuracy: number }>
   models: { model: string; accuracy: number; p50_ms: number }[]
   cases: EvalCase[]
+}
+
+// ---- The no-AI half: automatic overview and guided analyses (backend/app/insights/models.py)
+export type TileKind = 'kpi' | 'breakdown' | 'trend' | 'distribution' | 'share' | 'comparison' | 'relationship' | 'quality' | 'metric'
+export type ColumnKind = 'measure' | 'category' | 'date' | 'text'
+
+export interface InsightTile {
+  id: string
+  title: string
+  kind: TileKind
+  statement: string
+  insights: string[]
+  chart: ChartSpec | null
+  table: ResultTable | null
+  sql: string
+  tables_used: string[]
+  caveats: string[]
+  ask: string | null
+}
+
+export interface DashboardSection {
+  title: string
+  description: string
+  tiles: InsightTile[]
+}
+
+export interface Dashboard {
+  session_id: string
+  catalog_version: number
+  generated_ms: number
+  sections: DashboardSection[]
+}
+
+export interface AnalysisInput {
+  key: string
+  label: string
+  accepts: ColumnKind[]
+  optional: boolean
+}
+
+export interface AnalysisOption {
+  key: string
+  label: string
+  choices: string[]
+}
+
+export interface AnalysisKind {
+  key: string
+  name: string
+  description: string
+  example: string
+  inputs: AnalysisInput[]
+  options: AnalysisOption[]
+}
+
+export interface ColumnChoice {
+  ref: string
+  label: string
+  table_label: string
+  kind: ColumnKind
+}
+
+export interface AnalysisCatalog {
+  kinds: AnalysisKind[]
+  columns: ColumnChoice[]
+}
+
+export interface AnalysisRequest {
+  kind: string
+  inputs: Record<string, string>
+  options?: Record<string, string>
 }
 
 // Server-sent events on POST /api/sessions/{id}/ask

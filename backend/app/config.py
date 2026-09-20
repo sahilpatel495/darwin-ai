@@ -29,6 +29,10 @@ PROVIDERS: dict[str, tuple[str, str | None]] = {
     "custom": (_env("LLM_BASE_URL", ""), "LLM_API_KEY"),
 }
 
+# Providers reached at a URL the operator chose, which is itself the decision to trust them.
+# Their key is optional; a "custom:" entry still needs LLM_BASE_URL, so it cannot resolve by accident.
+KEYLESS_PROVIDERS = frozenset({"ollama", "custom"})
+
 DEFAULT_CHAINS: dict[str, str] = {
     # Free-tier limits are per model, so a long chain over different models is the budget.
     # Entries whose provider has no API key are skipped. Order = preference.
@@ -62,7 +66,12 @@ def chain(role: str) -> list[ProviderModel]:
             log.warning("ignoring chain entry %r: expected provider:model with provider in %s", item, sorted(PROVIDERS))
             continue
         base_url, key_env = PROVIDERS[provider]
-        key = os.environ.get(key_env, "") if key_env else "none"
+        key = os.environ.get(key_env, "").strip() if key_env else ""
+        if provider in KEYLESS_PROVIDERS:
+            # Ollama, a customer's gateway and a self-hosted vLLM server usually authenticate by
+            # network, or not at all. The OpenAI client still wants a string, so "none" stands in.
+            # Every other provider is skipped without a key: a live 401 would waste the failover.
+            key = key or "none"
         if base_url and key:
             out.append(ProviderModel(provider, model, base_url, key))
     return out
@@ -85,6 +94,9 @@ class Settings:
     uploads_per_ip_per_hour: int = int(_env("UPLOADS_PER_IP_PER_HOUR", "30"))
     max_concurrent_asks: int = int(_env("MAX_CONCURRENT_ASKS", "6"))
     max_concurrent_asks_per_ip: int = int(_env("MAX_CONCURRENT_ASKS_PER_IP", "2"))
+    # Which X-Forwarded-For entry is the client, counted from the right. 1 = the address the
+    # nearest proxy appended. Raise it when the host puts a CDN in front of its own router.
+    trusted_proxy_hops: int = int(_env("TRUSTED_PROXY_HOPS", "1"))
     # How long a question may wait for a rate-limited free model before giving up.
     llm_max_wait_s: float = float(_env("LLM_MAX_WAIT_S", "25"))
     llm_calls_per_day: int = int(_env("LLM_CALLS_PER_DAY", "3000"))
