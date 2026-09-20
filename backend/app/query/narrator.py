@@ -3,8 +3,14 @@ rounds or computes, and it never sees PII values.
 
 This is the one place query results get near a model, so it is built to fail closed: personal
 values, long free text and any label with a number in it are swapped for placeholders before
-the call, every number in the reply must trace back to what was sent, and anything doubtful is
-replaced by a sentence built by code from the result itself.
+the call, every number in the reply must trace back to what was sent, every name must sit
+beside its own row's number, and anything doubtful is replaced by a sentence built by code from
+the result itself.
+
+A number can be right and the sentence still wrong: "Engineering has the highest average salary
+at ₹13.34 L" is every bit as false when Support is on ₹15.53 L, and every number in it is real.
+So the highest and lowest rows are computed here, given to the model as facts, and checked
+against what it wrote.
 """
 
 from __future__ import annotations
@@ -13,7 +19,8 @@ import json
 import math
 import re
 import unicodedata
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 
@@ -68,6 +75,9 @@ lowest. For a trend, say where it starts, where it ends and the peak. The full t
 beside your answer.
 - Copy numbers exactly as they appear in the result, including ₹, L, Cr and %. Never compute, \
 round, convert, total or estimate a number, and never add a number that is not in the result.
+- Keep every name with the number from its own row, and never work out a ranking yourself. \
+When "Facts you may state" is given it is the only source of one: call highest (or most, \
+largest, top, peak) only what is listed there as highest, and lowest only what is listed as lowest.
 - Placeholders such as ⟦P1⟧ stand for values hidden from you: personal details, free text and \
 labels that contain a number. Copy them exactly, brackets included, and never guess what they hide.
 - Plain text only: no markdown, bullet points, links or emoji.
@@ -182,13 +192,8 @@ def ungrounded_numbers(text: str, table: ResultTable, question: str) -> list[str
     "633,334", but the magnitude word is part of the number: "₹12.00 L" does not ground
     "₹12.00 Cr" or a bare "₹12.00". Returned in order of appearance, each once."""
     allowed = {(Decimal(table.row_count), None)} | set(_numbers_in(question))
-    for shown_row in table.display:
-        for shown in shown_row:
-            allowed.update(_numbers_in(shown))
-    for row in table.rows:
-        for value in row:
-            if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
-                allowed.update((_rounded(value, places), None) for places in (0, 1, 2))
+    for shown_row, raw_row in zip(table.display, table.rows):
+        allowed |= _row_numbers(shown_row, raw_row)
 
     missing: list[str] = []
     for match in _NUMBER.finditer(_CURRENCY_CODE.sub("₹", text)):
@@ -202,6 +207,21 @@ def ungrounded_numbers(text: str, table: ResultTable, question: str) -> list[str
 
 def _numbers_in(text: str) -> list[tuple[Decimal, str | None]]:
     return [_claim(match) for match in _NUMBER.finditer(text)]
+
+
+def _row_numbers(shown_row: list[str], raw_row: list[Any]) -> set[tuple[Decimal, str | None]]:
+    """Every number one row can ground: its display strings, and its raw values at any rounding
+    a person might quote. Per row, because a name must not borrow its neighbour's figure."""
+    numbers = {claim for shown in shown_row for claim in _numbers_in(shown)}
+    for value in raw_row:
+        if _is_number(value):
+            numbers.update((_rounded(value, places), None) for places in (0, 1, 2))
+    return numbers
+
+
+def _is_number(value: Any) -> bool:
+    """A real number out of the database: True is not one, and NaN can neither be ranked nor read."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
 def _claim(match: re.Match[str]) -> tuple[Decimal, str | None]:
@@ -223,6 +243,220 @@ def _rounded(value: float, places: int) -> Decimal:
         return number
 
 
+# --------------------------------------------------------------------------- facts
+
+_LABEL_KINDS = ("text", "date")
+_ABBREVIATIONS = {"avg": "average", "ctc": "CTC", "lop": "LOP", "fy": "FY", "pct": "%"}
+
+
+@dataclass(frozen=True)
+class Facts:
+    """What the result says about its first measure: who is highest, who is lowest, and where a
+    dated series starts and ends.
+
+    Computed from the rows so the model is only ever asked to phrase a ranking, never to work
+    one out, and so what it wrote can be checked against the same rows it was shown. Labels and
+    measures are display strings, one per row, in the order they were sent; a label from a PII
+    column is still its ⟦P…⟧ token."""
+
+    measure: str  # the measure column as words: "average CTC"
+    is_date: bool
+    labels: list[str]
+    measures: list[str]
+    spellings: dict[str, frozenset[int]]  # every way a label may be written -> the rows it names
+    highest: tuple[int, ...]  # the rows holding the top measure; more than one is a tie
+    lowest: tuple[int, ...]
+    first: int  # earliest and latest row; only meaningful for a date label
+    last: int
+    row_count: int
+
+
+def _facts(table: ResultTable) -> Facts | None:
+    """The facts for the first measure, or None when there are none to be sure of:
+
+    - no single label column (a two-label grouped result), where "the highest" would have to
+      pick a dimension, and picking one is guessing;
+    - nothing numeric to rank;
+    - a result the model was shown only part of, where the top row of the part it saw is not
+      the top row of the result.
+    """
+    sizes = {len(table.rows), len(table.display), table.row_count}
+    if table.truncated or not table.rows or len(sizes) > 1:
+        return None
+    kinds = [_column_kind([row[i] for row in table.rows]) for i in range(len(table.columns))]
+    labels = [i for i, kind in enumerate(kinds) if kind in _LABEL_KINDS]
+    measures = [i for i, kind in enumerate(kinds) if kind == "measure"]
+    if len(labels) != 1 or not measures:
+        return None
+    label, measure = labels[0], measures[0]
+    ranked = [i for i, row in enumerate(table.rows) if _is_number(row[measure])]
+    if not ranked:
+        return None
+
+    def tied_with(winner: int) -> tuple[int, ...]:
+        """The rows the model cannot tell apart from the winner: the same value, or the same
+        display string, because display strings are the only form of a number it was given."""
+        return tuple(i for i in ranked if table.rows[i][measure] == table.rows[winner][measure]
+                     or table.display[i][measure] == table.display[winner][measure])
+
+    is_date = kinds[label] == "date"
+    # ISO dates sort chronologically as text, so a series that was not ordered by the SQL still
+    # starts where it starts.
+    in_time = sorted(ranked, key=lambda i: str(table.rows[i][label])) if is_date else ranked
+    return Facts(
+        measure=_humanise(table.columns[measure]),
+        is_date=is_date,
+        labels=[row[label] for row in table.display],
+        measures=[row[measure] for row in table.display],
+        spellings=_spellings(table, label, is_date),
+        highest=tied_with(max(ranked, key=lambda i: table.rows[i][measure])),
+        lowest=tied_with(min(ranked, key=lambda i: table.rows[i][measure])),
+        first=in_time[0], last=in_time[-1], row_count=table.row_count,
+    )
+
+
+def _column_kind(values: list[Any]) -> str:
+    """"text", "date", "measure", or "" for a column that is empty or mixed and so cannot be
+    trusted to be either. Dates arrive here as ISO strings (see presentation._json_safe)."""
+    present = [v for v in values if v is not None]
+    if not present:
+        return ""
+    if all(isinstance(v, str) for v in present):
+        return "date" if all(_is_iso_date(v) for v in present) else "text"
+    return "measure" if all(_is_number(v) for v in present) else ""
+
+
+def _spellings(table: ResultTable, label: int, is_date: bool) -> dict[str, frozenset[int]]:
+    """Every spelling of a label and the rows it could mean. A date is written many ways
+    ("January", "Jan 2025", "2025-01"); an ambiguous one (two Januaries in a two-year series)
+    names both rows, and a claim about it is only wrong when it is wrong for every one."""
+    rows: dict[str, set[int]] = {}
+    for i, shown_row in enumerate(table.display):
+        spellings = {shown_row[label]}
+        if is_date:
+            spellings |= _date_spellings(str(table.rows[i][label]))
+        for spelling in spellings:
+            if spelling.strip() and spelling != "—":  # an empty cell names nothing
+                rows.setdefault(spelling, set()).add(i)
+    return {spelling: frozenset(indices) for spelling, indices in rows.items()}
+
+
+def _date_spellings(raw: str) -> set[str]:
+    """"2025-01-01" as the model may write it: "2025-01", "Jan", "January", "Jan 2025"."""
+    try:
+        day = date.fromisoformat(raw[:10])
+    except ValueError:
+        return set()
+    return {raw[:10], raw[:7], day.strftime("%b"), day.strftime("%B"),
+            day.strftime("%b %Y"), day.strftime("%B %Y")}
+
+
+def _humanise(column: str) -> str:
+    """A column name as the words an analyst says: avg_ctc -> "average CTC"."""
+    return " ".join(_ABBREVIATIONS.get(word.lower(), word.lower()) for word in column.split("_") if word)
+
+
+def _fact_lines(facts: Facts) -> list[str]:
+    """What the model may assert without working anything out."""
+    lines = [f"The result has {facts.row_count} rows."]
+    for word, winners in (("Highest", facts.highest), ("Lowest", facts.lowest)):
+        names = " and ".join(facts.labels[i] for i in winners[:3])
+        lines.append(f"{word} {facts.measure}: {names} at {facts.measures[winners[0]]}"
+                     + (" (tied)." if len(winners) > 1 else "."))
+    if facts.is_date:
+        lines.append(f"Earliest: {facts.labels[facts.first]} at {facts.measures[facts.first]}.")
+        lines.append(f"Latest: {facts.labels[facts.last]} at {facts.measures[facts.last]}.")
+    return lines
+
+
+# --------------------------------------------------------------------------- claims
+
+# Words that claim a rank, matched as written and never stemmed: "peaking at ₹4.76 Cr in
+# November before falling in December" names two rows and is true, and a "peak" stem would call
+# it a lie. "best" and "worst" are judgements about the business, not claims about a row.
+_HIGHEST = re.compile(r"\b(?:highest|most|largest|biggest|greatest|top|leads|led|maximum|peak|peaked)\b", re.IGNORECASE)
+_LOWEST = re.compile(r"\b(?:lowest|least|smallest|fewest|bottom|minimum|trails)\b", re.IGNORECASE)
+# How far one claim reaches. A full stop or comma between digits belongs to a number
+# ("₹6,33,334", "12.00"), so it never ends a clause.
+_CLAUSE = re.compile(r"(?<!\d)[.,](?!\d)|[;:!?]|\b(?:while|whereas|but|and)\b", re.IGNORECASE)
+
+
+def _wrong_claim(text: str, table: ResultTable, facts: Facts) -> str:
+    """The first claim the result contradicts, worded as a correction for the model, or "".
+
+    Clause by clause, because "A is highest at ₹5 L, B is lowest at ₹1 L" is two claims and
+    only one of them may be wrong. Two kinds are caught: a name next to another row's number,
+    and a rank word over a row that does not hold the rank."""
+    by_row = [_row_numbers(shown, raw) for shown, raw in zip(table.display, table.rows)]
+    for part in _CLAUSE.split(text):
+        clause = _CURRENCY_CODE.sub("₹", part)  # same reading of "Rs 12" as the number check
+        named = _label_spans(clause, facts.spellings)
+        if not named:
+            continue
+        if problem := _rank_problem(clause, named, facts):
+            return problem
+        if problem := _pairing_problem(clause, named, by_row, facts):
+            return problem
+    return ""
+
+
+def _label_spans(clause: str, spellings: dict[str, frozenset[int]]) -> list[tuple[int, int, frozenset[int]]]:
+    """Where the clause names a row: (start, end, the rows it could mean).
+
+    Longest spelling first, and a spelling inside a longer one is dropped, so a result holding
+    both "HR" and "HR Ops" reads "HR Ops" as itself. Word boundaries keep "HR" out of "CHRO".
+    Case is ignored: the model is told to copy a label, not trusted to."""
+    spans: list[tuple[int, int, frozenset[int]]] = []
+    for spelling in sorted(spellings, key=len, reverse=True):
+        for found in re.finditer(rf"(?<!\w){re.escape(spelling)}(?!\w)", clause, re.IGNORECASE):
+            if not any(start <= found.start() and found.end() <= end for start, end, _ in spans):
+                spans.append((found.start(), found.end(), spellings[spelling]))
+    return spans
+
+
+def _rank_problem(clause: str, named: list[tuple[int, int, frozenset[int]]], facts: Facts) -> str:
+    """A clause claiming a rank may only name the row that holds it, or one tied with it."""
+    for pattern, word, winners in ((_HIGHEST, "highest", facts.highest), (_LOWEST, "lowest", facts.lowest)):
+        if not pattern.search(clause):
+            continue
+        for start, end, rows in named:
+            if not rows & set(winners):
+                return (f"You wrote that {clause[start:end]} is {word}. The {word} is "
+                        f"{facts.labels[winners[0]]} at {facts.measures[winners[0]]}.")
+    return ""
+
+
+def _pairing_problem(
+    clause: str, named: list[tuple[int, int, frozenset[int]]],
+    by_row: list[set[tuple[Decimal, str | None]]], facts: Facts,
+) -> str:
+    """A number belongs to the row named nearest to it. A number that is in no row at all (a
+    year out of the question, the row count) makes no claim about one, and the grounding check
+    has already vetted it."""
+    for found in _NUMBER.finditer(clause):
+        if found.group(1).lower() == "one" and not found.group(2):
+            continue  # "the largest one" is a pronoun, as in ungrounded_numbers
+        if any(start < found.end() and found.start() < end for start, end, _ in named):
+            continue  # part of a label, such as the 2025 in "December 2025"
+        owners = {i for i, numbers in enumerate(by_row) if _claim(found) in numbers}
+        if not owners:
+            continue
+        start, end, rows = _nearest(named, found)
+        if not rows & owners:
+            mine, theirs = min(rows), min(owners)
+            return (f"You put {found.group(0)} next to {clause[start:end]}. {facts.labels[mine]} is "
+                    f"{facts.measures[mine]}; {found.group(0)} is {facts.labels[theirs]}'s.")
+    return ""
+
+
+def _nearest(
+    named: list[tuple[int, int, frozenset[int]]], found: re.Match[str]
+) -> tuple[int, int, frozenset[int]]:
+    """The label a number sits beside. "₹4.38 Cr in January to ₹4.73 Cr in December" is two
+    pairs, not four, so distance decides rather than every label in the clause."""
+    return min(named, key=lambda span: max(span[0] - found.end(), found.start() - span[1], 0))
+
+
 # --------------------------------------------------------------------------- template
 
 
@@ -242,31 +476,62 @@ def template_answer(question: str, table: ResultTable) -> str:
     return f"Top result: {', '.join(pairs)} ({scope}; see the table)."
 
 
+def _ranked_answer(question: str, table: ResultTable, facts: Facts, mapping: dict[str, str]) -> str:
+    """The fallback after a claim the result contradicts: the ranking the model got wrong, said
+    by code, from display strings only. Nothing is left for a reader to take on trust."""
+    top, bottom = facts.highest[0], facts.lowest[0]
+    if top == bottom:  # one row, or every row tied: there is no ranking to state
+        return template_answer(question, table)
+    if facts.is_date:
+        sentence = (f"{facts.measure} went from {facts.measures[facts.first]} in {_when(facts, facts.first)} "
+                    f"to {facts.measures[facts.last]} in {_when(facts, facts.last)}; the highest was "
+                    f"{facts.measures[top]} in {_when(facts, top)}.")
+        sentence = sentence[:1].upper() + sentence[1:]
+    else:
+        sentence = (f"{facts.labels[top]} has the highest {facts.measure} at {facts.measures[top]} and "
+                    f"{facts.labels[bottom]} the lowest at {facts.measures[bottom]}, "
+                    f"across {facts.row_count:,} groups.")
+    return rehydrate(sentence, mapping)  # the labels are still ⟦P…⟧ tokens at this point
+
+
+def _when(facts: Facts, row: int) -> str:
+    """"01 Jan 2025" reads as "Jan 2025" in a monthly series, where the day is noise; any other
+    series keeps the display string exactly as the table shows it."""
+    monthly = all(label.startswith("01 ") for label in facts.labels)
+    return facts.labels[row][3:] if monthly else facts.labels[row]
+
+
 # --------------------------------------------------------------------------- narrate
 
 
 def narrate(
     llm: LLMClient, *, question: str, sql: str, table: ResultTable, caveats: list[str],
-    pii_columns: set[str],
+    pii_columns: set[str], notes: list[str] | None = None,
 ) -> tuple[Narration, ModelPayload, bool]:
-    """tokenise -> one LLM call (first 30 rows, display strings only) -> grounding check ->
-    one regeneration -> template fallback. Returns (narration, payload, used_fallback).
-    A mangled or invented PII token also triggers the fallback.
+    """tokenise -> facts -> one LLM call (first 30 rows, display strings only) -> grounding and
+    claim checks -> one regeneration with the correction -> template fallback.
+    Returns (narration, payload, used_fallback). A mangled or invented PII token also triggers
+    the fallback. `notes` join `caveats` under "Notes about the data" in the prompt.
 
     The reply is checked against exactly what was sent (the masked top-left corner of the
     result), so a number the model never saw, such as a digit inside a hidden phone number,
     cannot ground anything. On fallback nothing from the model is kept: if its answer cannot be
-    trusted, neither can its follow-ups. LLMUnavailable on the first call is raised for the
-    caller to handle (there is no payload to show yet); on the regeneration it means the
-    template, and the call that did happen is still reported."""
+    trusted, neither can its follow-ups. A wrong claim about the rows is the one failure the
+    fallback can answer itself, because the ranking it got wrong is already computed.
+    LLMUnavailable on the first call is raised for the caller to handle (there is no payload to
+    show yet); on the regeneration it means the template, and the call that did happen is still
+    reported."""
     sent, mapping = _mask(_corner(table), pii_columns, hide_untrusted_text=True)
+    facts = _facts(sent)
+    about_the_data = [*caveats, *(notes or [])]
     messages = [{"role": "system", "content": SYSTEM_RULES},
-                {"role": "user", "content": _user_prompt(question, sql, sent, len(table.columns), caveats)}]
-    grounding_context = " ".join([question, *caveats])  # a caveat's "12.5% empty" may be quoted
+                {"role": "user", "content": _user_prompt(question, sql, sent, len(table.columns),
+                                                         about_the_data, facts)}]
+    grounding_context = " ".join([question, *about_the_data])  # a caveat's "12.5% empty" may be quoted
 
     reply = llm.complete(role="narrate", messages=messages, json_schema=_SCHEMA)
     payload = _payload(reply, messages)
-    narration, problem = _check(reply.content, sent, mapping, grounding_context, sql)
+    narration, problem, wrong_claim = _check(reply.content, sent, mapping, grounding_context, sql, facts)
     if narration is None:
         messages = [*messages, {"role": "assistant", "content": reply.content},
                     {"role": "user", "content": f"That reply cannot be used: {problem} Write it again. Use only "
@@ -277,9 +542,11 @@ def narrate(
             pass
         else:
             payload = _payload(reply, messages)
-            narration, _ = _check(reply.content, sent, mapping, grounding_context, sql)
+            narration, _, wrong_claim = _check(reply.content, sent, mapping, grounding_context, sql, facts)
     if narration is None:
-        return Narration(text=template_answer(question, table)), payload, True
+        text = (_ranked_answer(question, table, facts, mapping) if wrong_claim and facts
+                else template_answer(question, table))
+        return Narration(text=text), payload, True
     return narration, payload, False
 
 
@@ -299,33 +566,46 @@ def _payload(reply: LLMResult, messages: list[dict[str, str]]) -> ModelPayload:
                         messages=messages, cached=reply.cached, latency_ms=reply.latency_ms)
 
 
-def _user_prompt(question: str, sql: str, sent: ResultTable, total_columns: int, caveats: list[str]) -> str:
+def _user_prompt(question: str, sql: str, sent: ResultTable, total_columns: int,
+                 about_the_data: list[str], facts: Facts | None) -> str:
     """The result goes in as JSON so a cell can never be mistaken for part of the prompt."""
     shown = len(sent.display)
     extent = f"all {shown} rows" if shown == sent.row_count else f"first {shown} of {sent.row_count} rows"
     if len(sent.columns) < total_columns:
         extent += f", first {len(sent.columns)} of {total_columns} columns"
     grid = json.dumps({"columns": sent.columns, "rows": sent.display}, ensure_ascii=False)
-    notes = "\n".join(f"- {c}" for c in caveats) or "- none"
+    # The ranking is stated rather than left to be worked out: comparing 30 formatted strings
+    # is arithmetic, and arithmetic is the one thing the model is never asked to do.
+    ranking = "".join(f"\n- {line}" for line in _fact_lines(facts)) if facts else ""
+    notes = "\n".join(f"- {c}" for c in about_the_data) or "- none"
     return (f"Question: {question}\n\nSQL that produced the result:\n{sql}\n\n"
-            f"Result ({extent}, already formatted for display):\n{grid}\n\nNotes about the data:\n{notes}")
+            f"Result ({extent}, already formatted for display):\n{grid}\n\n"
+            + (f"Facts you may state:{ranking}\n\n" if ranking else "")
+            + f"Notes about the data:\n{notes}")
 
 
 def _check(
-    content: str, sent: ResultTable, mapping: dict[str, str], grounding_context: str, sql: str
-) -> tuple[Narration | None, str]:
-    """A usable Narration with real values restored, or None and what to tell the model."""
+    content: str, sent: ResultTable, mapping: dict[str, str], grounding_context: str, sql: str,
+    facts: Facts | None,
+) -> tuple[Narration | None, str, bool]:
+    """A usable Narration with real values restored, or None, what to tell the model, and
+    whether what failed was a claim about the rows (which the fallback can restate itself).
+
+    Checked before the text is rehydrated, and against the masked table, so the claim checks
+    see exactly the labels and numbers the model was given."""
     try:
         draft = Narration.model_validate_json(content)
     except ValidationError:
-        return None, "it was not the JSON object that was asked for."
+        return None, "it was not the JSON object that was asked for.", False
     text = _flatten(draft.text, _MAX_TEXT_CHARS)
     if not text:
-        return None, "the answer text was empty."
+        return None, "the answer text was empty.", False
     if _has_bad_placeholder(text, mapping):
-        return None, "a ⟦P…⟧ placeholder was changed or made up."
+        return None, "a ⟦P…⟧ placeholder was changed or made up.", False
     if invented := ungrounded_numbers(text, sent, grounding_context):
-        return None, f"these numbers or comparisons are not in the result: {', '.join(invented)}."
+        return None, f"these numbers or comparisons are not in the result: {', '.join(invented)}.", False
+    if facts and (wrong := _wrong_claim(text, sent, facts)):
+        return None, wrong, True
     # The reading describes the query, so numbers from the SQL are fair there too. One with an
     # invented number is dropped, and the UI shows the SQL writer's interpretation instead.
     reading = _extra(draft.reading, _MAX_READING_CHARS, mapping)
@@ -334,7 +614,7 @@ def _check(
     # Follow-ups are questions, where a new number is normal ("What about 2024?"): not checked.
     followups = [f for f in (_extra(f, _MAX_FOLLOWUP_CHARS, mapping) for f in draft.followups) if f][:3]
     return Narration(text=rehydrate(text, mapping), reading=rehydrate(reading, mapping),
-                     followups=[rehydrate(f, mapping) for f in followups]), ""
+                     followups=[rehydrate(f, mapping) for f in followups]), "", False
 
 
 def _extra(text: str, limit: int, mapping: dict[str, str]) -> str:

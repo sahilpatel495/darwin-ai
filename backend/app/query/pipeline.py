@@ -190,7 +190,7 @@ def _run(session: SessionLike, req: AskRequest, llm: LLMClient, trace: _Trace) -
     # 5. Narrate and cross-check at the same time: both only need the executed result.
     with ThreadPoolExecutor(max_workers=1) as pool:
         second = pool.submit(_cross_check, session, req, llm, schema_context, metric_context, result, work.payloads[-1].model)
-        narration, fallback = _narrate(llm, req, query, table, work, catalog, trace)
+        narration, fallback = _narrate(llm, req, query, table, work, catalog, trace, _notes(req, generation))
         work.cross_check = second.result()
     signals.narration_fallback = fallback
     signals.cross_check = work.cross_check.status
@@ -312,11 +312,19 @@ def _describe_data(catalog: Catalog) -> str:
     return "\n".join(lines)
 
 
-def _narrate(llm, req, query: GuardedQuery, table, work: Work, catalog: Catalog, trace: _Trace) -> tuple[Narration, bool]:
+def _notes(req: AskRequest, generation: Generation) -> list[str]:
+    """What the narrator needs to name the measure correctly ("average annual CTC", not
+    "salary"). Column references and assumptions only: never row data."""
+    chosen = [f'The analyst said "{term}" means {ref}.' for term, ref in (req.clarification or {}).items()]
+    return chosen + list(generation.assumptions)
+
+
+def _narrate(llm, req, query: GuardedQuery, table, work: Work, catalog: Catalog, trace: _Trace,
+             notes: list[str]) -> tuple[Narration, bool]:
     trace.step("narrate", "started")
     try:
         narration, payload, fallback = narrate(llm, question=req.question, sql=query.sql, table=table,
-                                               caveats=work.caveats, pii_columns=_pii_result_columns(query, table, catalog))
+                                               caveats=work.caveats, pii_columns=_pii_result_columns(query, table, catalog), notes=notes)
         work.payloads.append(payload)
     except LLMUnavailable:
         narration, fallback = Narration(text=template_answer(req.question, table)), True
