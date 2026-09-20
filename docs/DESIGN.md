@@ -168,12 +168,15 @@ Streaming is SSE over the POST response, read with `fetch`; headers `Cache-Contr
 
 ## 7. Models and hosting (checked against provider docs on 2026-09-20)
 
-- Free tiers cannot carry the eval loop: Groq free is 8K tokens/min and 200K/day (one eval run is ~360K); Cerebras needs a card; Groq retired `llama-3.3-70b-versatile` on 2026-08-16.
-- **Candidates, all env-configured (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_NARRATOR_MODEL`, `LLM_CROSSCHECK_*`, `LLM_FALLBACK_*`):** `openai/gpt-oss-120b` (Apache-2.0, Groq, ~500 tok/s, strict JSON schema), `qwen/qwen3.8-27b` (Apache-2.0, Groq preview), `deepseek-v4-flash` (MIT, OpenRouter, provider pinned). **The golden eval picks the primary**; the comparison table goes in the README. The cross-checker is a different family from the primary. Narration uses `openai/gpt-oss-20b`. 429 fallback is the same primary model on OpenRouter so prompts carry over.
+**Constraint chosen: strictly $0, no credit card.** That rules out any single provider: Groq free is 8K tokens/min and 200K tokens/day per model (one eval run is ~360K); Cerebras needs a card; OpenRouter free is 50 requests/day; Groq retired `llama-3.3-70b-versatile` on 2026-08-16. So reliability comes from engineering instead of spend:
+
+- **Provider pool with failover.** An ordered list in env (`LLM_PROVIDERS`), each entry `{base_url, api_key, model, role}`. A 429 or 5xx moves to the next provider and respects `retry-after`; the chosen provider and model are recorded in the answer's trace. Pool: NVIDIA NIM `deepseek-ai/deepseek-v4-flash-0731` (MIT), Groq free `openai/gpt-oss-120b`, `qwen/qwen3.8-27b` and `openai/gpt-oss-20b` (Apache-2.0; limits are per model, so three models are three budgets), Google AI Studio `gemma-4-31b-it` (Apache-2.0), OpenRouter `:free` models as last resort. All are open-weight under OSI-approved licences.
+- **Lean prompts.** The generate prompt is budgeted at ≤ 2K tokens (compact schema format, 6 short few-shots) so Groq's 8K tokens/min still allows several questions a minute.
+- **Disk-backed LLM response cache** keyed by model + messages, used by the eval runner so a prompt change only re-spends the calls it actually changed. The eval loop re-runs failing questions first and does a full confirmation run at the end. Cross-check is on for final runs and the live app, off during tuning iterations.
+- **The golden eval picks the primary model**; the comparison table goes in the README. The cross-checker is a different family from the primary. Narration uses the smallest fast model available.
 - Naming note for the README: gpt-oss is OpenAI's Apache-2.0 open-weight release served by Groq, not the GPT API. Reasoning output is set to hidden/parsed so `<think>` blocks never break JSON.
 - Fully local option documented: Ollama with the same env vars.
-- **Hosting:** Hugging Face now requires PRO ($9/mo) to create a Docker Space. Primary is **Fly.io** (1 GB, always on, single machine, ~$3 for two weeks, card required). Zero-cost fallback is **Render free** (512 MB, sleeps after 15 min) with a keep-warm ping and a lower upload cap. Same image for both. A 3-minute demo video ships regardless.
-- Expected total spend: about $15 (Groq usage $3–5, OpenRouter $10 credit, Fly ~$3).
+- **Hosting:** Hugging Face now requires PRO ($9/mo) to create a Docker Space and Fly.io needs a card, so the host is **Render free** (512 MB, 0.1 CPU, sleeps after 15 idle minutes, ~1 minute wake). Mitigations: keep-warm ping every 10 minutes (GitHub Actions cron plus an uptime monitor), 10 MB upload cap on the hosted demo, 2 DuckDB threads and a 256 MB memory limit, pre-warmed starter answers. Railway's card-free trial is tried at deploy time as an always-on alternative; the image is host-agnostic (`$PORT`). A 3-minute demo video ships regardless, and `docker compose up` runs the full-size app locally.
 
 ## 8. Demo data and golden eval
 
@@ -220,13 +223,14 @@ Streaming is SSE over the POST response, read with `fetch`; headers `Cache-Contr
 
 After every phase: all tests, run the app, fix regressions, update `DECISIONS.md`, commit, push.
 
-**Sahil is needed at three points:** now (keys, budget), about 17:30 (`fly auth login`), and the morning (video, submit). Everything else runs unattended.
+**Sahil is needed at three points:** now (free API keys), about 17:30 (connect the repo on Render), and the morning (video, submit). Everything else runs unattended.
 
 ## 11. Risks
 
 | Risk | Mitigation |
 |---|---|
-| Rate limits or provider outage during evaluation | Paid tier, same-model fallback on a second provider, answer cache, pre-warmed starter questions |
+| Free-tier rate limits or a provider outage during evaluation | Multi-provider failover pool, lean prompts, answer cache, pre-warmed starter questions, demo video as the last line |
+| Cold start on the free host | Keep-warm pings from two sources; video and local Docker run documented |
 | Model retired at short notice (Groq preview models) | Everything in env vars; primary is a production model |
 | Eval overfitting | Holdout split; holdout failures hidden from the tuning loop |
 | Parallel agents colliding | Disjoint directories, frozen contracts, no agent-side git, locked deps |
@@ -236,4 +240,4 @@ After every phase: all tests, run the app, fix regressions, update `DECISIONS.md
 
 ## 12. Decisions seeded into `DECISIONS.md`
 
-SQL over code execution · DuckDB in-memory per session, locked down after creation · allow-list guard, not deny-list · read-as-text then infer types · true distinct values only for low-cardinality non-PII columns · deterministic ambiguity before model-judged ambiguity · rules choose charts · model copies display strings · cross-check used as a confidence signal, not a vote · duplicates policy · no schema pruning · dev/holdout eval split · SSE over POST · header session ids · Fly over HF Spaces · model chosen by eval, not by reputation.
+SQL over code execution · DuckDB in-memory per session, locked down after creation · allow-list guard, not deny-list · read-as-text then infer types · true distinct values only for low-cardinality non-PII columns · deterministic ambiguity before model-judged ambiguity · rules choose charts · model copies display strings · cross-check used as a confidence signal, not a vote · duplicates policy · no schema pruning · dev/holdout eval split · SSE over POST · header session ids · $0 constraint answered with a failover pool rather than a paid tier · Render free with keep-warm over paid always-on hosts · model chosen by eval, not by reputation.
