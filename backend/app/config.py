@@ -7,9 +7,17 @@ comes from failing over between providers. A chain is an ordered list of
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
+
+log = logging.getLogger(__name__)
+
+
+def _env(name: str, default: str) -> str:
+    """A variable set to an empty string (common in hosting dashboards) counts as unset."""
+    return os.environ.get(name, "").strip() or default
 
 # name -> (OpenAI-compatible base URL, env var holding the key or None if keyless)
 PROVIDERS: dict[str, tuple[str, str | None]] = {
@@ -17,8 +25,8 @@ PROVIDERS: dict[str, tuple[str, str | None]] = {
     "nvidia": ("https://integrate.api.nvidia.com/v1", "NVIDIA_API_KEY"),
     "gemini": ("https://generativelanguage.googleapis.com/v1beta/openai/", "GEMINI_API_KEY"),
     "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY"),
-    "ollama": (os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"), None),
-    "custom": (os.environ.get("LLM_BASE_URL", ""), "LLM_API_KEY"),
+    "ollama": (_env("OLLAMA_BASE_URL", "http://localhost:11434/v1"), None),
+    "custom": (_env("LLM_BASE_URL", ""), "LLM_API_KEY"),
 }
 
 DEFAULT_CHAINS: dict[str, str] = {
@@ -43,10 +51,13 @@ class ProviderModel:
 
 def chain(role: str) -> list[ProviderModel]:
     """Resolve LLM_<ROLE>_CHAIN (or the default) to usable provider/model pairs, in order."""
-    spec = os.environ.get(f"LLM_{role.upper()}_CHAIN", DEFAULT_CHAINS[role])
+    spec = _env(f"LLM_{role.upper()}_CHAIN", DEFAULT_CHAINS[role])
     out: list[ProviderModel] = []
     for item in filter(None, (s.strip() for s in spec.split(","))):
         provider, _, model = item.partition(":")
+        if provider not in PROVIDERS or not model:
+            log.warning("ignoring chain entry %r: expected provider:model with provider in %s", item, sorted(PROVIDERS))
+            continue
         base_url, key_env = PROVIDERS[provider]
         key = os.environ.get(key_env, "") if key_env else "none"
         if base_url and key:
@@ -56,19 +67,19 @@ def chain(role: str) -> list[ProviderModel]:
 
 @dataclass(frozen=True)
 class Settings:
-    max_upload_mb: int = int(os.environ.get("MAX_UPLOAD_MB", "25"))
-    query_timeout_s: float = float(os.environ.get("QUERY_TIMEOUT_S", "10"))
-    row_cap: int = int(os.environ.get("ROW_CAP", "5000"))
-    duckdb_memory_limit: str = os.environ.get("DUCKDB_MEMORY_LIMIT", "512MB")
-    duckdb_threads: int = int(os.environ.get("DUCKDB_THREADS", "2"))
-    session_ttl_s: int = int(os.environ.get("SESSION_TTL_S", "7200"))
-    max_sessions: int = int(os.environ.get("MAX_SESSIONS", "20"))
-    asks_per_ip_per_hour: int = int(os.environ.get("ASKS_PER_IP_PER_HOUR", "60"))
-    llm_calls_per_day: int = int(os.environ.get("LLM_CALLS_PER_DAY", "3000"))
-    crosscheck: bool = os.environ.get("CROSSCHECK", "on") == "on"
-    llm_cache_dir: str = os.environ.get("LLM_CACHE_DIR", "")  # set by the eval runner only
-    work_dir: Path = Path(os.environ.get("WORK_DIR", "/tmp/verity"))
-    demo_data_dir: Path = Path(os.environ.get("DEMO_DATA_DIR", "demo_data"))
+    max_upload_mb: int = int(_env("MAX_UPLOAD_MB", "25"))
+    query_timeout_s: float = float(_env("QUERY_TIMEOUT_S", "10"))
+    row_cap: int = int(_env("ROW_CAP", "5000"))
+    duckdb_memory_limit: str = _env("DUCKDB_MEMORY_LIMIT", "512MB")
+    duckdb_threads: int = int(_env("DUCKDB_THREADS", "2"))
+    session_ttl_s: int = int(_env("SESSION_TTL_S", "7200"))
+    max_sessions: int = int(_env("MAX_SESSIONS", "20"))
+    asks_per_ip_per_hour: int = int(_env("ASKS_PER_IP_PER_HOUR", "60"))
+    llm_calls_per_day: int = int(_env("LLM_CALLS_PER_DAY", "3000"))
+    crosscheck: bool = _env("CROSSCHECK", "on") == "on"
+    llm_cache_dir: str = _env("LLM_CACHE_DIR", "")  # set by the eval runner only
+    work_dir: Path = Path(_env("WORK_DIR", "/tmp/verity"))
+    demo_data_dir: Path = Path(_env("DEMO_DATA_DIR", "demo_data"))
 
 
 settings = Settings()

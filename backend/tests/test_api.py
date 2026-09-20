@@ -85,3 +85,19 @@ def test_oversize_upload_is_refused(client, monkeypatch):
 def test_security_headers_are_set(client):
     headers = client.get("/healthz").headers
     assert headers["x-content-type-options"] == "nosniff" and "default-src 'self'" in headers["content-security-policy"]
+
+
+def test_new_session_really_deletes_the_data(client):
+    sid = new_session(client)
+    upload(client, sid, **{"employees.csv": EMPLOYEES})
+    assert client.delete(f"/api/sessions/{sid}").status_code == 204
+    assert client.get(f"/api/sessions/{sid}/catalog").status_code == 404
+
+
+def test_rate_limit_uses_the_proxy_appended_address_not_the_client_supplied_one(client, monkeypatch):
+    sid = new_session(client)
+    monkeypatch.setattr(main, "settings", main.settings.__class__(asks_per_ip_per_hour=1))
+    ask = lambda spoof: client.post(f"/api/sessions/{sid}/ask", json={"question": "hi"},
+                                    headers={"x-forwarded-for": f"{spoof}, 203.0.113.9"})
+    assert ask("1.1.1.1").status_code == 200
+    assert ask("2.2.2.2").status_code == 429  # a new spoofed first hop does not reset the limit

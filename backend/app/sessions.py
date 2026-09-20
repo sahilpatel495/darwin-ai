@@ -362,5 +362,11 @@ class SessionStore:
             self._sessions.move_to_end(session_id)
             return session
 
+    def delete(self, session_id: str) -> None:
+        """The user asked for their data to be gone. Unknown ids are not an error."""
+        with self._lock:
+            if session_id in self._sessions:
+                self._drop(session_id)
+
     def _drop(self, session_id: str) -> None:
         self._sessions.pop(session_id).close()

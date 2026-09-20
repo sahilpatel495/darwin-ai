@@ -78,8 +78,14 @@ def _cache_key(catalog: Catalog, req: AskRequest, history: list[Turn]) -> str:
     return hashlib.sha256(json.dumps(semantics, sort_keys=True).encode()).hexdigest()
 
 
+def clear_answer_cache() -> None:
+    """For the eval runner and tests: every question must be answered fresh."""
+    _SHARED_CACHE.clear()
+
+
 def answer_question(session: SessionLike, req: AskRequest, llm: LLMClient, emit: Emit) -> Answer:
     """Never raises: every failure becomes an Answer the UI can show with a next step."""
+    req = _trusted(req, session.catalog)
     key = _cache_key(session.catalog, req, session.history)
     if cached := _SHARED_CACHE.get(key):
         _SHARED_CACHE.move_to_end(key)
@@ -91,9 +97,11 @@ def answer_question(session: SessionLike, req: AskRequest, llm: LLMClient, emit:
 
     try:
         answer = _run(session, req, llm, _Trace(emit))
-    except LLMUnavailable:
-        answer = _error(req, "The language models are busy right now (free-tier rate limits).",
-                        "Wait about a minute and ask again.")
+    except LLMUnavailable as e:  # its message is written for users and never contains keys
+        answer = _error(req, str(e) or "The AI models are busy right now.", "If this is a rate limit, wait about a minute and ask again.")
+    except ValueError:
+        log.warning("unreadable model reply for question %r", req.question)
+        answer = _error(req, "The AI model gave a reply I could not read.", "Ask again, or rephrase the question.")
     except Exception:  # last line of defence: the user gets a sentence, the log gets the trace
         log.exception("pipeline failed for question %r", req.question)
         answer = _error(req, "Something went wrong while answering that.",
@@ -106,6 +114,16 @@ def answer_question(session: SessionLike, req: AskRequest, llm: LLMClient, emit:
     _remember(session, answer)
     emit(StepEvent(stage="done", status="ok" if answer.kind != "error" else "failed"))
     return answer
+
+
+def _trusted(req: AskRequest, catalog: Catalog) -> AskRequest:
+    """`clarification` comes from the browser and ends up in a prompt, so only entries that
+    name a real column of this session survive."""
+    if not req.clarification:
+        return req
+    real = {f"{t.name}.{c.name}" for t in catalog.tables for c in t.columns}
+    kept = {term[:40]: ref for term, ref in req.clarification.items() if ref in real}
+    return req.model_copy(update={"clarification": kept or None})
 
 
 def _remember(session: SessionLike, answer: Answer) -> None:
@@ -185,7 +203,9 @@ def _run(session: SessionLike, req: AskRequest, llm: LLMClient, trace: _Trace) -
     work.tables_used = query.tables
     work.rows_scanned = sum(t.row_count for t in catalog.tables if t.name in query.tables)
     work.assumptions = generation.assumptions
-    work.metrics_used = [m.metric.key for m in metrics if not m.missing_roles and m.metric.key in generation.metrics_used]
+    claimed = {name.strip().lower() for name in generation.metrics_used}  # the model may echo the key or the name
+    work.metrics_used = [m.metric.key for m in metrics
+                         if not m.missing_roles and {m.metric.key.lower(), m.metric.name.lower()} & claimed]
     signals.vetted_metric = bool(work.metrics_used)
     signals.assumptions = len(generation.assumptions)
 

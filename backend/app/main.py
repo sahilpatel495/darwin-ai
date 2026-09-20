@@ -88,8 +88,10 @@ _asks_lock = threading.Lock()
 
 
 def _check_rate(request: Request) -> None:
+    # The proxy in front of us appends the address it saw, so the LAST entry is the one a
+    # client cannot forge. (The first entry is whatever the client chose to send.)
     forwarded = request.headers.get("x-forwarded-for", "")
-    ip = forwarded.split(",")[0].strip() or (request.client.host if request.client else "unknown")
+    ip = forwarded.split(",")[-1].strip() or (request.client.host if request.client else "unknown")
     now = time.time()
     with _asks_lock:
         window = _asks[ip]
@@ -152,7 +154,17 @@ async def upload_files(session_id: str, files: list[UploadFile] = File(...)) -> 
 
 @app.post("/api/sessions/{session_id}/sample", response_model=Catalog)
 async def load_sample(session_id: str) -> Catalog:
-    return await run_in_threadpool(_session(session_id).load_sample)
+    try:
+        return await run_in_threadpool(_session(session_id).load_sample)
+    except IngestError as e:
+        raise ApiProblem(422, str(e), "Upload your own CSV or Excel files instead.") from None
+
+
+@app.delete("/api/sessions/{session_id}", status_code=204)
+def delete_session(session_id: str) -> None:
+    """"New session" in the UI: the tables, the history and the temp folder are dropped now,
+    not when the TTL gets round to it."""
+    store.delete(session_id)
 
 
 @app.get("/api/sessions/{session_id}/catalog", response_model=Catalog)
@@ -167,13 +179,18 @@ async def update_link(session_id: str, link_id: str, body: LinkUpdate) -> Catalo
         return await run_in_threadpool(session.set_link_status, link_id, body.status)
     except KeyError:
         raise ApiProblem(404, "That link no longer exists.", "Reload the page to see the current links.") from None
+    except ValueError as e:  # these messages are written for users
+        raise ApiProblem(422, str(e), "Change it and try again.") from None
 
 
 @app.put("/api/sessions/{session_id}/glossary", response_model=Catalog)
 async def put_glossary(session_id: str, metrics: list[Metric]) -> Catalog:
     if len(metrics) > 50:
         raise ApiProblem(413, "That is more than 50 glossary entries.", "Remove some entries and save again.")
-    return await run_in_threadpool(_session(session_id).set_glossary, metrics)
+    try:
+        return await run_in_threadpool(_session(session_id).set_glossary, metrics)
+    except ValueError as e:  # these messages are written for users
+        raise ApiProblem(422, str(e), "Change the entry and save again.") from None
 
 
 # --------------------------------------------------------------------------

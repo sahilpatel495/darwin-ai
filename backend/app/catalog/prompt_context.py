@@ -27,6 +27,7 @@ from app.contracts import Catalog, ColumnProfile, ResolvedMetric, TableProfile
 MAX_COLUMNS_PER_TABLE = 60  # wider tables list the remaining column names only
 MAX_VALUES = 30
 MAX_VALUE_CHARS = 40
+MAX_VALUE_WORDS = 4  # "Better opportunity elsewhere" is a label; a sentence is not
 
 _EMAIL = re.compile(r"[\w.+\-]+@[\w\-]+\.[\w.\-]+")
 _PAN_OR_IFSC = re.compile(r"\b([A-Z]{5}\d{4}[A-Z]|[A-Z]{4}0[A-Z0-9]{6})\b", re.IGNORECASE)
@@ -36,7 +37,9 @@ _LONG_NUMBER = re.compile(r"\d{9,}")  # phone, Aadhaar, UAN, bank account; an IS
 
 def _is_safe_value(value: str) -> bool:
     """A category label the model may see: short, and nothing that looks like personal data."""
-    if len(value) > MAX_VALUE_CHARS or _EMAIL.search(value) or _PAN_OR_IFSC.search(value):
+    if len(value) > MAX_VALUE_CHARS or len(value.split()) > MAX_VALUE_WORDS:
+        return False
+    if _EMAIL.search(value) or _PAN_OR_IFSC.search(value):
         return False
     return not _LONG_NUMBER.fullmatch(_SEPARATORS.sub("", value))
 
@@ -55,7 +58,8 @@ def _column_line(col: ColumnProfile) -> str:
         return f"{head} [PII:{col.pii}, values hidden]"
 
     parts = []
-    if col.values and len(col.values) <= MAX_VALUES:
+    # Identifier values are row-level data and useless as filter literals, so never listed.
+    if col.values and len(col.values) <= MAX_VALUES and not col.is_identifier:
         safe = [v for v in col.values if _is_safe_value(v)]  # dropped, never truncated
         hidden = " (some values hidden)" if len(safe) < len(col.values) else ""
         parts.append("values: " + json.dumps(safe, ensure_ascii=False) + hidden)

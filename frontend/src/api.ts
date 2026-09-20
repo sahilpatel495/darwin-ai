@@ -67,9 +67,13 @@ export async function ensureSession(): Promise<string> {
   return session_id
 }
 
+// Forgets the session locally and asks the server to drop its tables now (fire and forget:
+// the server also expires sessions on its own).
 export function resetSession(): void {
   try {
+    const saved = sessionStorage.getItem(SESSION_KEY)
     sessionStorage.removeItem(SESSION_KEY)
+    if (saved && !MOCK) void fetch(`/api/sessions/${saved}`, { method: 'DELETE', keepalive: true }).catch(() => {})
   } catch {
     /* storage unavailable */
   }

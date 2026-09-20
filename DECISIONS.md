@@ -31,3 +31,7 @@ Short ADRs: context → decision → alternatives → consequences. Newest at th
 **14. SSE over the POST response; session id in a header-free URL path, stored in sessionStorage.** Embedded hosts block third-party cookies; one request per question keeps the client simple.
 
 **15. The golden eval picks the model, not reputation.** Candidates are compared on the same 40 questions; the table goes in the README.
+
+**16. Review findings that changed the design (from the independent reviewers).** (a) PII is detected per column, so one email inside a "Remarks" column would have been offered to the model as a filter value: the prompt builder now drops any value that looks like personal data, whatever profiling decided. (b) File and sheet names are attacker-controlled text and are no longer sent. (c) Identifier values are never listed, even for small tables. (d) Category values must be at most 40 characters and 4 words; a sentence is not a label. (e) The rate limiter reads the last `X-Forwarded-For` entry (appended by the proxy), not the first (chosen by the client). (f) A clarification sent by the browser is kept only if it names a real column. (g) "New session" deletes the server-side data immediately. (h) Re-uploading a file with the same name replaces the earlier copy.
+
+**17. Join caveats are directional.** "7% of employees have no payroll rows" and "7% of payroll rows have no employee" are different problems, so the caveat names the side. Confidence uses the better-contained side, because in a healthy parent/child link every child key exists in the parent.
