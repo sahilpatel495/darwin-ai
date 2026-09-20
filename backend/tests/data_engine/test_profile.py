@@ -275,6 +275,60 @@ def test_unreadable_examples_from_pii_columns_are_not_kept_in_the_receipt():
     assert examples == {"phone": [], "ctc": ["TBD"]}
 
 
+# --------------------------------------------------------------------------
+# Spelling variants
+# --------------------------------------------------------------------------
+
+
+def test_case_variants_of_one_department_become_one_group_with_a_receipt_line():
+    """`WHERE department = 'Sales'` must not miss the rows somebody typed in caps."""
+    values = ["Sales"] * 8 + ["sales"] * 3 + ["SALES"] * 2 + ["Finance"] * 4
+    table = ingested("staff", {"emp_id": ("text", [f"E{i}" for i in range(17)]),
+                               "department": ("text", values)},
+                     labels={"department": "Department"})
+    df, profile = profile_table(table)
+    assert sorted(df["department"].unique()) == ["Finance", "Sales"]
+    assert _column(profile, "department").values == ["Finance", "Sales"]
+    assert _column(profile, "department").distinct_count == 2
+    assert profile.health.warnings == [
+        "Department: 'sales' and 'SALES' were read as 'Sales' (5 rows)."
+    ]
+
+
+def test_a_single_variant_reads_as_one_sentence():
+    table = ingested("staff", {"city": ("text", ["Pune"] * 3 + ["PUNE"])}, labels={"city": "City"})
+    _, profile = profile_table(table)
+    assert profile.health.warnings == ["City: 'PUNE' was read as 'Pune' (1 row)."]
+
+
+def test_a_column_full_of_variants_reports_three_and_counts_the_rest():
+    words = ("sales", "finance", "retail", "support", "credit", "design")
+    pairs = [(word.title(), word) for word in words]
+    table = ingested("staff", {"team": ("text", [v for pair in pairs for v in pair])},
+                     labels={"team": "Team"})
+    _, profile = profile_table(table)
+    assert len(profile.health.warnings) == 6
+    assert profile.health.warnings[-1] == "Team: 1 more value had its spellings folded together this way."
+
+
+def test_identifier_and_pii_columns_are_never_folded():
+    """Two employee codes that differ only in case are two people, and a name is not a
+    category: neither may be rewritten to make a group look tidier."""
+    table = ingested("staff", {"emp_code": ("text", ["a1", "A1", "b2"]),
+                               "name": ("text", ["Asha Rao", "asha rao", "Vikram Shah"])})
+    df, profile = profile_table(table)
+    assert df["emp_code"].tolist() == ["a1", "A1", "b2"]
+    assert df["name"].tolist() == ["Asha Rao", "asha rao", "Vikram Shah"]
+    assert profile.health.warnings == []
+
+
+def test_only_text_columns_are_folded():
+    table = ingested("staff", {"joined": ("date", ["2025-01-01", "2025-01-01"]),
+                               "ctc": ("currency", [100.0, 100.0])})
+    _, profile = profile_table(table)
+    assert profile.health.warnings == []
+
+
 def test_an_empty_table_profiles_without_error():
     table = ingested("empty", {"emp_id": ("text", []), "ctc": ("currency", [])})
     _, profile = profile_table(table)

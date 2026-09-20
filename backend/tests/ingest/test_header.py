@@ -9,6 +9,7 @@ from app.ingest.header import (
     detect_header_row,
     drop_empty_columns,
     drop_footer_totals,
+    header_cells,
 )
 
 HEADER = ["Emp Code", "Pay Month", "Gross"]
@@ -160,3 +161,29 @@ def test_trailing_note_without_a_total_is_kept():
 def test_columns_that_are_blank_everywhere_are_dropped():
     grid = [[None, "a", "", "b"], [None, "1", "  ", "2"]]
     assert drop_empty_columns(grid) == [["a", "b"], ["1", "2"]]
+
+
+def test_a_blank_header_cell_takes_its_name_from_the_row_above():
+    """The one thing rescued from a two-row header: the key column's name."""
+    grid = [
+        ["EmpNo", "Earnings", None, None],
+        [None, "Basic", "HRA", "Bonus"],
+        ["004001", "51500", "20600", "51000"],
+    ]
+    assert header_cells(grid, 1) == ["EmpNo", "Basic", "HRA", "Bonus"]
+
+
+def test_a_filled_header_cell_never_borrows():
+    grid = [["Earnings", "Ratings"], ["Basic", "Manager"], ["1", "2"]]
+    assert header_cells(grid, 1) == ["Basic", "Manager"]
+
+
+def test_a_title_line_is_too_long_to_be_borrowed_as_a_column_name():
+    title = "Northwind Retail India Pvt Ltd (synthetic test data) - Active staff"
+    grid = [[title, None], [None, "Gross"], ["1", "2"]]
+    assert header_cells(grid, 1) == [None, "Gross"]
+
+
+def test_the_first_row_has_nothing_above_it():
+    grid = [[None, "Gross"], ["1", "2"]]
+    assert header_cells(grid, 0) == [None, "Gross"]

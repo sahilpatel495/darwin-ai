@@ -123,41 +123,78 @@ any mess is added. If Verity disagrees with a number in it, Verity is wrong.
 ## What the app gets wrong today
 
 Found by pushing every one of these files through `app.ingest.ingest_file` and
-`SessionStore().create().add_files(...)` with no model in the loop. Nothing below is fixed
-here; the files exist so these are visible.
+`SessionStore().create().add_files(...)` with no model in the loop, and re-run the same way
+after the fixes below. The rest of this file still describes the behaviour *before* them:
+the `Active` receipt line in the table above, the link table under "How the files relate"
+(fifteen links now, not sixteen, and no `payroll -> Separated` row) and step 4 of the test
+script are out of date and are not this section's to rewrite.
 
-1. **The two staff sheets do not combine.** `Active` has no leavers, so its `LWD` and
-   `Exit Reason` columns are empty and ingestion drops them ("2 columns have no values and
-   were left out"). The two sheets then no longer share a schema, so no combined view is
-   offered, even though a person reading the workbook would obviously stack them.
-2. **The payroll link to the leavers is only *suggested*.** 79% of separated staff appear in
-   the payroll (the rest left before 2025), just under the 80% bar for switching a link on.
-   With the default links, "net pay by region" answers from the `Active` sheet alone and
-   comes out **₹12.67 crore instead of ₹13.51 crore, 6.3% low**, with no warning that a
-   whole sheet was left out. This is the most dangerous thing in this file set.
-3. **Case variants survive.** `Sales ` loses its trailing space, but `sales` and `SALES` do
-   not fold into `Sales`. The department column reports 10 distinct values where there are
-   5, and a plain `WHERE department = 'Sales'` returns 158 of the 164 people.
-4. **The two-row header loses the key.** In `appraisal_two_row_header.xlsx` the second row
-   wins as the header (correctly), but `EmpNo` sits in the first row, so the column is named
-   `column_1`, gets no role, and the link detector will not join the file to the staff
-   master. The file is readable but unjoinable.
-5. **A completely empty sheet is dropped silently.** `Notes` produces no warning at all. The
-   promise in `app/ingest/__init__.py` ("skipped with a warning") only holds for a sheet that
-   has a header row with nothing under it.
+### Fixed on 2026-09-20
+
+1. **The two staff sheets combine.** A column with a header and no values is kept, as an
+   all-null text column, and the receipt says so ("2 columns have no values and were kept as
+   empty columns: LWD, Exit Reason"); union detection matches on column *names* and requires
+   equal types except where a column is entirely empty on one side, which the view casts to
+   the other side's type. `staff_master_all` (420 rows) is offered and active by default,
+   with `LWD` a real date. A column with no header *and* no values is still dropped.
+2. **The payroll link reaches all 420 staff.** When a combined view is active, links are
+   detected between the view and the other tables, never between a view and its own members,
+   with match rates and cardinality measured on the view. So
+   `payroll.EmpNo -> staff_master_all.EmpNo` is one active link (N:1, 1.00 / 0.97) in place
+   of one strong link to `Active` and a *suggested* one to `Separated`, and "net pay by
+   region" over the default links is EXPECTED.md #6 to the rupee instead of 6.3% low. The
+   same change makes `sales_jan/feb/mar -> stores` one link from `sales_all`. Pinned by
+   `backend/tests/data_engine/test_real_files.py`.
+3. **Case variants fold.** In a text column with at most 50 distinct values, spellings that
+   are equal ignoring case and whitespace become the most frequent spelling (ties go to the
+   one starting with a capital), and the receipt says so in a sentence: "Department: 'SALES'
+   and 'sales' were read as 'Sales' (6 rows)." Department now reports 5 distinct values, and
+   a plain `WHERE department = 'Sales'` returns all 164 active people (#14) and all 195 (#3).
+   Nothing that differs by more than case and space is ever folded, and identifier and PII
+   columns are left alone entirely.
+4. **The two-row header keeps its key.** A blank header cell takes the text from the row
+   directly above it when that text is short enough to be a column name, so `EmpNo` is named
+   `EmpNo` rather than `column_1`, gets the `employee_id` role, and joins to the staff master
+   (1:1, 1.00 / 0.80). Two-row headers are still a declared limitation: the second row still
+   wins and `Earnings` / `Ratings` are still thrown away.
+5. **The empty sheet is reported.** `Notes` now comes back from the reader empty instead of
+   being filtered out of existence, so ingest skips it with the same warning a header-only
+   sheet gets: "The sheet “Notes” has no data rows, so it was skipped." A workbook whose
+   sheets are *all* empty is still refused with "is empty".
+
+### Still wrong
+
 6. **Punch times stay text.** `2025-01-02 09:14:23` is not a date and there is no time or
    timestamp type, so `Punch In` and `Punch Out` are text: the time between two swipes cannot
-   be computed in SQL. Only the pre-computed `Hours Worked` column can answer hours questions.
+   be computed in SQL. Only the pre-computed `Hours Worked` column can answer hours
+   questions. Fixing it means a new `ColumnType`, which is a change to `contracts.py` and to
+   every module that maps types to DuckDB, formatting and charts.
 7. **An email inside free text is not flagged.** One `Remarks` cell contains an address; PII
    detection needs 60% of sampled values to match, so the column is plain text. Nothing leaks
    into a prompt (a text column with more than 30 distinct values never has its values
-   listed), but a preview will show it.
+   listed, and the prompt builder drops anything that looks like personal data anyway), but a
+   preview will show it. Lowering the threshold would flag ordinary comment columns as PII.
 8. `stores.Manager EmpNo` gets no semantic role ("manager_emp_no" is not one of the known
-   manager-id headers) and its link to the staff master stays *suggested*.
-9. **Every table keyed on EmpNo is linked to every other one.** `exit_interviews -> payroll`
-   (0.82 / 0.11) and `attendance -> exit_interviews` (0.11 / 0.82) both go *active*, because
-   the detector compares columns pairwise and does not know that payroll, attendance and
-   exit interviews are three fact tables that should meet at the staff master rather than at
-   each other. Nothing here is false — they do share employee numbers — but the panel shows
-   sixteen links where a person would draw seven, and the two most dangerous of the sixteen
-   (the leaver links in finding 2) are the ones that are *off*.
+   manager-id headers) and its link to the staff master stays *suggested* at 0.06 / 1.00.
+   The fix is one synonym in `app/profile/roles.py`, which is another engineer's file.
+9. **Every table keyed on EmpNo is linked to every other one.** Fifteen links where a person
+   would draw eight. The combined views took the sixteen down to eleven; rescuing the
+   appraisal sheet's key in finding 4 then added four (three of them active, including
+   `appraisal -> payroll` and `appraisal -> attendance`, both 1:N). The detector drops a
+   direct link between two fact
+   tables only when it is N:M; a table with one row per employee (exit interviews, the
+   appraisal sheet) is 1:N to everything and survives. The obvious generalisation was tried
+   and reverted: by cardinality alone, a one-row-per-employee sheet covering 80% of the staff
+   is indistinguishable from a master table, and the rule then throws away the *payroll* link
+   to the real staff master. Doing it properly means ranking candidate masters by key
+   coverage and by whether their key is itself a foreign key. Nothing here is false, and the
+   dangerous link of the sixteen (finding 2) is now on by default.
+10. **A combined view's `source_file` values are file and sheet names, and they reach the
+    model.** `staff_master_all.source_file` is listed to the model as
+    `["staff_master.xlsx / Active", "staff_master.xlsx / Separated"]`, because without those
+    literals the model cannot answer "how did February compare with January?" over
+    `sales_all`. It contradicts the promise in `catalog/prompt_context.py` that a file name,
+    which is text the uploader chose, never reaches a prompt: two same-schema files with
+    hostile names would put those names in front of the model. This predates the changes
+    above (`demo_data`'s `attendance_all` does the same) and the choice between the two
+    promises is not one ingestion can make on its own.

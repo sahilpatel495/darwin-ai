@@ -272,7 +272,34 @@ under `eval/.llm_cache` and `--only-failed` re-asks only what failed last time.
 
 ### Results
 
-<!-- EVAL -->
+Final pass, 20 September 2026, one run per question. SQL written by `openai/gpt-oss-120b` on Groq,
+phrasing by `openai/gpt-oss-20b`, cross-check by `qwen/qwen3.8-27b`; no chain failed over and no
+question ended as a provider error.
+
+| Golden set (40 questions) | |
+|---|---|
+| Accuracy | **100%** — 40 of 40; dev 30 of 30, holdout 10 of 10 |
+| Trust score | **+1.00** (+1 correct, 0 honest refusal, -1 wrong) |
+| Speed | p50 2.6 s, p95 4.8 s |
+| Repairs | 2.5% (1 of 40) |
+| Cross-check agreement | 100% of the answers it checked |
+| Calibration | High 36 of 36, Medium 1 of 1; 3 refusals carry no badge |
+| Sentence grading | 10 of the 40 are graded on the answer sentence as well as the table: 0 failures |
+
+**Challenge set: 93.8% (15 of 16), trust score +0.88.** Sixteen harder questions written after the
+prompts were finished, never used to tune one, and never scored before this run. One failure, and
+its class is **date logic**: `ch-06` filtered the months to February–December *before* taking the
+month-on-month difference, so January never entered the window and February's change came back
+empty — the other ten monthly changes are exact. No wrong column, no fan-out, no over-refusal, no
+missed refusal and no provider error; the sentence is graded on the golden set, not on this one.
+
+That one failure is where the ceiling is: the app is dependable when a question maps to one
+aggregate over the range it names, and not yet dependable when the calculation needs data from
+*outside* that range — a case no deterministic check here catches today, because the SQL is valid,
+the cross-check raised nothing, and the missing number came back empty rather than wrong. Only the
+confidence badge noticed: it was the pass's one wrong answer and it was not badged High.
+
+Every number above, and the full failure table, is in [`eval/REPORT.md`](eval/REPORT.md).
 
 ## Security posture, in brief
 

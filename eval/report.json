@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-20T14:43:14+05:30",
+  "generated_at": "2026-09-20T17:55:44+05:30",
   "model": "openai/gpt-oss-120b",
   "runs": 1,
   "total": 40,
@@ -26,17 +26,13 @@
   "p50_ms": 2566,
   "p95_ms": 4777,
   "repair_rate": 0.025,
-  "crosscheck_agreement": 0.972,
+  "crosscheck_agreement": 1.0,
   "calibration": {
     "high": {
-      "n": 34,
+      "n": 36,
       "accuracy": 1.0
     },
     "medium": {
-      "n": 2,
-      "accuracy": 1.0
-    },
-    "low": {
       "n": 1,
       "accuracy": 1.0
     }
@@ -200,7 +196,7 @@
       "expected_kind": "answer",
       "got_kind": "answer",
       "passed": true,
-      "confidence": "medium",
+      "confidence": "high",
       "latency_ms": 10187,
       "repairs": 0,
       "note": ""
@@ -421,7 +417,7 @@
       "expected_kind": "answer",
       "got_kind": "answer",
       "passed": true,
-      "confidence": "low",
+      "confidence": "high",
       "latency_ms": 1953,
       "repairs": 0,
       "note": ""
@@ -448,7 +444,7 @@
       "got_kind": "answer",
       "passed": true,
       "confidence": "high",
-      "latency_ms": 2075,
+      "latency_ms": 2795,
       "repairs": 0,
       "note": "Asked which column was meant, then answered correctly once employees.ctc was chosen."
     },
@@ -461,7 +457,7 @@
       "got_kind": "answer",
       "passed": true,
       "confidence": "high",
-      "latency_ms": 2638,
+      "latency_ms": 2446,
       "repairs": 0,
       "note": "Asked which column was meant, then answered correctly once salary_register_2025_register.net was chosen."
     },

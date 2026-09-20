@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections import Counter
 from datetime import date
 
 import duckdb
@@ -16,6 +17,7 @@ from app.ingest.cleaning import (
     parse_amount,
     parse_date,
     safe_name,
+    spelling_variants,
 )
 
 # --------------------------------------------------------------------------- cells
@@ -345,3 +347,43 @@ def test_examples_are_capped_distinct_and_short():
 def test_plain_text_and_empty_columns():
     assert infer_column("city", "City", ["Pune", "Mumbai"], dayfirst=True).type == "text"
     assert infer_column("notes", "Notes", [None, None], dayfirst=True).type == "text"
+
+
+# --------------------------------------------------------------------------- spellings
+
+
+def test_case_and_space_variants_fold_to_the_most_common_spelling():
+    counts = Counter({"Sales": 145, "sales": 12, "SALES": 7, "Finance": 44})
+    assert spelling_variants(counts) == {"sales": "Sales", "SALES": "Sales"}
+
+
+def test_a_tie_goes_to_the_spelling_that_starts_with_a_capital():
+    assert spelling_variants(Counter({"sales": 3, "Sales": 3})) == {"sales": "Sales"}
+    # Deterministic when neither is capitalised: alphabetical, never row order.
+    assert spelling_variants(Counter({"sALES": 3, "sales": 3})) == {"sales": "sALES"}
+
+
+def test_inner_space_differences_fold_too():
+    assert spelling_variants(Counter({"Store Manager": 9, "StoreManager": 1})) == {
+        "StoreManager": "Store Manager"
+    }
+
+
+@pytest.mark.parametrize("pair", [
+    ("Sales", "Salse"),  # a typo is a different word, not a different spelling
+    ("Sales", "Sale"),
+    ("Sales", "Sales & Marketing"),
+    ("Bengaluru", "Bangalore"),
+])
+def test_values_that_differ_by_more_than_case_and_space_are_never_folded(pair):
+    assert spelling_variants(Counter(dict.fromkeys(pair, 5))) == {}
+
+
+def test_a_column_with_many_distinct_values_is_free_text_and_is_left_alone():
+    """Fifty-one remarks, two of which differ only in case. Free text is not a category:
+    folding it would edit what somebody wrote."""
+    counts = Counter({f"remark {i}": 1 for i in range(49)})
+    counts.update({"Same remark": 1, "same remark": 1})
+    assert spelling_variants(counts) == {}
+    del counts["remark 0"]
+    assert spelling_variants(counts) == {"same remark": "Same remark"}

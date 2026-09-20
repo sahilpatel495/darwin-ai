@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from app.ingest.cleaning import clean_cell, is_null, parse_amount, parse_date
+from app.ingest.cleaning import MAX_NAME_LENGTH, clean_cell, is_null, parse_amount, parse_date
 
 Grid = list[list[str | None]]
 
@@ -74,6 +74,28 @@ def _header_score(row: list[str | None], width: int) -> float:
 def _is_wording(cell: str) -> bool:
     text = cell.strip()
     return parse_amount(text) is None and parse_date(text) is None and not text.endswith("%")
+
+
+def header_cells(grid: Grid, header_index: int) -> list[str | None]:
+    """The header row, with each blank cell filled from the row directly above it.
+
+    Two-row merged headers stay a declared limitation (DESIGN §4): the lower row still wins
+    and the upper one is thrown away. This rescues one thing from it, the key column. In
+    `Earnings` over `Basic | HRA | Bonus`, the group labels sit above filled cells and are
+    ignored, but `EmpNo` sits above a blank one, and without its name the whole file joins
+    to nothing. A cell too long to be a header is a title line, not a name, so it is not
+    borrowed.
+    """
+    row = grid[header_index]
+    if header_index == 0:
+        return row
+    above = grid[header_index - 1]
+    return [cell if not is_null(cell) else _borrowed(above, i) for i, cell in enumerate(row)]
+
+
+def _borrowed(above: list[str | None], index: int) -> str | None:
+    text = clean_cell(above[index]) if index < len(above) else None
+    return text if text is not None and len(text) <= MAX_NAME_LENGTH else None
 
 
 def drop_footer_totals(rows: Grid) -> tuple[Grid, int, int]:

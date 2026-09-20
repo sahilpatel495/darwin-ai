@@ -35,6 +35,7 @@ def test_fixture_shapes_give_the_expected_links():
 
     master = links["employees.emp_id->salary_register.emp_code"]
     assert (master.cardinality, master.status, master.match_left, master.match_right) == ("1:N", "active", 1.0, 1.0)
+    # No combined view is passed, so both halves of the attendance export are linked directly.
     attendance = links["attendance_q1.emp_id->employees.emp_id"]
     assert (attendance.cardinality, attendance.status) == ("N:1", "active")
     # Attendance and payroll both hang off the employee master, so the direct N:M link
@@ -44,11 +45,38 @@ def test_fixture_shapes_give_the_expected_links():
 
     for link in links.values():
         assert link.left_table < link.right_table  # ids are stable because tables are sorted
-        assert "attendance_all" not in (link.left_table, link.right_table)  # views are never linked
+        assert "attendance_all" not in (link.left_table, link.right_table)
     # Two halves of the same export are stacked, not joined.
     assert "attendance_q1.emp_id->attendance_q2.emp_id" not in links
     # Measures and dates are not keys, however much their values overlap.
     assert not any("days_present" in link.id or "month" in link.id for link in links.values())
+
+
+def test_an_active_combined_view_is_linked_in_place_of_its_members():
+    """One strong link to the whole dataset instead of one link per file. A link to half a
+    dataset is how "net pay by region" comes out low with nothing on screen to say so."""
+    session = make_session()
+    catalog = session.catalog
+    links = _by_id(detect_relationships(session.conn, catalog.tables, [], catalog.unions))
+
+    assert sorted(links) == ["attendance_all.emp_id->employees.emp_id",
+                             "employees.emp_id->salary_register.emp_code"]
+    view_link = links["attendance_all.emp_id->employees.emp_id"]
+    # Measured on the view: every one of the 8 employees appears in the stacked attendance.
+    assert (view_link.match_left, view_link.match_right, view_link.cardinality) == (1.0, 1.0, "N:1")
+    assert view_link.status == "active"
+
+
+def test_a_view_is_never_linked_to_its_own_members_or_to_a_rejected_group():
+    session = make_session()
+    catalog = session.catalog
+    links = detect_relationships(session.conn, catalog.tables, [], catalog.unions)
+    assert not any({r.left_table, r.right_table} & {"attendance_q1", "attendance_q2"} for r in links)
+
+    rejected = [u.model_copy(update={"status": "rejected"}) for u in catalog.unions]
+    back = _by_id(detect_relationships(session.conn, catalog.tables, [], rejected))
+    assert "attendance_q1.emp_id->employees.emp_id" in back
+    assert not any("attendance_all" in link for link in back)
 
 
 def test_no_link_between_a_measure_and_an_unrelated_integer_column():
@@ -121,6 +149,25 @@ def test_a_many_to_many_link_gives_way_to_the_master_table_whatever_the_upload_o
     # A user who rejected it said something the detector would not have: that is remembered.
     rejected = [direct.model_copy(update={"status": "rejected"})]
     assert _by_id(detect_relationships(conn, [attendance, payroll, staff], rejected))[direct.id].status == "rejected"
+
+
+def test_a_one_row_per_employee_sheet_is_still_linked_to_every_other_table(conn):
+    """A known limit, pinned so the next person knows it was measured, not missed: exit
+    interviews have one row per leaver, so exits -> payroll is 1:N rather than N:M and the
+    master rule leaves it on. What matters is that the master links themselves survive,
+    which the obvious generalisation of that rule destroys."""
+    conn.execute("CREATE TABLE staff AS SELECT 'E' || i AS emp_no FROM range(20) t(i)")
+    conn.execute("CREATE TABLE payroll AS SELECT 'E' || (i % 20) AS emp_no, 100 * i AS net FROM range(60) t(i)")
+    conn.execute("CREATE TABLE exits AS SELECT 'E' || i AS emp_no, 'Pay' AS reason FROM range(5) t(i)")
+    key = {"role": "employee_id", "is_identifier": True}
+    tables = [
+        _table("staff", [_column("emp_no", is_unique=True, **key)], 20),
+        _table("payroll", [_column("emp_no", **key), _column("net", "currency")], 60),
+        _table("exits", [_column("emp_no", is_unique=True, **key), _column("reason")], 5),
+    ]
+    links = _by_id(detect_relationships(conn, tables, []))
+    assert "payroll.emp_no->staff.emp_no" in links and "exits.emp_no->staff.emp_no" in links
+    assert links["exits.emp_no->payroll.emp_no"].cardinality == "1:N"
 
 
 def test_weak_overlap_is_dropped(conn):
@@ -224,6 +271,41 @@ def test_different_types_or_columns_are_not_the_same_schema():
     text_days = _table("attendance_q3", [_column("emp_id", is_identifier=True), _column("days_absent", "text")])
     extra = _table("attendance_q4", [_column("emp_id"), _column("days_absent", "integer"), _column("note")])
     assert detect_unions([_attendance("attendance_q1"), text_days, extra], []) == []
+
+
+def test_a_column_that_is_empty_on_one_sheet_does_not_break_the_match():
+    """The Active sheet of a staff workbook has nobody with a leaving date, so its LWD column
+    is an empty text column. A person would still stack the two sheets, so Verity does."""
+    active = _table("staff_active", [_column("emp_no", is_identifier=True),
+                                     _column("lwd", "text", null_fraction=1.0)], 2)
+    separated = _table("staff_separated", [_column("emp_no", is_identifier=True),
+                                           _column("lwd", "date")], 2)
+    (union,) = detect_unions([active, separated], [])
+    assert union.tables == ["staff_active", "staff_separated"]
+
+
+def test_two_sheets_that_disagree_about_a_column_with_values_are_still_not_a_union():
+    """Nothing here is empty, so one of the two types would have to be overruled silently."""
+    a = _table("pay_h1", [_column("emp_no", is_identifier=True), _column("gross", "currency")], 2)
+    b = _table("pay_h2", [_column("emp_no", is_identifier=True), _column("gross", "text")], 2)
+    assert detect_unions([a, b], []) == []
+
+
+def test_the_view_takes_the_type_of_the_sheet_that_has_values(conn):
+    conn.execute("CREATE TABLE staff_active AS SELECT 'E1' AS emp_no, CAST(NULL AS VARCHAR) AS lwd")
+    conn.execute("CREATE TABLE staff_separated AS SELECT 'E2' AS emp_no, DATE '2025-06-30' AS lwd")
+    active = _table("staff_active", [_column("emp_no", is_identifier=True, is_unique=True),
+                                     _column("lwd", "text", null_fraction=1.0)], 1)
+    separated = _table("staff_separated", [_column("emp_no", is_identifier=True, is_unique=True),
+                                           _column("lwd", "date", role="exit_date")], 1)
+    tables = [active, separated]
+    (view,) = create_union_views(conn, detect_unions(tables, []), tables)
+
+    assert conn.execute("SELECT typeof(lwd) FROM staff_all LIMIT 1").fetchone()[0] == "DATE"
+    assert conn.execute("SELECT count(*) FROM staff_all WHERE lwd IS NULL").fetchone()[0] == 1
+    lwd = next(c for c in view.columns if c.name == "lwd")
+    assert (lwd.type, lwd.role, lwd.min, lwd.max) == ("date", "exit_date", "2025-06-30", "2025-06-30")
+    assert lwd.null_fraction == 0.5 and view.row_count == 2
 
 
 def test_views_are_never_members_and_a_rejection_is_remembered():

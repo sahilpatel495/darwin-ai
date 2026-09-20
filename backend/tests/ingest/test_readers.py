@@ -264,7 +264,9 @@ def test_a_crafted_sheet_name_is_cut_to_the_length_excel_allows(tmp_path):
     assert table.grid == [["a", "b"], ["1", "2"]]
 
 
-def test_every_non_empty_sheet_is_a_table(tmp_path):
+def test_every_sheet_comes_back_and_a_blank_one_comes_back_empty(tmp_path):
+    """The blank sheet is carried, not dropped, so ingest can say it was skipped. Naming
+    still follows the sheets that hold something."""
     sheets = {
         "Register": [["a", "b"], [1, 2]],
         "Blank": [],
@@ -272,11 +274,18 @@ def test_every_non_empty_sheet_is_a_table(tmp_path):
     }
     path = _workbook(tmp_path, "Salary_Register_2025.xlsx", sheets)
     tables = read_raw_tables(path, "Salary_Register_2025.xlsx")
+    assert [t.sheet for t in tables] == ["Register", "Blank", "Bonuses"]
     assert [t.name_hint for t in tables] == [
         "Salary_Register_2025_Register",
+        "Salary_Register_2025_Blank",
         "Salary_Register_2025_Bonuses",
     ]
-    assert [t.sheet for t in tables] == ["Register", "Bonuses"]
+    assert tables[1].grid == []
+
+
+def test_one_data_sheet_beside_a_blank_one_is_named_after_the_file(tmp_path):
+    path = _workbook(tmp_path, "staff.xlsx", {"Active": [["a"], [1]], "Notes": []})
+    assert [t.name_hint for t in read_raw_tables(path, "staff.xlsx")] == ["staff", "staff"]
 
 
 def test_rows_in_a_sheet_are_padded_to_one_width(tmp_path):

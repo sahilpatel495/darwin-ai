@@ -33,6 +33,7 @@ from app.contracts import (
     StepEvent,
 )
 from app.ingest import IngestError
+from app.insights.routes import router as insights_router
 from app.limits import LimitExceeded, Limits, client_ip
 from app.llm.client import PoolClient
 from app.query.executor import QueryError, QueryTimeout
@@ -52,6 +53,7 @@ app.include_router(sample_router)  # before the SPA catch-all below, which would
 store = SessionStore()
 llm = PoolClient()
 limits = Limits(settings)
+app.include_router(insights_router)  # the no-model routes; also before the SPA catch-all
 
 
 class ApiProblem(Exception):

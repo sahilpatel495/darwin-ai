@@ -26,7 +26,9 @@ Login, persistence, other databases, `.xls`, two-row merged headers, muster-styl
 
 Forty golden questions; truth computed with pandas from the clean data, before the mess is injected; ten held out from tuning.
 
-<!-- EVAL -->
+**Golden set: 40 of 40 (dev 30/30, holdout 10/10), trust +1.00**; p50 2.6 s, cross-check agreement 100%, calibration High 36/36 and Medium 1/1. Ten of the forty grade the *sentence* too — a ranking word may only sit beside the row that earns it — and none failed.
+
+**Challenge set: 15 of 16 (93.8%), trust +0.88** — sixteen harder questions written after the prompts were frozen and scored for the first time here. The one failure is date logic: asked for month-on-month change from February, the SQL filtered to February–December before differencing, so January never entered the window and February's change came back empty. No wrong column, fan-out, over- or missed refusal, or provider error. That is the ceiling: dependable over the range a question names, not yet over a calculation needing data from outside it — the SQL is valid, the cross-check raises nothing, the empty cell is not a wrong number, so only the badge noticed, and it was not High. [`eval/REPORT.md`](eval/REPORT.md).
 
 ## How I used AI
 

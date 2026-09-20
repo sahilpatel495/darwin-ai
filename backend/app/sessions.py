@@ -259,15 +259,19 @@ class Session:
 
     def _rebuild(self, base: list[TableProfile], relationships: list[Relationship],
                  unions: list[UnionView]) -> Catalog:
-        """The next catalog for these base tables: links re-detected (user decisions kept),
-        union views recreated in DuckDB and profiled. Call inside a transaction."""
-        relationships = detect_relationships(self.conn, base, relationships)
+        """The next catalog for these base tables: union views recreated in DuckDB and
+        profiled, then links re-detected over them (user decisions kept). Call inside a
+        transaction.
+
+        Views first, because a link to a combined view is measured on the view's own rows,
+        so the view has to exist before the overlap queries run."""
         # A group is renamed when a file joins it (sales_jan_all becomes sales_all). Its old view
         # would otherwise linger outside the catalog and block a later table of the same name.
         for union in self.catalog.unions:
             self.conn.execute(f"DROP VIEW IF EXISTS {quote(union.view_name)}")
         unions = detect_unions(base, unions)
         views = create_union_views(self.conn, unions, base)
+        relationships = detect_relationships(self.conn, base + views, relationships, unions)
         return self.catalog.model_copy(update={
             "tables": base + views, "relationships": relationships, "unions": unions,
             "version": self.catalog.version + 1})

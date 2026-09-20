@@ -70,9 +70,15 @@ def _column_line(col: ColumnProfile) -> str:
     return head + (" | " + " | ".join(parts) if parts else "")
 
 
-def _table_block(table: TableProfile) -> str:
+def _table_block(table: TableProfile, part_of: str | None = None) -> str:
+    """One table, and — when it is one file of a combined view — which view it belongs to.
+
+    The model has to be told a part is a part. Left to look like a table of its own, it
+    answers a whole-dataset question from whichever part it picks, which is the same silent
+    half-answer the combined view exists to prevent."""
     kind = "VIEW" if table.is_view else "TABLE"
-    lines = [f"{kind} {table.name} ({table.row_count} rows)"]
+    part = f", part of {part_of}" if part_of else ""
+    lines = [f"{kind} {table.name} ({table.row_count} rows{part})"]
     lines += [_column_line(c) for c in table.columns[:MAX_COLUMNS_PER_TABLE]]
     rest = table.columns[MAX_COLUMNS_PER_TABLE:]
     if rest:
@@ -82,7 +88,9 @@ def _table_block(table: TableProfile) -> str:
 
 def build_schema_context(catalog: Catalog) -> str:
     """Render the catalog as compact text for the SQL-generation prompt."""
-    blocks = [_table_block(t) for t in catalog.tables]
+    unions = [u for u in catalog.unions if u.status == "active"]
+    part_of = {member: u.view_name for u in unions for member in u.tables}
+    blocks = [_table_block(t, part_of.get(t.name)) for t in catalog.tables]
 
     links = [r for r in catalog.relationships if r.status != "rejected"]
     if links:
@@ -96,10 +104,11 @@ def build_schema_context(catalog: Catalog) -> str:
             )
         blocks.append("\n".join(lines))
 
-    unions = [u for u in catalog.unions if u.status == "active"]
     if unions:
         lines = ["UNION VIEWS (same-schema files stacked, with a source_file column)"]
         lines += [f"  {u.view_name} = " + " + ".join(u.tables) for u in unions]
+        lines.append("  Query the combined view. Use one of its parts only when the question "
+                     "is about that part alone.")
         blocks.append("\n".join(lines))
 
     return "\n\n".join(blocks)

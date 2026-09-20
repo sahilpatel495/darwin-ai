@@ -53,19 +53,23 @@ def test_messy_workbook_end_to_end(tmp_path):
     ]
     register, bonuses = tables
 
-    assert list(register.df.columns) == ["emp_code", "pay_month", "gross", "deductions", "lop_days"]
+    # Remarks is empty in every row and kept anyway, so this sheet still matches the schema
+    # of the same export for another month, where somebody did write a remark.
+    assert list(register.df.columns) == ["emp_code", "pay_month", "gross", "deductions",
+                                         "lop_days", "remarks"]
     assert register.types == {
         "emp_code": "text",
         "pay_month": "date",
         "gross": "currency",
         "deductions": "currency",
         "lop_days": "integer",
+        "remarks": "text",
     }
     assert register.labels["emp_code"] == "Emp Code"
     assert (register.source_file, register.sheet) == ("Salary_Register_2025.xlsx", "Register")
 
     health = register.health
-    assert (health.rows, health.columns) == (41, 5)
+    assert (health.rows, health.columns) == (41, 6)
     assert health.skipped_title_rows == 3
     assert health.dropped_total_rows == 1
     assert health.duplicate_rows == 1
@@ -184,6 +188,79 @@ def test_awkward_file_names_still_give_valid_table_names(tmp_path):
     assert ingest_file(path, "2025 Sales (final).csv", set())[0].table_name == "t_2025_sales_final"
     assert ingest_file(path, "Order.csv", set())[0].table_name == "order_data"
     assert ingest_file(path, "数据.csv", set())[0].table_name == "data"
+
+
+def test_a_column_with_a_header_and_no_values_is_kept_as_an_empty_text_column(tmp_path):
+    """The Active sheet of a staff workbook: nobody has left, so LWD and Exit Reason are
+    blank. Dropping them would stop the sheet matching the Separated sheet's schema."""
+    text = "Emp Code,Gross,LWD,Exit Reason\n001,100,,\n002,200,,\n"
+    (table,) = ingest_file(_csv(tmp_path, "active.csv", text), "active.csv", set())
+    assert list(table.df.columns) == ["emp_code", "gross", "lwd", "exit_reason"]
+    assert (table.types["lwd"], table.types["exit_reason"]) == ("text", "text")
+    assert table.df["lwd"].isna().all()
+    assert table.health.warnings == [
+        "2 columns have no values and were kept as empty columns: LWD, Exit Reason."
+    ]
+    # Already named in the warning; repeating them as 100% null would crowd out real hot-spots.
+    assert table.health.null_hotspots == {}
+
+
+def test_one_empty_column_is_reported_in_the_singular(tmp_path):
+    text = "Emp Code,Notes\n001,\n002,\n"
+    (table,) = ingest_file(_csv(tmp_path, "a.csv", text), "a.csv", set())
+    assert table.health.warnings == ["The column Notes has no values and was kept as an empty column."]
+
+
+def test_a_column_with_no_header_and_no_values_is_still_dropped(tmp_path):
+    """March's export puts a trailing comma on every line. That column has no name and no
+    values, so there is nothing to keep."""
+    text = "Emp Code,Gross,\n001,100,\n002,200,\n"
+    (table,) = ingest_file(_csv(tmp_path, "a.csv", text), "a.csv", set())
+    assert list(table.df.columns) == ["emp_code", "gross"]
+    assert table.health.warnings == []
+
+
+def test_a_sheet_with_nothing_on_it_is_reported_like_a_header_only_one(tmp_path):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Data"
+    ws.append(["Emp Code", "Gross"])
+    ws.append(["001", "100"])
+    wb.create_sheet("Notes")  # not one cell on it
+    path = tmp_path / "staff.xlsx"
+    wb.save(path)
+
+    (table,) = ingest_file(path, "staff.xlsx", set())
+    assert table.table_name == "staff"  # the empty sheet does not make this a multi-sheet name
+    assert table.health.warnings == ["The sheet “Notes” has no data rows, so it was skipped."]
+
+
+def test_a_workbook_of_only_empty_sheets_is_empty(tmp_path):
+    wb = openpyxl.Workbook()
+    wb.create_sheet("Notes")
+    path = tmp_path / "blank.xlsx"
+    wb.save(path)
+    with pytest.raises(IngestError) as err:
+        ingest_file(path, "blank.xlsx", set())
+    assert str(err.value) == "blank.xlsx is empty."
+
+
+def test_a_two_row_header_keeps_the_key_column_name(tmp_path):
+    """Two-row headers stay a declared limitation: the lower row still wins. All this
+    rescues is the key, which is the difference between a joinable file and an orphan."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["EmpNo", "Earnings", None, None])
+    ws.append([None, "Basic", "HRA", "Bonus"])
+    for i in range(1, 4):
+        ws.append([f"00400{i}", 51500, 20600, 51000])
+    path = tmp_path / "appraisal.xlsx"
+    wb.save(path)
+
+    (table,) = ingest_file(path, "appraisal.xlsx", set())
+    assert list(table.df.columns) == ["emp_no", "basic", "hra", "bonus"]
+    assert table.labels["emp_no"] == "EmpNo"
+    assert table.df["emp_no"].tolist() == ["004001", "004002", "004003"]
 
 
 def test_header_only_file(tmp_path):

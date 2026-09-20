@@ -85,8 +85,10 @@ def read_raw_tables(path: Path, original_name: str) -> list[RawTable]:
         tables = [_read_text_file(path, name)]
     else:
         tables = _read_workbook(path, name)
-    tables = [t for t in tables if _grid_has_value(t.grid)]
-    if not tables:
+    # Sheets with nothing on them are kept, empty, so ingest reports them the same way it
+    # reports a sheet with only a header row. Dropping them here made a whole worksheet
+    # disappear from the receipt without a word.
+    if not any(_grid_has_value(t.grid) for t in tables):
         raise IngestError(f"{name} is empty.")
     return tables
 
@@ -210,15 +212,17 @@ def _read_workbook(path: Path, name: str) -> list[RawTable]:
         ) from None
 
     stem = Path(name).stem
-    filled = [(title, grid) for title, grid in sheets if _grid_has_value(grid)]
+    # Only the sheets that hold something decide the naming: a workbook with one data sheet
+    # and one blank sheet is still a one-table file, and its table is named after the file.
+    filled = sum(_grid_has_value(grid) for _, grid in sheets)
     return [
         RawTable(
-            name_hint=stem if len(filled) == 1 else f"{stem}_{title}",
+            name_hint=stem if filled <= 1 else f"{stem}_{title}",
             source_file=name,
             sheet=title,
             grid=grid,
         )
-        for title, grid in filled
+        for title, grid in sheets
     ]
 
 

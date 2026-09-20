@@ -35,6 +35,7 @@ from app.ingest.header import (
     detect_header_row,
     drop_empty_columns,
     drop_footer_totals,
+    header_cells,
 )
 from app.ingest.readers import read_raw_tables
 from app.ingest.types import IngestedTable, RawTable
@@ -99,7 +100,8 @@ def _unique_table_name(hint: str, taken: set[str]) -> str:
 
 
 def _build_table(raw: RawTable, table_name: str) -> IngestedTable | None:
-    """Clean one grid. Returns None when there is a header but nothing under it.
+    """Clean one grid. Returns None when it holds no data rows: a blank sheet, or a header
+    with nothing under it. The caller reports both the same way.
 
     Consumes `raw.grid` (leaves it empty) so a large upload is not held in memory twice."""
     grid = drop_empty_columns(raw.grid)
@@ -110,11 +112,16 @@ def _build_table(raw: RawTable, table_name: str) -> IngestedTable | None:
         return None
     inner_totals = count_inner_totals(body)
 
-    names, labels = normalise_names(grid[header_index])
+    names, labels = normalise_names(header_cells(grid, header_index))
     cleaned = {name: [clean_cell(row[i]) for row in body] for i, name in enumerate(names)}
     # The text now lives in `cleaned`. Releasing the rows here, and each text column once it
     # is converted below, took peak memory on a 20 MB CSV from 416 MB to 372 MB.
     raw.grid = grid = body = []
+    # A named column with nothing in it is kept, as an all-null text column. Dropping it used
+    # to cost more than it saved: the Active sheet of a staff workbook has no leavers, so its
+    # LWD column is blank, and without it the sheet no longer matches the Separated sheet and
+    # the two cannot be stacked. Columns with no name *and* no values are already gone, above.
+    empty = [name for name, texts in cleaned.items() if all(text is None for text in texts)]
     # One decision for the whole table: an export writes every date the same way, so a
     # 25/04/2025 in one column settles what 03/04/2025 means in another.
     dayfirst, undecidable = infer_dayfirst(
@@ -124,11 +131,6 @@ def _build_table(raw: RawTable, table_name: str) -> IngestedTable | None:
         name: infer_column(name, labels[name], cleaned.pop(name), dayfirst) for name in names
     }
 
-    empty = [name for name, column in columns.items() if all(v is None for v in column.values)]
-    columns = {name: column for name, column in columns.items() if name not in empty}
-    if not columns:
-        return None
-
     df = pd.DataFrame(
         {
             name: pd.Series(column.values, dtype=_DTYPES[column.type])
@@ -136,7 +138,7 @@ def _build_table(raw: RawTable, table_name: str) -> IngestedTable | None:
         }
     )
     warnings = _warnings(columns, labels, empty, note_rows, inner_totals, undecidable)
-    health = _health(df, columns, header_index, total_rows, undecidable, warnings)
+    health = _health(df, columns, empty, header_index, total_rows, undecidable, warnings)
     return IngestedTable(
         table_name=table_name,
         source_file=raw.source_file,
@@ -151,6 +153,7 @@ def _build_table(raw: RawTable, table_name: str) -> IngestedTable | None:
 def _health(
     df: pd.DataFrame,
     columns: dict[str, InferredColumn],
+    empty: list[str],
     header_index: int,
     total_rows: int,
     undecidable: bool,
@@ -159,7 +162,9 @@ def _health(
     """Write the receipt. `pii_columns` and `duplicates_removed` belong to profiling, which
     knows about PII and identifiers; duplicates are only counted here, never removed."""
     date_labels: Counter[str] = sum((c.date_labels for c in columns.values()), Counter())
-    null_share = df.isna().mean().sort_values(ascending=False, kind="stable")
+    # Columns with nothing in them are named in their own warning; listing them here as 100%
+    # null as well would push the columns that are only partly empty out of the top five.
+    null_share = df.drop(columns=empty).isna().mean().sort_values(ascending=False, kind="stable")
     hotspots = null_share[null_share > NULL_HOTSPOT_THRESHOLD].head(MAX_NULL_HOTSPOTS)
     return DataHealth(
         rows=len(df),
@@ -206,10 +211,11 @@ def _warnings(
         shown = ", ".join(display_name(labels[name], name) for name in empty[:5])
         more = f" and {len(empty) - 5} more" if len(empty) > 5 else ""
         if len(empty) == 1:
-            warnings.append(f"The column {shown} has no values and was left out.")
+            warnings.append(f"The column {shown} has no values and was kept as an empty column.")
         else:
             warnings.append(
-                f"{len(empty)} columns have no values and were left out: {shown}{more}."
+                f"{len(empty)} columns have no values and were kept as empty columns: "
+                f"{shown}{more}."
             )
     if note_rows:
         rows_were = "row was" if note_rows == 1 else "rows were"

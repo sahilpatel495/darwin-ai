@@ -18,6 +18,22 @@ def test_schema_context_gives_the_model_real_filter_literals_and_links():
     assert "attendance_all = attendance_q1 + attendance_q2" in text
 
 
+def test_the_parts_of_a_combined_view_are_named_as_parts_of_it():
+    """A model that cannot tell a whole dataset from one of its files answers from the file."""
+    text = build_schema_context(make_session().catalog)
+    assert "TABLE attendance_q1 (24 rows, part of attendance_all)" in text
+    assert "VIEW attendance_all (48 rows)" in text
+    assert "TABLE employees (8 rows)" in text  # a table in no view is unchanged
+    assert "combined view" in text  # and the model is told which one to prefer
+
+
+def test_a_rejected_combined_view_is_not_advertised():
+    catalog = make_session().catalog
+    catalog.unions[0].status = "rejected"
+    text = build_schema_context(catalog)
+    assert "part of" not in text and "combined view" not in text
+
+
 def test_wide_tables_are_capped():
     catalog = make_session().catalog
     table = catalog.tables[0]
