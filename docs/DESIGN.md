@@ -56,12 +56,14 @@ Multi-file upload (CSV, XLSX, multi-sheet) · cleaning + profiling · per-sessio
 9. Follow-up questions in context; suggested starter questions validated against the schema
 10. Golden eval (40 questions, dev/holdout split) + in-app Trust Report page
 11. Abuse limits: per-IP rate limit, global daily LLM budget
+12. A whole-app journey, local-first: projects, previous questions and a printable saved-answers board live in the browser; the server keeps no customer data (see `docs/DESIGN_SYSTEM.md` §6–7)
+13. Learning the product: first-run tour, a "How Verity works" explainer, "What's this?" on every trust signal
 
 **P2 — only if P0 + P1 are green and tested (cut from the bottom)**
-Export CSV/PNG · answer feedback that appends to eval candidates · "exclude duplicates" toggle · mini SVG schema diagram · MCP endpoint over the same engine (Darwinbox ships an HCM MCP server; the FDE JD prefers MCP) · dark mode.
+Export PNG · answer feedback that appends to eval candidates · "exclude duplicates" toggle · mini SVG schema diagram · MCP endpoint over the same engine (Darwinbox ships an HCM MCP server; the FDE JD prefers MCP) · dark mode.
 
 **Deliberately out (stated in the write-up)**
-Auth and multi-tenancy · persistence across restarts · warehouses other than DuckDB · fine-tuning · RAG/vector search over rows · two-row merged headers · wide attendance-muster unpivot · small-n salary suppression · files over 10 MB on the hosted demo (25 MB locally).
+Auth and multi-tenancy · server-side storage of customer data (projects are saved in the browser instead) · teams, sharing and scheduled reports · warehouses other than DuckDB · fine-tuning · RAG/vector search over rows · two-row merged headers · wide attendance-muster unpivot · small-n salary suppression · files over 10 MB on the hosted demo (25 MB locally).
 
 Rule: never leave a half-working feature visible. A feature that is not green by its gate is removed from the UI, not hidden behind a bug.
 
