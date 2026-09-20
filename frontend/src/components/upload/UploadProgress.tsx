@@ -9,7 +9,7 @@ import { cx } from '../ui'
 export type Busy = { kind: 'upload'; files: number; fraction: number } | { kind: 'sample' }
 
 function sentence(busy: Busy): string {
-  if (busy.kind === 'sample') return 'Loading the sample HR data…'
+  if (busy.kind === 'sample') return 'Loading the sample company…'
   const files = busy.files === 1 ? '1 file' : `${busy.files} files`
   // Once every byte is sent the server is still reading and cleaning, which can take longer than the upload.
   return busy.fraction < 1 ? `Uploading ${files}… ${Math.round(busy.fraction * 100)}%` : `Reading and cleaning ${files}…`
@@ -29,14 +29,14 @@ export default function UploadProgress({ busy, className }: { busy: Busy; classN
 
   return (
     <div role="status" aria-live="polite" className={cx('space-y-2', className)}>
-      <p className="type-body font-medium text-ink">{sentence(busy)}</p>
-      <div role="progressbar" aria-label="Progress" aria-valuenow={percent ?? undefined} className="h-1.5 overflow-hidden rounded-pill bg-fill">
+      <p className="text-body-md font-bold text-ink-deep">{sentence(busy)}</p>
+      <div role="progressbar" aria-label="Progress" aria-valuenow={percent ?? undefined} className="h-2 overflow-hidden rounded-full bg-surface-soft">
         <div
-          className={cx('h-full rounded-pill bg-blue transition-[width] duration-200 ease-[var(--ease-standard)]', percent === null && 'animate-pulse')}
+          className={cx('h-full rounded-full bg-primary transition-[width] duration-200 ease-[var(--ease-spring)]', percent === null && 'animate-pulse')}
           style={{ width: `${percent ?? 100}%` }}
         />
       </div>
-      {slow && <p className="type-small text-ink-2">The server sleeps when nobody is using it, so the first load can take about a minute.</p>}
+      {slow && <p className="text-body-sm text-steel">The server sleeps when nobody is using it, so the first load can take about a minute.</p>}
     </div>
   )
 }

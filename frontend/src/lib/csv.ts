@@ -31,7 +31,7 @@ export function csvFileName(question: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .slice(0, 60)
     .replace(/^-+|-+$/g, '')
-  return `${slug || 'verity-result'}.csv`
+  return `${slug || 'darwinlens-result'}.csv`
 }
 
 /** Hands the file to the browser. The BOM is what makes Excel read ₹ and names as UTF-8. */

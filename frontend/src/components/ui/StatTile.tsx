@@ -25,12 +25,12 @@ const ARROW = { up: '▲', down: '▼', flat: '—' } as const
 function Delta({ text, direction, good }: NonNullable<StatTileProps['delta']>) {
   const tone =
     good === undefined
-      ? 'bg-fill text-ink-2'
+      ? 'bg-surface-soft text-slate'
       : good
-        ? 'bg-green-soft text-green-ink'
-        : 'bg-red-soft text-red-ink'
+        ? 'bg-success-soft text-success'
+        : 'bg-critical-soft text-critical'
   return (
-    <span className={cx('inline-flex items-center gap-1 rounded-pill px-2 py-0.5 type-micro font-semibold', tone)}>
+    <span className={cx('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption font-semibold', tone)}>
       <span aria-hidden className="text-[9px] leading-none">
         {ARROW[direction]}
       </span>
@@ -51,12 +51,12 @@ export default function StatTile({ value, label, delta, aside, animate = false, 
       <div className="min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           {/* aria-label carries the settled figure, so a screen reader never reads the count-up. */}
-          <p className="type-hero text-ink" aria-label={value}>
+          <p className="text-heading-lg text-ink" aria-label={value}>
             <span aria-hidden>{shown}</span>
           </p>
           {delta && <Delta {...delta} />}
         </div>
-        {label && <p className="mt-1 type-small text-ink-2">{label}</p>}
+        {label && <p className="mt-1 text-body-sm text-slate">{label}</p>}
       </div>
       {aside && <div className="shrink-0">{aside}</div>}
     </div>

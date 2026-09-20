@@ -63,12 +63,12 @@ export default function Popover({ trigger, triggerLabel, title, children, align 
           id={panelId}
           className={cx(
             'popover-in absolute top-full z-40 mt-2 w-72 max-w-[calc(100vw-2rem)]',
-            'rounded-card bg-surface p-3.5 shadow-3',
+            'rounded-xl bg-surface p-3.5 shadow-level-2',
             align === 'right' ? 'right-0' : 'left-0',
           )}
         >
-          {title && <p className="type-section text-ink">{title}</p>}
-          <div className={cx('type-small text-ink-2', title && 'mt-1')}>{children}</div>
+          {title && <p className="text-subtitle-lg text-ink">{title}</p>}
+          <div className={cx('text-body-sm text-slate', title && 'mt-1')}>{children}</div>
         </div>
       )}
     </span>

@@ -25,7 +25,7 @@ export default function Check({ size = 18, animate = false, delay = 0, title, cl
       aria-label={title}
       aria-hidden={title ? undefined : true}
       style={{ width: size, height: size, animationDelay: animate ? `${delay}ms` : undefined }}
-      className={cx('inline-flex shrink-0 items-center justify-center rounded-pill bg-green text-white', animate && 'check-pop', className)}
+      className={cx('inline-flex shrink-0 items-center justify-center rounded-full bg-success text-white', animate && 'check-pop', className)}
     >
       <CheckIcon size={Math.round(size * 0.72)} strokeWidth={2.4} />
     </span>

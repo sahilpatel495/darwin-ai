@@ -23,12 +23,12 @@ export interface ProgressStepsProps {
 // The rail below a step is coloured by that step's own outcome, so the eye can follow how far
 // the run got and where it went wrong without reading a word.
 const RAIL: Record<StepState, string> = {
-  pending: 'bg-line-soft',
-  active: 'bg-line-soft',
-  done: 'bg-green',
-  warn: 'bg-amber',
-  failed: 'bg-red',
-  waiting: 'bg-amber',
+  pending: 'bg-hairline-soft',
+  active: 'bg-hairline-soft',
+  done: 'bg-success',
+  warn: 'bg-attention',
+  failed: 'bg-critical',
+  waiting: 'bg-attention',
 }
 
 // Every state says itself in words as well as colour: the marker's aria-label is read aloud.
@@ -45,16 +45,16 @@ function Marker({ state }: { state: StepState }) {
   if (state === 'done') return <Check size={18} animate title={SPOKEN.done} />
 
   const dot = (className: string, inner?: ReactNode) => (
-    <span role="img" aria-label={SPOKEN[state]} className={cx('inline-flex size-[18px] shrink-0 items-center justify-center rounded-pill', className)}>
+    <span role="img" aria-label={SPOKEN[state]} className={cx('inline-flex size-[18px] shrink-0 items-center justify-center rounded-full', className)}>
       {inner}
     </span>
   )
 
-  if (state === 'active') return dot('bg-blue-soft', <span aria-hidden className="size-2 rounded-pill bg-blue animate-breathe" />)
-  if (state === 'waiting') return dot('bg-amber-soft', <span aria-hidden className="size-2 rounded-pill bg-amber" />)
-  if (state === 'warn') return dot('bg-amber text-[11px] leading-none font-bold text-black', <span aria-hidden>!</span>)
-  if (state === 'failed') return dot('bg-red text-[11px] leading-none font-bold text-white', <span aria-hidden>×</span>)
-  return dot('border-2 border-line')
+  if (state === 'active') return dot('bg-primary-soft', <span aria-hidden className="size-2 rounded-full bg-primary animate-breathe" />)
+  if (state === 'waiting') return dot('bg-attention-soft', <span aria-hidden className="size-2 rounded-full bg-attention" />)
+  if (state === 'warn') return dot('bg-attention text-[11px] leading-none font-bold text-black', <span aria-hidden>!</span>)
+  if (state === 'failed') return dot('bg-critical text-[11px] leading-none font-bold text-white', <span aria-hidden>×</span>)
+  return dot('border-2 border-hairline')
 }
 
 /**
@@ -71,22 +71,33 @@ export default function ProgressSteps({ steps, className }: ProgressStepsProps) 
       {steps.map((step, i) => (
         <li key={step.id} className="relative flex gap-3 pb-3 last:pb-0">
           {/* The rail between markers: drawn on every row but the last, so the eye follows down. */}
-          {i < steps.length - 1 && <span aria-hidden className={cx('absolute top-[22px] bottom-0 left-[8px] w-0.5 rounded-pill', RAIL[step.state])} />}
+          {i < steps.length - 1 && <span aria-hidden className={cx('absolute top-[22px] bottom-0 left-[8px] w-0.5 rounded-full', RAIL[step.state])} />}
           <span className="relative z-10 mt-0.5">
             <Marker state={step.state} />
           </span>
           <div
             className={cx(
-              'relative min-w-0 flex-1 overflow-hidden rounded-input px-2 py-0.5',
-              step.state === 'active' && 'shimmer bg-blue-soft/60',
-              step.state === 'waiting' && 'bg-amber-soft',
+              'relative min-w-0 flex-1 rounded-xl px-3 py-1',
+              step.state === 'waiting' && 'bg-attention-soft',
             )}
           >
             <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-              <p className={cx('type-body', step.state === 'pending' ? 'text-ink-3' : 'font-medium text-ink')}>{step.label}</p>
-              {step.meta && <span className="rounded-pill bg-fill px-2 py-0.5 type-micro text-ink-2">{step.meta}</span>}
+              {/* §4: the sweep travels through the running step's own words, not through a tinted
+                  box behind them — a glowing label reads as "this is happening now", a glowing
+                  rectangle reads as a loading placeholder. */}
+              <p
+                className={cx(
+                  'text-body-md',
+                  step.state === 'active' && 'shimmer-text font-bold',
+                  step.state === 'pending' && 'text-stone',
+                  step.state !== 'active' && step.state !== 'pending' && 'font-medium text-ink',
+                )}
+              >
+                {step.label}
+              </p>
+              {step.meta && <span className="rounded-full bg-surface-soft px-2 py-0.5 text-caption text-slate">{step.meta}</span>}
             </div>
-            {step.detail && <p className="mt-0.5 type-small text-ink-2">{step.detail}</p>}
+            {step.detail && <p className="mt-0.5 text-body-sm text-slate">{step.detail}</p>}
           </div>
         </li>
       ))}

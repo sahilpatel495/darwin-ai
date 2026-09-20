@@ -1,30 +1,40 @@
-// The whole router (§6) and the one shell around it. Seven screens and the primitives gallery,
-// chosen by the hash: no router library, no state library. Each screen owns its own state, so
-// nothing here has to know what a catalog or a session is.
+// The whole router (§6) and the one shell around it. Twelve hash routes and the primitives
+// gallery, chosen by the hash: no router library, no state library.
 //
-// Three exceptions, all about not losing something the analyst already has:
-//  - the catalog of a project just created is already in memory, and handing it to the workspace
-//    is what keeps "sample data, then a question" the same length it has always been;
-//  - a question sent from Overview or Analyses is held here until the Ask page it lands on has
-//    its files loaded and can run it (§13, §14);
-//  - a change any screen makes to a project record is announced by lib/projects, so the nav rail
-//    shows the name the analyst has just typed rather than the one on disk when this rendered.
+// Three things live here and nowhere else, because they are true of every screen:
+//  - who is signed in (`useSession`), which decides whether a visitor sees the landing or an
+//    analyst sees their projects, and which shelf of projects `lib/projects` reads;
+//  - the command palette and its ⌘K, because the search pill is in the bar that is always up;
+//  - the handover of a question from one screen to another, which has to survive the navigation
+//    between them.
+//
+// Everything inside a project — the files, the Data drawer, and the one answer to "your files are
+// no longer loaded" — belongs to ProjectShell, so the four tabs share one of each.
 
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import AnalysesPage from './components/analyses/AnalysesPage'
-import Board from './components/board/Board'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import AuthPage from './components/auth/AuthPage'
 import Home from './components/home/Home'
-import OverviewPage from './components/overview/OverviewPage'
-import Header from './components/shell/Header'
-import MissingProject from './components/shell/MissingProject'
-import Workspace from './components/shell/Workspace'
+import { createFromFiles, createFromSample, NothingRead } from './components/home/create'
+import Landing from './components/marketing/Landing'
+import { MarketingFooter, MarketingNav } from './components/marketing/MarketingChrome'
+import Welcome from './components/onboarding/Welcome'
+import type { LoadSource } from './components/onboarding/Welcome'
+import CommandPalette from './components/shell/CommandPalette'
+import MobileTabBar from './components/shell/MobileTabBar'
+import ProjectShell from './components/shell/ProjectShell'
+import TopBar from './components/shell/TopBar'
+import { NOTHING_READ, problemFrom } from './components/shell/problem'
+import type { Problem } from './components/shell/problem'
+import SettingsPage from './components/settings/SettingsPage'
 import Gallery from './components/ui/Gallery'
-import { AnalysesIcon, AskIcon, HomeIcon, NavRail, OverviewIcon, SavedIcon, Toaster, TrustIcon } from './components/ui'
-import type { NavItemSpec } from './components/ui'
-import { getProject, onProjectsChanged, updateProject } from './lib/projects'
+import { Toaster, toast } from './components/ui'
+import { getStoredUser } from './api'
+import { getProject, listProjects, onProjectsChanged, scopeProjectsTo } from './lib/projects'
 import type { ProjectRecord } from './lib/projects'
-import { analysesPath, boardPath, go, HOME, overviewPath, parseRoute, projectPath, routeProjectId, TRUST } from './lib/route'
+import { go, guard, HOME, isProjectRoute, overviewPath, parseRoute, projectPath, PROJECTS, routeProjectId, WELCOME } from './lib/route'
 import type { Route } from './lib/route'
+import { useSession } from './lib/session'
+import HowItWorks from './pages/HowItWorks'
 import TrustReport from './pages/TrustReport'
 import type { Catalog } from './types'
 
@@ -39,61 +49,41 @@ function useRoute(): Route {
   return useMemo(() => parseRoute(hash), [hash])
 }
 
-/** The Trust Report is read from somewhere, so it offers the way back to that somewhere. */
-function TrustPage({ fromProjectId }: { fromProjectId: string | null }) {
-  const project = fromProjectId ? getProject(fromProjectId) : null
-  return (
-    <div className="flex h-full flex-col">
-      <Header back={project ? { href: projectPath(project.id), label: `Back to ${project.name}` } : { href: HOME, label: 'Back to your projects' }} />
-      <main className="relative min-h-0 flex-1 overflow-y-auto">
-        <TrustReport />
-      </main>
-    </div>
-  )
-}
-
-/** One scrollable page for the screens that are not the workspace's own full-height layout. */
-function Page({ project, onRename, children }: { project: ProjectRecord; onRename: (name: string) => void; children: React.ReactNode }) {
-  return (
-    <div className="flex h-full flex-col">
-      <Header project={{ id: project.id, name: project.name }} onRename={onRename} />
-      <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
-    </div>
-  )
-}
-
-/** Which nav item is lit. The gallery lights none: it is the design system, not a destination. */
-const NAV_ACTIVE: Record<Route['name'], string> = {
-  home: 'home',
-  project: 'ask',
-  overview: 'overview',
-  analyses: 'analyses',
-  board: 'saved',
-  trust: 'trust',
-  gallery: '',
-}
+/** One scrollable page for the screens that are not a project's own full-height layout. */
+const Page = ({ children }: { children: React.ReactNode }) => (
+  <main className="mx-auto w-full max-w-[1120px] px-4 py-8 sm:px-6 sm:py-12">{children}</main>
+)
 
 export default function App() {
   const route = useRoute()
+  const session = useSession()
   const [fresh, setFresh] = useState<{ project: ProjectRecord; catalog: Catalog } | null>(null)
   const lastProjectId = useRef<string | null>(null)
-  // A question handed over from Overview or Analyses. State, not a ref: the workspace needs it to
-  // survive until its files have loaded, which is several renders after the click.
+  // A question handed over from another screen or the palette. State, not a ref: the workspace
+  // needs it to survive until its files have loaded, which is several renders after the click.
   const [pending, setPending] = useState<string | null>(null)
-  // The record as a page has just changed it, for the browser that has nowhere to store it. It
-  // belongs to one visit to one page, so it is dropped whenever the route changes.
-  const [local, setLocal] = useState<ProjectRecord | null>(null)
+  const [dataOpen, setDataOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [demoBusy, setDemoBusy] = useState(false)
+  const [demoProblem, setDemoProblem] = useState<Problem | null>(null)
 
-  // Any write anywhere re-reads the record here: renaming in the workspace header renames the
-  // project in the rail, and saving a tile lights the Saved tab, without either screen knowing
-  // this component exists.
+  // Projects belong to a person (§10). Set during render, before any child reads the shelf: it is
+  // a pointer, not state, and pointing it twice at the same person does nothing.
+  scopeProjectsTo(session.user?.id ?? null)
+
+  // Any write anywhere re-reads the record here: renaming in a card renames the project in the
+  // top bar, and saving a tile lights the Saved tab, without either screen knowing this exists.
   const [, reread] = useReducer((n: number) => n + 1, 0)
   useEffect(() => onProjectsChanged(reread), [])
+
+  const signedIn = session.status === 'ready'
+  const projects = signedIn ? listProjects() : []
 
   useEffect(() => {
     const id = routeProjectId(route)
     if (id) lastProjectId.current = id
-    setLocal(null)
+    setDataOpen(false) // a drawer left open across a page change is a drawer nobody asked for
+    setSearchOpen(false)
     // The handover belongs to one visit to one project: it is dropped once that workspace has been
     // opened and left, so coming back asks the server whether the files are still there. It is
     // deliberately not dropped before then — this effect and the hashchange that follows `go()` are
@@ -101,6 +91,42 @@ export default function App() {
     const used = fresh !== null && lastProjectId.current === fresh.project.id
     if (used && !(route.name === 'project' && route.id === fresh.project.id)) setFresh(null)
   }, [route, fresh])
+
+  // §6: a visitor cannot open somebody's work, and a member has no use for the two auth screens.
+  // A guest is signed in but still needs sign-up — it is how they keep what they have done — so
+  // the guard is told which they are. Held until the session has answered, so nobody is bounced
+  // off their own bookmark while the token is still being checked.
+  const isGuest = session.user !== null && session.user.kind !== 'member'
+  useEffect(() => {
+    if (session.status === 'starting') return
+    // The hash is the truth; `route` is a render behind it. Signing up sets the hash to #/welcome
+    // and turns `signedIn` on in the same tick, so this effect used to run once with the route it
+    // still thought it was on — #/signup — and send a brand-new member to their projects, over the
+    // top of the onboarding they were already on their way to. Nobody ever saw the three steps.
+    if (parseRoute(location.hash).name !== route.name) return
+    const elsewhere = guard(route, signedIn, isGuest)
+    if (elsewhere) go(elsewhere)
+  }, [route, session.status, signedIn, isGuest])
+
+  // Onboarding runs once (§7), and once means once per visit rather than once per navigation: a
+  // rule that redirected every arrival at `#/home` would be a room with no door.
+  const welcomed = useRef(false)
+  useEffect(() => {
+    if (welcomed.current || !session.user || session.user.onboarded) return
+    welcomed.current = true
+    if (route.name === 'home') go(WELCOME)
+  }, [route.name, session.user])
+
+  // ⌘K is the search pill's keyboard twin, bound here because the bar is on every screen.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'k' || !(event.metaKey || event.ctrlKey)) return
+      event.preventDefault()
+      setSearchOpen((was) => !was)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   // A file dropped beside a drop zone would otherwise make the browser open it and leave the app.
   useEffect(() => {
@@ -113,94 +139,214 @@ export default function App() {
     }
   }, [])
 
+  const opened = useCallback((project: ProjectRecord, catalog: Catalog) => {
+    setFresh({ project, catalog })
+    go(projectPath(project.id))
+  }, [])
+
+  /** The evaluator's path (§7): a guest account, the sample company, and a question, in one press. */
+  const tryDemo = useCallback(async () => {
+    setDemoBusy(true)
+    setDemoProblem(null)
+    // The demo is its own introduction, so it does not detour through onboarding: without this the
+    // guest account arrives a second before the sample does and the welcome screen flashes past.
+    welcomed.current = true
+    try {
+      await session.continueAsGuest()
+      // Pointed at the new guest's shelf before anything is written to it. Read from api.ts rather
+      // than from `session.user`, which is a render away: the record below is created several
+      // awaits later, and it must not land on the shelf we were reading a moment ago.
+      scopeProjectsTo(getStoredUser()?.id ?? null)
+      const { project, catalog } = await createFromSample()
+      opened(project, catalog)
+    } catch (error) {
+      const problem = error instanceof NothingRead ? NOTHING_READ : problemFrom(error)
+      setDemoProblem(problem)
+      // The banner belongs to the landing page — but by the time the sample can fail, the guest
+      // account already exists, so the landing has been replaced by their (empty) projects screen
+      // and nobody ever reads it. Pressing "Try the live demo" and arriving nowhere, silently, is
+      // the worst version of this. The toast follows them to whichever screen they landed on.
+      toast(problem.nextStep ? `${problem.message} ${problem.nextStep}` : problem.message, 'error')
+    } finally {
+      setDemoBusy(false)
+    }
+  }, [session, opened])
+
+  const askIn = useCallback((projectId: string, question: string) => {
+    setPending(question)
+    go(projectPath(projectId))
+  }, [])
+
+  /** The project onboarding made, so its last step can ask a question in it or open its overview. */
+  const onboarded = useRef<ProjectRecord | null>(null)
+
+  /** Onboarding brings the files; project records are the app's, so it is made here (§7 step 2). */
+  const onboardingLoad = useCallback(async (source: LoadSource): Promise<Catalog> => {
+    const created = source.kind === 'sample' ? await createFromSample() : await createFromFiles(source.files, () => {})
+    onboarded.current = created.project
+    // Held so the workspace opens on the catalog that was just read rather than fetching it again.
+    setFresh(created)
+    return created.catalog
+  }, [])
+
+  /** Signed in, signed up or continuing as a guest. Somebody new is shown the three steps; anyone
+   *  who has been through them already goes straight to their work. Read from api.ts, because
+   *  `session.user` is a render away and this runs inside the form's own handler. */
+  const onAuthed = useCallback(() => {
+    const next = getStoredUser()
+    welcomed.current = true // this decision is the one the effect below would otherwise make
+    go(next && !next.onboarded ? WELCOME : PROJECTS)
+  }, [])
+
   // The gallery is the design system's own page: full width, no product chrome around it.
   if (route.name === 'gallery') return <Gallery /> // components/ui/README.md
 
   const projectId = routeProjectId(route)
-  const stored = projectId ? (fresh?.project.id === projectId ? fresh.project : getProject(projectId)) : null
-  const project = local?.id === projectId ? local : stored
-
-  const askFrom = (id: string) => (question: string) => {
-    setPending(question)
-    go(projectPath(id))
-  }
-
-  /** A page changed the record (§10): store it, and keep it on screen either way. */
-  const onProjectChange = (next: ProjectRecord) => setLocal(updateProject(next.id, next) ?? next)
-
-  const items: NavItemSpec[] = [
-    { id: 'home', label: 'Home', href: HOME, icon: <HomeIcon /> },
-    { id: 'ask', label: 'Ask', href: project ? projectPath(project.id) : HOME, icon: <AskIcon />, disabled: !project },
-    { id: 'overview', label: 'Overview', href: project ? overviewPath(project.id) : HOME, icon: <OverviewIcon />, disabled: !project },
-    { id: 'analyses', label: 'Analyses', href: project ? analysesPath(project.id) : HOME, icon: <AnalysesIcon />, disabled: !project },
-    { id: 'saved', label: 'Saved', href: project ? boardPath(project.id) : HOME, icon: <SavedIcon />, disabled: !project },
-    // The tour's fourth step points here (§10). The header no longer carries a Trust link, so this
-    // is the only element with that anchor.
-    { id: 'trust', label: 'Trust', href: TRUST, icon: <TrustIcon />, anchorProps: { 'data-tour': 'trust' } },
-  ].map((item) => ({ ...item, disabledReason: 'Open a project first' }))
+  const project = projectId ? (fresh?.project.id === projectId ? fresh.project : getProject(projectId)) : null
 
   let screen: React.ReactNode
-  switch (route.name) {
-    case 'trust':
-      screen = <TrustPage fromProjectId={lastProjectId.current} />
-      break
-    case 'board':
-      screen = <Board key={route.id} projectId={route.id} />
-      break
-    case 'overview':
-    case 'analyses': {
-      if (!project) {
-        screen = <MissingProject />
+  if (session.status === 'starting') {
+    // The token is being checked. Anything drawn now would be the wrong screen for somebody: a
+    // member would see the landing for a moment, a visitor would see an empty projects shelf.
+    screen = <div className="min-h-[60vh]" />
+  } else if (!signedIn) {
+    // Everything a visitor can reach. The guard above has already sent them here from anywhere
+    // else, and `starting` draws the landing's frame without its contents rather than a spinner.
+    switch (route.name) {
+      case 'signin':
+      case 'signup':
+        screen = <AuthPage mode={route.name} session={session} user={session.user} onAuthed={onAuthed} />
         break
-      }
-      const Screen = route.name === 'overview' ? OverviewPage : AnalysesPage
-      screen = (
-        <Page project={project} onRename={(name) => onProjectChange({ ...project, name })}>
-          <Screen sessionId={project.sessionId} project={project} onAsk={askFrom(project.id)} onProjectChange={onProjectChange} />
-        </Page>
-      )
-      break
+      case 'how':
+        screen = <HowItWorks />
+        break
+      case 'trust':
+        screen = (
+          <Page>
+            <TrustReport />
+          </Page>
+        )
+        break
+      default:
+        screen = <Landing onTryDemo={() => void tryDemo()} loading={demoBusy} error={demoProblem} onDismissError={() => setDemoProblem(null)} />
     }
-    case 'project': {
-      // The record travels with the catalog: a browser with storage switched off has nothing to
-      // find on disk, and the project just created must still open.
-      const handover = fresh?.project.id === route.id ? fresh : null
-      screen = (
-        <Workspace
-          key={route.id}
-          projectId={route.id}
-          initialProject={handover?.project ?? null}
-          initialCatalog={handover?.catalog ?? null}
-          initialQuestion={pending}
-          // Dropped the moment the workspace has asked it, so coming back to this project later
-          // does not re-ask a question the analyst has already had answered.
-          onQuestionTaken={() => setPending(null)}
-        />
-      )
-      break
+  } else {
+    switch (route.name) {
+      // A guest upgrading in place. The guard lets only a guest this far, and AuthPage is handed
+      // the guest's own user so signing up keeps their id, their projects and their questions.
+      case 'signin':
+      case 'signup':
+        screen = <AuthPage mode={route.name} session={session} user={session.user} onAuthed={onAuthed} />
+        break
+      case 'welcome':
+        screen = (
+          <Welcome
+            user={session.user}
+            session={session}
+            catalog={fresh?.catalog ?? null}
+            onLoad={onboardingLoad}
+            onAsk={(question) => onboarded.current && askIn(onboarded.current.id, question)}
+            onOverview={() => onboarded.current && go(overviewPath(onboarded.current.id))}
+            onSkip={() => go(onboarded.current ? projectPath(onboarded.current.id) : PROJECTS)}
+          />
+        )
+        break
+      case 'how':
+        screen = <HowItWorks />
+        break
+      case 'trust':
+        screen = (
+          <Page>
+            <TrustReport />
+          </Page>
+        )
+        break
+      case 'settings':
+        screen = <SettingsPage session={session} />
+        break
+      case 'project':
+      case 'overview':
+      case 'analyses':
+      case 'board':
+        screen = (
+          <ProjectShell
+            key={route.id}
+            route={route}
+            projectId={route.id}
+            user={session.user}
+            initialProject={fresh?.project.id === route.id ? fresh.project : null}
+            initialCatalog={fresh?.project.id === route.id ? fresh.catalog : null}
+            pendingQuestion={pending}
+            // Dropped the moment the workspace has asked it, so coming back to this project later
+            // does not re-ask a question the analyst has already had answered.
+            onQuestionTaken={() => setPending(null)}
+            onAsk={(question) => askIn(route.id, question)}
+            onAnswered={session.refreshUsage}
+            dataOpen={dataOpen}
+            onDataOpenChange={setDataOpen}
+          />
+        )
+        break
+      default:
+        screen = <Home user={session.user} onCreated={opened} />
     }
-    default:
-      screen = (
-        <Home
-          onCreated={(created, catalog) => {
-            setFresh({ project: created, catalog })
-            go(projectPath(created.id))
-          }}
-        />
-      )
   }
 
+  const onProjectPage = isProjectRoute(route) && project !== null
+  // A visitor reading How it works or Trust is on a marketing page, so it gets the marketing
+  // frame — both halves of it. The footer is not decoration here: it carries the line that says
+  // this is an independent prototype, which every page a visitor can reach has to state.
+  const marketingChrome = !signedIn && (route.name === 'how' || route.name === 'trust')
+
+  // The Ask tab is the one screen that must be exactly as tall as the window: the conversation
+  // scrolls inside it and the composer stays docked at the bottom however long the thread gets.
+  // With `min-h-full` the wrapper grows with the conversation, the page scrolls instead, and the
+  // composer scrolls away with it. Every other screen is a document and grows freely.
+  const askScreen = onProjectPage && route.name === 'project'
+
   return (
-    <div className="flex h-full">
-      {/* Appearance lives in the header's settings, which is on every screen at every width; the
-          rail is 72px of navigation and nothing else. */}
-      <NavRail items={items} active={NAV_ACTIVE[route.name]} project={project ? { name: project.name, href: projectPath(project.id) } : null} />
-      {/* Keyed by the route so the incoming page fades in and rises 8px (§4); nothing animates on
+    <div className={`flex flex-col ${askScreen ? 'h-dvh overflow-hidden print:h-auto print:overflow-visible' : 'min-h-full'}`}>
+      {/* The landing and the auth screens bring their own chrome (§7), so the only bar drawn here
+          is the app's — plus the marketing nav for a visitor reading How it works or Trust. */}
+      {/* A guest upgrading is on the auth screen, which brings its own full-height chrome (§7):
+          the app bar on top of it would push the split layout down and cut off the first field. */}
+      {signedIn && route.name !== 'signin' && route.name !== 'signup' ? (
+        <TopBar
+          route={route}
+          project={onProjectPage ? project : null}
+          projects={projects}
+          user={session.user}
+          onOpenData={onProjectPage ? () => setDataOpen(true) : undefined}
+          onOpenSearch={() => setSearchOpen(true)}
+          onSignOut={() => void session.signOut().then(() => go(HOME))}
+        />
+      ) : (
+        marketingChrome && <MarketingNav />
+      )}
+
+      {/* Keyed by the route so the incoming page fades in and rises 12px (§4); nothing animates on
           the way out, so leaving is instant. The bottom padding is the phone's tab bar, which is
           fixed and so takes no space of its own. */}
-      <div key={`${route.name}:${projectId ?? ''}`} className="page-enter min-h-0 min-w-0 flex-1 pb-[calc(env(safe-area-inset-bottom,0px)+3.75rem)] md:pb-0">
+      {/* The reader is part of the key: projects live on one shelf per person (§10), so signing in
+          as somebody else is a different screen and not the same one with different words. */}
+      <div
+        key={`${session.user?.id ?? 'none'}:${route.name}:${projectId ?? ''}`}
+        className={`page-enter flex min-h-0 flex-1 flex-col ${onProjectPage ? 'pb-[calc(env(safe-area-inset-bottom,0px)+4.5rem)] md:pb-0' : ''}`}
+      >
         {screen}
       </div>
+
+      {marketingChrome && <MarketingFooter />}
+
+      {onProjectPage && project && <MobileTabBar route={route} projectId={project.id} />}
+
+      <CommandPalette
+        open={searchOpen && signedIn}
+        onClose={() => setSearchOpen(false)}
+        projects={projects}
+        project={project}
+        onAsk={askIn}
+      />
       <Toaster />
     </div>
   )

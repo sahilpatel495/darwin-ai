@@ -47,8 +47,8 @@ export default function Tooltip({ label, children, side = 'top', align = 'center
           id={id}
           role="tooltip"
           className={cx(
-            'popover-in pointer-events-none absolute z-40 rounded-input bg-ink px-2 py-1',
-            'type-micro whitespace-nowrap text-wash shadow-3',
+            'popover-in pointer-events-none absolute z-40 rounded-lg bg-ink-deep px-2 py-1',
+            'text-caption whitespace-nowrap text-white shadow-level-2',
             align === 'start' ? 'left-0' : 'left-1/2 -translate-x-1/2',
             side === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
           )}

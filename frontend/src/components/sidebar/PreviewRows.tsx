@@ -1,5 +1,5 @@
-// "Preview rows": the first rows of one uploaded file, as Verity read them. An analyst checks a
-// file by looking at it, and the Data Health receipt only describes it. The rows travel from the
+// "Preview rows": the first rows of one uploaded file, as DarwinLens read them. An analyst checks
+// a file by looking at it, and the Data Health receipt only describes it. The rows travel from the
 // server to this browser and nowhere else, and the dialog says so, because the rest of the app
 // promises that rows are never shown to the AI.
 //
@@ -43,36 +43,34 @@ export default function PreviewRows({ sessionId, table }: { sessionId: string; t
         onClose={() => setLoad({ state: 'closed' })}
         size="lg"
         title={table.sheet ? `${table.source_file}, sheet ${table.sheet}` : table.source_file}
+        description="Shown only to you. Rows are never sent to the AI."
         footer={
           <Button variant="primary" onClick={() => setLoad({ state: 'closed' })}>
             Close
           </Button>
         }
       >
-        <p className="type-small text-ink-2">Shown only to you. Rows are never sent to the AI.</p>
-        <div className="mt-3">
-          {load.state === 'loading' && (
-            <div role="status" aria-label="Loading rows">
-              <Skeleton className="h-40 w-full" />
-            </div>
-          )}
-          {load.state === 'ready' && (
-            <DataTable table={load.table} caption={`First rows of ${table.source_file}`} cutNote={`The first ${load.table.rows.length} of ${total} rows, after cleaning.`} />
-          )}
-          {load.state === 'failed' && (
-            <Banner
-              tone="error"
-              nextStep={load.nextStep}
-              action={
-                <Button size="sm" onClick={fetchRows}>
-                  Try again
-                </Button>
-              }
-            >
-              {load.message}
-            </Banner>
-          )}
-        </div>
+        {load.state === 'loading' && (
+          <div role="status" aria-label="Loading rows">
+            <Skeleton className="h-40 w-full" />
+          </div>
+        )}
+        {load.state === 'ready' && (
+          <DataTable table={load.table} caption={`First rows of ${table.source_file}`} cutNote={`The first ${load.table.rows.length} of ${total} rows, after cleaning.`} />
+        )}
+        {load.state === 'failed' && (
+          <Banner
+            tone="error"
+            nextStep={load.nextStep}
+            action={
+              <Button size="sm" onClick={fetchRows}>
+                Try again
+              </Button>
+            }
+          >
+            {load.message}
+          </Banner>
+        )}
       </Dialog>
     </>
   )

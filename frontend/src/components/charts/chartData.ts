@@ -17,7 +17,7 @@
 import type { Cell, ChartSpec, ResultTable } from '../../types'
 
 const MAX_GROUPS = 12 // bars stay readable on a phone; the backend adds a note when it trims
-const MAX_SERIES = 5 // one per --color-series-* token; colours are never recycled
+const MAX_SERIES = 6 // exactly the six §2 chart colours; past this a colour would have to be recycled
 const MAX_BANDS = 40 // a histogram is never trimmed: a distribution missing its tail is a lie
 const MAX_CELLS = 12 // heatmap rows and columns; past this a cell is a sliver
 const MAX_SCATTER_POINTS = 500 // ponytail: SVG dots get slow past this; sample server-side if it matters

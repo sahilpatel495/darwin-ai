@@ -1,12 +1,16 @@
 // Run from frontend/: node --test "src/**/*.test.mjs"
 // Plain Node test runner (Node strips the TypeScript types itself), so no test dependency is
 // needed. Both files under test are import-free on purpose, which is what lets this work.
+//
+// The tour that used to be tested here is gone (§7): there is no coach-mark walkthrough any more,
+// so its steps, its anchors and its panel arithmetic went with it. What replaced it is three
+// one-line hints, and the only thing worth pinning about them is the copy.
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { EXPLAIN } from './explain.ts'
-import { anchorSelectors, placePanel, TOUR_STEPS } from './tourSteps.ts'
+import { TIPS, TIP_ORDER } from './tips.ts'
 
-// §8: the analyst never reads these words, so they must never appear in copy shown to them.
+// §12: the analyst never reads these words, so they must never appear in copy shown to them.
 const JARGON = /\b(schema|join|joins|joined|fan-?out|guard|payload|pipeline|llm|token|tokens|session|sessions)\b/i
 
 const sentences = (body) => body.split(/(?<=[.?])\s+/).filter(Boolean)
@@ -25,49 +29,25 @@ test('every explanation has a title and a body written for an analyst', () => {
   }
 })
 
-test('the tour names the six anchors once each and stays in the analyst’s words', () => {
-  assert.deepEqual(
-    TOUR_STEPS.map((step) => step.anchor),
-    ['files', 'composer', 'working', 'overview', 'analyses', 'trust'],
-  )
-  for (const { anchor, title, body } of TOUR_STEPS) {
-    assert.doesNotMatch(title, JARGON, `${anchor}: the title uses the analyst's words`)
-    assert.doesNotMatch(body, JARGON, `${anchor}: the body uses the analyst's words`)
-    assert.doesNotMatch(title, /[A-Z]{2,}/, `${anchor}: no all-caps labels`)
-  }
+test('the product is called DarwinLens everywhere the analyst can read it', () => {
+  const copy = [...Object.values(EXPLAIN).flatMap(({ title, body }) => [title, body]), ...TIP_ORDER.map((id) => TIPS[id].text)]
+  for (const line of copy) assert.doesNotMatch(line, /Verity/, 'the product was renamed on 2026-09-21')
 })
 
-test('a step looks for its placed anchor first, then for the nav rail link', () => {
-  // Order matters: querySelector with a comma-joined list would return whichever comes first in
-  // the document, which is the rail — so the selectors are tried one at a time, best first.
-  for (const step of TOUR_STEPS) {
-    const selectors = anchorSelectors(step)
-    assert.equal(selectors[0], `[data-tour="${step.anchor}"]`, `${step.anchor}: the placed anchor is tried first`)
-    assert.equal(selectors.length, step.fallback ? 2 : 1)
+test('there are exactly three tips, each one line in the analyst’s words', () => {
+  // Three is the whole budget (§7). A fourth is a sign a screen is not explaining itself.
+  assert.equal(TIP_ORDER.length, 3)
+  assert.deepEqual([...TIP_ORDER].sort(), Object.keys(TIPS).sort())
+
+  for (const id of TIP_ORDER) {
+    const tip = TIPS[id]
+    assert.equal(tip.id, id, `${id}: the record knows its own id`)
+    assert.doesNotMatch(tip.text, JARGON, `${id}: uses the analyst's words`)
+    // Sentence case (§3). "AI" is a word, not an eyebrow label; anything else in capitals is one.
+    assert.equal(tip.text.replace(/\bAI\b/g, '').match(/[A-Z]{2,}/), null, `${id}: no all-caps labels`)
+    // One line beside the thing it explains, not a paragraph: that is what `#/how` is for.
+    assert.equal(sentences(tip.text).length, 1, `${id}: one sentence`)
+    assert.ok(tip.text.length < 140, `${id}: short enough to sit on one line beside a control`)
+    assert.ok(tip.where.length > 0, `${id}: says who renders it`)
   }
-  // The three rail steps are the ones nobody places an anchor for.
-  assert.deepEqual(
-    TOUR_STEPS.filter((step) => step.fallback).map((step) => step.anchor),
-    ['overview', 'analyses', 'trust'],
-  )
-})
-
-test('the tour panel sits below its anchor, above it when there is no room, and never off screen', () => {
-  const panel = { width: 320, height: 200 }
-  const viewport = { width: 1280, height: 800 }
-
-  const below = placePanel({ top: 100, left: 40, width: 200, height: 30 }, panel, viewport)
-  assert.deepEqual(below, { top: 142, left: 40 }, 'below the anchor, one gap down')
-
-  // An anchor near the bottom: 700 + 30 + 12 + 200 is past 800, so the panel flips above it.
-  const above = placePanel({ top: 700, left: 40, width: 200, height: 30 }, panel, viewport)
-  assert.deepEqual(above, { top: 488, left: 40 })
-
-  // A composer anchored at the right edge of a phone must not put its Next button off screen.
-  const phone = placePanel({ top: 100, left: 300, width: 80, height: 30 }, panel, { width: 390, height: 844 })
-  assert.equal(phone.left, 390 - 320 - 8)
-
-  // A panel taller than the screen is clamped to the top margin rather than scrolled off it.
-  const tiny = placePanel({ top: 10, left: 0, width: 40, height: 20 }, { width: 320, height: 700 }, { width: 390, height: 500 })
-  assert.deepEqual(tiny, { top: 8, left: 8 })
 })

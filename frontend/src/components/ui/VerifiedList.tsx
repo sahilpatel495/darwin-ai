@@ -19,7 +19,7 @@ export default function VerifiedList({ items, animate = false, className }: Veri
     <ul className={cx('space-y-2', className)}>
       {items.map((item, i) => (
         // Index keys: the list is rebuilt whole for each answer and never reordered.
-        <li key={i} className="flex gap-2.5 type-body text-ink">
+        <li key={i} className="flex gap-2.5 text-body-md text-ink">
           <Check animate={animate} delay={i * 90} className="mt-0.5" />
           <span className="min-w-0">{item}</span>
         </li>

@@ -1,6 +1,9 @@
 // "How I got this": the working behind an answer, in the order someone would check it. The
 // statement above it makes a claim; this is where the claim is audited. It opens with the route
-// the answer took (§12) and then gives every step of it in full.
+// the answer took (§8) and then gives every step of it in full.
+//
+// It unfolds inside the answer card, so it is divided from the statement by a hairline and space
+// rather than by a second surface: a card inside a card is a mistake (§5).
 //
 // Everything here is rendered as plain text. SQL, prompts and error messages can contain text
 // from a customer's file, so nothing is ever treated as HTML or markdown.
@@ -23,29 +26,30 @@ const ATTEMPT_REASON: Record<Attempt['reason'], string> = {
   sql_error: 'Retry after the database reported an error',
   guard_rejected: 'Retry after the safety check rejected the SQL',
   empty_result: 'Retry after a result that came back empty',
-  fan_out: 'Retry to stop rows being counted twice in a join',
+  // §12: "join" and "fan-out" are the engine's words. The analyst's are files and links.
+  fan_out: 'Retry to stop rows being counted twice where two files are linked',
   period_missing: 'Retry to filter on the period the question names',
 }
 
 const ROLE: Record<string, string> = { system: 'Instructions (system)', user: 'Request (user)', assistant: 'Reply (assistant)' }
 
 // Mono is for SQL and prompts only — never for a data label (§3).
-const code = 'overflow-x-auto rounded-input bg-surface-2 p-3 type-code whitespace-pre-wrap break-words text-ink'
-const quietLink = 'cursor-pointer text-blue-ink underline decoration-blue-ink/40 underline-offset-2 hover:decoration-current'
+const code = 'overflow-x-auto rounded-lg bg-surface-soft p-4 text-code whitespace-pre-wrap break-words text-ink'
+const quietLink = 'cursor-pointer text-primary-deep underline underline-offset-2'
 
 // --- The route the answer took ---------------------------------------------
 
 const TONE: Record<FlowTone, string> = {
-  done: 'bg-green-soft text-green-ink',
-  warn: 'bg-amber-soft text-amber-ink',
-  failed: 'bg-red-soft text-red-ink',
-  idle: 'bg-fill text-ink-2',
+  done: 'bg-success-soft text-success',
+  warn: 'bg-attention-soft text-attention-ink',
+  failed: 'bg-critical-soft text-critical',
+  idle: 'bg-surface-soft text-slate',
 }
 
 /** The loop a rewritten query took, drawn on the node it went back to. */
 function Loop({ times }: { times: number }) {
   return (
-    <span className="mt-1 inline-flex items-center gap-1 rounded-pill bg-amber-soft px-2 py-0.5 type-micro text-amber-ink">
+    <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-attention-soft px-2.5 py-0.5 text-caption text-attention-ink">
       <svg aria-hidden width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M16 7.5a6.5 6.5 0 1 0 .9 5" />
         <path d="M16.5 3v4.5H12" />
@@ -60,12 +64,12 @@ function Flow({ nodes }: { nodes: FlowNode[] }) {
     <ol className="flex flex-wrap items-stretch gap-1.5">
       {nodes.map((node, i) => (
         <li key={node.id} className="flex items-center gap-1.5">
-          <span className={cx('flex flex-col items-start rounded-card px-2.5 py-1.5', TONE[node.tone])}>
-            <span className="type-micro font-semibold">{node.label}</span>
-            {node.note && <span className="type-micro opacity-80">{node.note}</span>}
+          <span className={cx('flex flex-col items-start rounded-xl px-3 py-2', TONE[node.tone])}>
+            <span className="text-caption font-bold">{node.label}</span>
+            {node.note && <span className="text-caption opacity-80">{node.note}</span>}
             {node.loops > 0 && <Loop times={node.loops} />}
           </span>
-          {i < nodes.length - 1 && <span aria-hidden className="h-px w-3 shrink-0 bg-line" />}
+          {i < nodes.length - 1 && <span aria-hidden className="h-px w-3 shrink-0 bg-hairline" />}
         </li>
       ))}
     </ol>
@@ -79,9 +83,9 @@ type SectionProps = { title: string; children: ReactNode } & HTMLAttributes<HTML
 
 function Section({ title, children, ...rest }: SectionProps) {
   return (
-    <section className="border-t border-line-soft py-3 first:border-t-0 first:pt-0" {...rest}>
-      <h4 className="mb-1.5 type-small font-semibold text-ink">{title}</h4>
-      <div className="type-small text-ink-2">{children}</div>
+    <section className="border-t border-hairline-soft py-4 first:border-t-0 first:pt-0" {...rest}>
+      <h4 className="mb-1.5 text-body-sm font-bold text-ink-deep">{title}</h4>
+      <div className="text-body-sm text-slate">{children}</div>
     </section>
   )
 }
@@ -109,21 +113,21 @@ function SqlBlock({ sql }: { sql: string }) {
 
 function Payload({ payload }: { payload: ModelPayload }) {
   return (
-    <details className="border-t border-line-soft pt-2 first:border-t-0 first:pt-0">
-      <summary className="cursor-pointer type-small text-ink">
+    <details className="border-t border-hairline-soft pt-2 first:border-t-0 first:pt-0">
+      <summary className="cursor-pointer text-body-sm text-ink-deep">
         {PURPOSE[payload.purpose]}
-        <span className="text-ink-2">
+        <span className="text-slate">
           {' '}
           with {payload.model} on {payload.provider}, {payload.cached ? 'reused from an earlier identical request' : formatDuration(payload.latency_ms)}
         </span>
       </summary>
       <div className="space-y-2 py-2">
         {payload.purpose === 'narrate' && (
-          <p className="type-small text-ink-2">This step also received the computed result as formatted text, with personal data replaced by placeholders, so it could phrase the answer.</p>
+          <p className="text-body-sm text-slate">This step also received the computed result as formatted text, with personal data replaced by placeholders, so it could phrase the answer.</p>
         )}
         {payload.messages.map((message, i) => (
           <div key={i}>
-            <p className="mb-1 type-small font-medium text-ink-2">{ROLE[message.role] ?? message.role}</p>
+            <p className="mb-1 text-body-sm font-medium text-slate">{ROLE[message.role] ?? message.role}</p>
             <pre className={code}>{message.content}</pre>
           </div>
         ))}
@@ -147,12 +151,12 @@ export default function HowIGotThis({ work, tables }: { work: Work; tables: Tabl
   const reading = work.reading || work.interpretation
   const totalMs = Object.values(work.timings_ms).reduce((sum, ms) => sum + ms, 0)
   return (
-    <div className="rounded-card bg-surface-2 p-4">
+    <div className="border-t border-hairline-soft pt-5">
       <div className="overflow-x-auto pb-1">
         <Flow nodes={flowNodes(work)} />
       </div>
 
-      <div className="mt-4 border-t border-line-soft pt-3">
+      <div className="mt-5 border-t border-hairline-soft pt-4">
         {reading && <Section title="How I read your question">{reading}</Section>}
 
         {work.plan.length > 0 && (
@@ -217,11 +221,11 @@ export default function HowIGotThis({ work, tables }: { work: Work; tables: Tabl
             <ol className="space-y-3">
               {work.attempts.map((attempt, i) => (
                 <li key={i}>
-                  <p className="mb-1 text-ink">
-                    {i + 1}. {ATTEMPT_REASON[attempt.reason]} <span className="text-ink-2">({attempt.model})</span>
+                  <p className="mb-1 text-ink-deep">
+                    {i + 1}. {ATTEMPT_REASON[attempt.reason]} <span className="text-slate">({attempt.model})</span>
                   </p>
                   <pre className={code}>{attempt.sql}</pre>
-                  {attempt.error && <p className="mt-1 text-amber-ink">This attempt failed: {attempt.error}</p>}
+                  {attempt.error && <p className="mt-1 text-attention">This attempt failed: {attempt.error}</p>}
                 </li>
               ))}
             </ol>
@@ -233,7 +237,7 @@ export default function HowIGotThis({ work, tables }: { work: Work; tables: Tabl
           // so this section takes focus when it does: data-section is that anchor, tabIndex lets
           // it hold focus.
           <Section title="What the model saw" data-section="payloads" tabIndex={-1}>
-            <p className="mb-2 font-medium text-ink">
+            <p className="mb-2 font-medium text-ink-deep">
               Column names, types, statistics and short lists of category values (such as department names) were sent. No rows, and nothing from a personal data column.
             </p>
             <div>
@@ -245,7 +249,7 @@ export default function HowIGotThis({ work, tables }: { work: Work; tables: Tabl
         )}
 
         {(work.cached || totalMs > 0) && (
-          <p className="border-t border-line-soft pt-3 type-small text-ink-2">
+          <p className="border-t border-hairline-soft pt-4 text-body-sm text-steel">
             {work.cached ? 'Same question on the same data as before, so the saved answer was returned.' : `Answered in ${formatDuration(totalMs)}.`}
           </p>
         )}

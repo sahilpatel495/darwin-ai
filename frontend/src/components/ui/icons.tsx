@@ -89,20 +89,27 @@ export const MoreIcon = (p: IconProps) => (
     <circle cx="15.5" cy="10" r="1.1" fill="currentColor" stroke="none" />
   </Icon>
 )
-export const SunIcon = (p: IconProps) => (
+/* --- The top bar (§6) ---------------------------------------------------- */
+export const SearchIcon = (p: IconProps) => (
   <Icon {...p}>
-    <circle cx="10" cy="10" r="3.4" />
-    <path d="M10 2.6v1.7M10 15.7v1.7M17.4 10h-1.7M4.3 10H2.6M15.23 4.77l-1.2 1.2M5.97 14.03l-1.2 1.2M15.23 15.23l-1.2-1.2M5.97 5.97l-1.2-1.2" />
+    <circle cx="9" cy="9" r="5.25" />
+    <path d="m12.9 12.9 3.6 3.6" />
   </Icon>
 )
-export const MoonIcon = (p: IconProps) => (
+export const DataIcon = (p: IconProps) => (
   <Icon {...p}>
-    <path d="M16 11.6A6.6 6.6 0 0 1 8.4 4a6.6 6.6 0 1 0 7.6 7.6Z" />
+    <ellipse cx="10" cy="5.25" rx="6" ry="2.5" />
+    <path d="M4 5.25V14.75c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5V5.25" />
+    <path d="M4 10c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5" />
   </Icon>
 )
-export const SystemIcon = (p: IconProps) => (
+export const PlusIcon = (p: IconProps) => (
   <Icon {...p}>
-    <rect x="2.75" y="4" width="14.5" height="9.5" rx="1.4" />
-    <path d="M7 16.5h6" />
+    <path d="M10 4.5v11M4.5 10h11" />
+  </Icon>
+)
+export const ArrowUpIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M10 16V4.5M10 4.5 5.5 9M10 4.5 14.5 9" />
   </Icon>
 )

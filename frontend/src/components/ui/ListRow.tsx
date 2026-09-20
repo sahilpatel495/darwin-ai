@@ -18,9 +18,9 @@ export interface ListRowProps extends HTMLAttributes<HTMLElement> {
 export default function ListRow({ as = 'div', hover = false, divided = true, className, ...rest }: ListRowProps) {
   return createElement(as, {
     className: cx(
-      'flex w-full items-start gap-3 rounded-input px-3 py-2.5 text-left',
-      divided && 'border-b border-line-soft last:border-b-0',
-      hover && 'press cursor-pointer hover:bg-fill',
+      'flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left',
+      divided && 'border-b border-hairline-soft last:border-b-0',
+      hover && 'press cursor-pointer hover:bg-surface-soft',
       className,
     ),
     ...rest,

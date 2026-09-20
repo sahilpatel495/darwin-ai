@@ -40,20 +40,20 @@ export default function TileDataDialog({ tile, open, onClose }: TileDataDialogPr
       description={tile.tables_used.length > 0 ? `Read from ${sentenceList(tile.tables_used.map(humanize))}.` : undefined}
       footer={<Button onClick={onClose}>Close</Button>}
     >
-      <p className="measure type-body text-ink">{tile.statement}</p>
-      <div className="mt-4">
+      <p className="measure text-body-md text-ink">{tile.statement}</p>
+      <div className="mt-5">
         <DataTable table={tile.table} caption={tile.title} />
       </div>
       {tile.sql && (
-        <div className="mt-6">
+        <div className="mt-8">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="type-section text-ink">The query that computed this</h3>
+            <h3 className="text-subtitle-lg text-ink-deep">The query that computed this</h3>
             <Button size="sm" onClick={copySql}>
               Copy query
             </Button>
           </div>
           {/* Mono is for SQL and nothing else (§3). */}
-          <pre className="mt-2 overflow-x-auto rounded-card bg-surface-2 p-3 type-code text-ink">{tile.sql}</pre>
+          <pre className="mt-3 overflow-x-auto rounded-xl bg-surface-soft p-4 text-code text-ink">{tile.sql}</pre>
         </div>
       )}
     </Dialog>

@@ -56,9 +56,9 @@
   },
   "work": {
     "interpretation": "Sum of gross pay from the salary register, grouped by each employee's department.",
-    "reading": "Joins employees to the salary register on employee ID, then adds up gross pay for each department.",
+    "reading": "Links employees to the salary register on employee ID, then adds up gross pay for each department.",
     "plan": [
-      "Join employees to salary_register on emp_id = emp_code",
+      "Link employees to salary_register on emp_id = emp_code",
       "Sum gross per department",
       "Sort from highest to lowest"
     ],
@@ -128,7 +128,7 @@
     "reasons": [
       "A second model independently reached the same result.",
       "One SQL repair was needed.",
-      "100% of join keys matched."
+      "100% of the linking IDs matched."
     ]
   },
   "followups": [

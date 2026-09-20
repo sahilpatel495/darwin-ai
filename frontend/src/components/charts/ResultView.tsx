@@ -1,16 +1,15 @@
-// The visual half of an answer (§12): the chart the backend chose, the other shapes that fit the
-// same result, and the table always one click away — a chart is for the shape, the table is for
-// the figure someone will quote.
+// The visual half of an answer (§8): the chart the backend chose, the other shapes that fit the
+// same result, and the table always one tap away — a chart is for the shape, the table is for the
+// figure someone will quote.
 //
-// Two callers, two shapes. The answer card passes `allowSwitch` and gets the controls; a tile and
-// the printed board pass nothing and get the chart alone.
+// Two callers, two shapes. The answer card passes `allowSwitch` and gets the chart-type pill tabs;
+// a tile and the printed board pass nothing and get the chart alone. Saving, copying, downloading
+// and expanding belong to the card around this, not to the picture.
 import { useMemo, useState } from 'react'
-import { Button, Dialog, IconButton, SegmentedControl } from '../ui'
-import { csvFileName, downloadCsv, toCsv } from '../../lib/csv'
+import { PillTabs } from '../ui'
 import type { ChartSpec, ResultTable } from '../../types'
 import { buildChartData, fitTypes, type ChartData } from './chartData'
 import DataTable from './DataTable'
-import { DownloadIcon, ExpandIcon } from './icons'
 import ResultChart from './ResultChart'
 
 export interface ResultViewProps {
@@ -18,10 +17,17 @@ export interface ResultViewProps {
   table: ResultTable | null
   /** Already built by the answer card, so the spec is read once per answer. */
   data?: ChartData | null
-  /** Names the downloaded file, so a folder of exports still says what each one answers. */
-  question?: string
-  /** The controls: the chart-type switch, Download CSV and expand. Off for a tile and the board. */
+  /** The chart-type switcher. Off for a tile and for the board, which print one view. */
   allowSwitch?: boolean
+  /** The shape to show, when the card around this remembers what the reader picked. With it, this
+   *  view is controlled — which is what keeps the chart in the card and the chart in the expand
+   *  dialog on the same shape. Without it the view keeps its own choice. */
+  type?: ChartSpec['type']
+  /** Reports what the reader switched to, so the card can open the expanded view on the same shape. */
+  onTypeChange?: (type: ChartSpec['type']) => void
+  /** A floor on the chart's height, for the expanded dialog — which is wider than the card and,
+   *  without this, exactly as short. A chart that sizes itself by its rows keeps its own height. */
+  minHeight?: number
 }
 
 const TYPE_LABELS: Record<ChartSpec['type'], string> = {
@@ -38,13 +44,12 @@ const TYPE_LABELS: Record<ChartSpec['type'], string> = {
   table: 'Table',
 }
 
-export default function ResultView({ chart, table, data, question = '', allowSwitch = false }: ResultViewProps) {
+export default function ResultView({ chart, table, data, allowSwitch = false, type, onTypeChange, minHeight }: ResultViewProps) {
   // The type on screen. Null means "whatever the backend chose", so a new answer needs no effect
   // to reset it: a different answer is a different component.
   const [picked, setPicked] = useState<ChartSpec['type'] | null>(null)
-  const [expanded, setExpanded] = useState(false)
 
-  const shown = picked ?? chart?.type ?? 'table'
+  const shown = type ?? picked ?? chart?.type ?? 'table'
   const options = useMemo(() => (chart && table && allowSwitch ? fitTypes(chart, table) : []), [chart, table, allowSwitch])
   // `data` is the backend's own choice, already built; any other type is built here on demand.
   const built = useMemo(() => {
@@ -60,62 +65,40 @@ export default function ResultView({ chart, table, data, question = '', allowSwi
 
   const tableView = (
     <>
-      {built?.kind === 'table' && built.reason && <p className="mb-3 type-small text-ink-2">{built.reason}</p>}
+      {built?.kind === 'table' && built.reason && <p className="mb-3 text-body-sm text-slate">{built.reason}</p>}
       <DataTable table={table} caption={caption} />
-      {!plotted && chart?.note && <p className="mt-3 type-small text-ink-2">{chart.note}</p>}
+      {!plotted && chart?.note && <p className="mt-3 text-body-sm text-slate">{chart.note}</p>}
     </>
   )
 
-  const visual = plotted && chart ? <ResultChart chart={chart} data={plotted} /> : tableView
+  const visual = plotted && chart ? <ResultChart chart={chart} data={plotted} minHeight={minHeight} /> : tableView
 
+  // A tile and the board draw the picture alone: their own heading already says what it is.
   if (!allowSwitch) return <div>{visual}</div>
-
   // An empty result is one sentence. Controls around nothing would be furniture.
   if (table.rows.length === 0) return <div>{tableView}</div>
 
-  return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        {options.length > 1 ? (
-          <SegmentedControl
-            label="Show the result as"
-            size="sm"
-            value={shown}
-            onChange={(value) => setPicked(value as ChartSpec['type'])}
-            options={options.map((type) => ({ value: type, label: TYPE_LABELS[type] }))}
-          />
-        ) : (
-          chart?.title && <p className="type-section text-ink">{chart.title}</p>
-        )}
-        <div className="ml-auto flex items-center gap-1">
-          {plotted && (
-            <IconButton label="Open the chart larger" variant="ghost" size="sm" onClick={() => setExpanded(true)}>
-              <ExpandIcon size={16} />
-            </IconButton>
-          )}
-          {/* Named in full rather than left as a glyph: it is the one control here that produces a
-              file, and a tooltip is no help on a phone. The file holds the raw values (full
-              precision, ISO dates) of every row the answer has, not only the rows drawn. */}
-          <Button variant="ghost" size="sm" onClick={() => downloadCsv(csvFileName(question || caption), toCsv(table.columns, table.rows))}>
-            <DownloadIcon size={16} />
-            Download CSV
-          </Button>
-        </div>
-      </div>
-
-      {options.length > 1 && chart?.title && <p className="mb-2 type-small text-ink-2">{chart.title}</p>}
+  const titled = (
+    <>
+      {chart?.title && <p className="mb-3 text-body-sm text-slate">{chart.title}</p>}
       {visual}
+    </>
+  )
+  if (options.length < 2) return <div>{titled}</div>
 
-      {/* Mounted only while it is open: otherwise every answer on the page would carry a second
-          copy of its table in the DOM, for a dialog nobody has asked for. */}
-      {expanded && (
-        <Dialog open onClose={() => setExpanded(false)} title={caption} size="xl">
-          {plotted && chart && <ResultChart chart={chart} data={plotted} height={plotted.kind === 'heatmap' ? undefined : 420} />}
-          <div className="mt-6">
-            <DataTable table={table} caption={caption} />
-          </div>
-        </Dialog>
-      )}
-    </div>
+  return (
+    <PillTabs
+      label="Show the result as"
+      size="sm"
+      active={shown}
+      onChange={(value) => {
+        setPicked(value as ChartSpec['type'])
+        onTypeChange?.(value as ChartSpec['type'])
+      }}
+      tabs={options.map((type) => ({ id: type, label: TYPE_LABELS[type] }))}
+    >
+      {/* The panel the pills switch. Naming it as one is what makes them a real tablist. */}
+      <div className="pt-5">{titled}</div>
+    </PillTabs>
   )
 }

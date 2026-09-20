@@ -49,10 +49,10 @@ export default function Dialog({ open, onClose, title, description, children, fo
       <div className={cx('flex max-h-[inherit] max-w-full flex-col', WIDTH[size])}>
         <div className="flex items-start gap-4 px-5 pt-4 pb-3">
           <div className="min-w-0 flex-1">
-            <h2 id={titleId} className="type-card text-ink">
+            <h2 id={titleId} className="text-heading-sm text-ink">
               {title}
             </h2>
-            {description && <p className="mt-1 type-small text-ink-2">{description}</p>}
+            {description && <p className="mt-1 text-body-sm text-slate">{description}</p>}
           </div>
           {/* The label hangs below: this button sits on the dialog's top edge, and a label above it
               would be drawn over the page behind. */}
@@ -60,8 +60,8 @@ export default function Dialog({ open, onClose, title, description, children, fo
             <CloseIcon size={16} />
           </IconButton>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 type-body text-ink">{children}</div>
-        {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-line-soft px-5 py-3">{footer}</div>}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 text-body-md text-ink">{children}</div>
+        {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-hairline-soft px-5 py-3">{footer}</div>}
       </div>
     </dialog>
   )

@@ -61,17 +61,17 @@ export default function Toaster() {
           key={message.id}
           className={cx(
             'toast-in pointer-events-auto flex max-w-[min(28rem,calc(100vw-2rem))] items-center gap-2.5',
-            'rounded-pill py-2 pr-2 pl-3.5 type-small font-medium shadow-3',
-            message.tone === 'error' ? 'bg-red text-white' : 'bg-ink text-wash',
+            'rounded-full py-2 pr-2 pl-3.5 text-body-sm font-medium shadow-level-2',
+            message.tone === 'error' ? 'bg-critical text-white' : 'bg-ink-deep text-white',
           )}
         >
-          {message.tone === 'done' && <CheckIcon size={16} className="shrink-0 text-green" />}
+          {message.tone === 'done' && <CheckIcon size={16} className="shrink-0 text-success" />}
           <span className="min-w-0">{message.text}</span>
           <button
             type="button"
             onClick={() => dismiss(message.id)}
             aria-label="Dismiss"
-            className="-my-1 shrink-0 rounded-pill p-1 opacity-70 hover:opacity-100"
+            className="-my-1 shrink-0 rounded-full p-1 opacity-70 hover:opacity-100"
           >
             <CloseIcon size={14} />
           </button>

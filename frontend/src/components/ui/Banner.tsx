@@ -14,12 +14,13 @@ export interface BannerProps {
   className?: string
 }
 
-// A 3px left edge in the tone colour, and nothing else. No icon: the sentence already says what
-// happened, and a glyph beside it would be a second thing to read that means the same.
+// A tinted pill with a 3px left edge in the tone colour, and nothing else. No icon: the sentence
+// already says what happened, and a glyph beside it would be a second thing to read that means
+// the same.
 const TONE = {
-  info: 'border-blue bg-blue-soft',
-  warn: 'border-amber bg-amber-soft',
-  error: 'border-red bg-red-soft',
+  info: 'border-primary bg-primary-soft',
+  warn: 'border-attention bg-attention-soft',
+  error: 'border-critical bg-critical-soft',
 } as const
 
 /** What happened, then what to do. Never a status code, never an apology. */
@@ -27,19 +28,15 @@ export default function Banner({ tone, children, nextStep, action, onDismiss, cl
   return (
     <div
       role={tone === 'error' ? 'alert' : 'status'}
-      className={cx('flex flex-wrap items-start gap-x-3 gap-y-2 rounded-card border-l-[3px] px-4 py-3', TONE[tone], className)}
+      className={cx('flex flex-wrap items-start gap-x-4 gap-y-2 rounded-xl border-l-[3px] px-5 py-4', TONE[tone], className)}
     >
-      <p className="min-w-0 flex-1 type-body text-ink">
-        <span className="font-semibold whitespace-pre-line">{children}</span>
-        {nextStep && <span className="font-normal"> {nextStep}</span>}
+      <p className="min-w-0 flex-1 text-body-md text-ink-deep">
+        <span className="font-bold whitespace-pre-line">{children}</span>
+        {nextStep && <span className="font-normal text-ink"> {nextStep}</span>}
       </p>
       {action}
       {onDismiss && (
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="press shrink-0 rounded-input px-2 py-0.5 type-small font-semibold text-ink-2 hover:bg-fill hover:text-ink"
-        >
+        <button type="button" onClick={onDismiss} className="press shrink-0 rounded-full px-3 py-1 text-button-md text-charcoal hover:bg-canvas">
           Dismiss
         </button>
       )}

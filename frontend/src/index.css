@@ -1,300 +1,379 @@
 @import "tailwindcss";
 
 /* =============================================================================
-   Verity — "Clarity". The one stylesheet.
+   DarwinLens — "Canvas" (v3). The one stylesheet.
    Section numbers refer to docs/DESIGN_SYSTEM.md.
-   Components use token classes (bg-wash, text-ink-2, border-line …), never a raw hex.
+   Light is the only theme. Components use token classes (bg-canvas, text-slate,
+   border-hairline-soft …), never a raw hex.
    ========================================================================== */
 
-/* --- §4 Motion: keyframes ------------------------------------------------
-   Declared at the top level so they are always emitted, even when only an
-   inline style references them. */
-@keyframes page-enter  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@keyframes rise-in     { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@keyframes dialog-in   { from { opacity: 0; transform: scale(.96); }      to { opacity: 1; transform: none; } }
-@keyframes popover-in  { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
-@keyframes toast-in    { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-@keyframes check-pop   { from { opacity: 0; transform: scale(.6); } 60% { transform: scale(1.08); } to { opacity: 1; transform: scale(1); } }
-@keyframes fade-in     { from { opacity: 0; } to { opacity: 1; } }
-/* The sweep travels twice its own width so the highlight leaves the row entirely. */
-@keyframes shimmer     { from { background-position: -150% 0; } to { background-position: 250% 0; } }
-/* The active step's dot: a pulse you can follow without watching a spinner. */
-@keyframes breathe     { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(.8); } }
+/* --- §3 Montserrat variable, self-hosted -----------------------------------
+   Two faces, not one: the subset that carries ₹ (U+20B9) is latin-ext, and a
+   page that loaded only `latin` would draw every rupee figure — the product's
+   most-quoted number — in a fallback face. `swap` so the text is readable
+   while the file is in flight; the latin file is preloaded in index.html. */
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/montserrat-latin-wght.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/montserrat-latin-ext-wght.woff2') format('woff2');
+  /* U+20AD-20C0 is the block that holds ₹. */
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
+    U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
 
-/* --- §2 Tokens ------------------------------------------------------------
-   `static` so every variable reaches :root. Charts read --color-series-N through
-   var() in TSX, which Tailwind's class scanner cannot see. */
+/* --- §4 Keyframes ----------------------------------------------------------
+   Top level so they are always emitted, even when only an inline style or a
+   component's own animation shorthand names one. */
+@keyframes page-enter   { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes rise-in      { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes fade-in      { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scale-in     { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes drop-in      { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes lift-in      { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes slide-in-right { from { transform: translateX(100%); } to { transform: none; } }
+/* A finished check lands slightly past its size and settles: the pop is what says "done". */
+@keyframes check-pop    { from { opacity: 0; transform: scale(.6); } 60% { transform: scale(1.1); } to { opacity: 1; transform: scale(1); } }
+/* The sweep travels twice its own width so the highlight leaves the row entirely. */
+@keyframes shimmer      { from { background-position: -150% 0; } to { background-position: 250% 0; } }
+/* Text version: the gradient is the text fill, so the active step's words glow rather than a box. */
+@keyframes shimmer-text { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes breathe      { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(.8); } }
+@keyframes caret-blink  { 0%, 45% { opacity: 1; } 55%, 100% { opacity: 0; } }
+@keyframes grow-up      { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+/* The aurora: three blobs on three different long periods, so the pattern never repeats
+   visibly and no frame is expensive — transform and opacity only. */
+@keyframes drift-a      { 0%, 100% { transform: translate3d(0, 0, 0) scale(1); } 50% { transform: translate3d(6%, 4%, 0) scale(1.12); } }
+@keyframes drift-b      { 0%, 100% { transform: translate3d(0, 0, 0) scale(1.08); } 50% { transform: translate3d(-7%, 5%, 0) scale(.95); } }
+@keyframes drift-c      { 0%, 100% { transform: translate3d(0, 0, 0) scale(.96); } 50% { transform: translate3d(4%, -6%, 0) scale(1.1); } }
+
+/* --- §2 Tokens -------------------------------------------------------------
+   `static` so every variable reaches :root: charts and generated graphics read
+   --color-chart-N and --color-purple through var() in TSX, which Tailwind's
+   class scanner cannot see. */
 @theme static {
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-sans: 'Montserrat', Helvetica, Arial, 'Noto Sans', sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  --color-wash: #f0f2f5;         /* page background */
-  --color-surface: #ffffff;      /* cards, dialogs, nav */
-  --color-surface-2: #f7f8fa;    /* inset areas, table header, code, inputs */
-  --color-fill: #e4e6eb;         /* secondary buttons, chips, icon buttons */
-  --color-fill-hover: #d8dadf;
-  --color-line: #ced0d4;         /* dividers, input borders */
-  --color-line-soft: #e4e6eb;    /* card hairlines */
+  /* Surfaces and lines */
+  --color-canvas: #ffffff;          /* page and card surface */
+  --color-surface-soft: #f1f4f7;    /* soft tiles, search pill, input rest, code */
+  --color-hairline: #cbd2d9;        /* input borders */
+  --color-hairline-soft: #dee3e9;   /* card borders, dividers */
 
-  --color-ink: #050505;          /* text */
-  --color-ink-2: #65676b;        /* secondary text — 4.9:1 on surface */
-  --color-ink-3: #8a8d91;        /* hints and disabled only, never body text */
+  /* Ink, darkest to lightest */
+  --color-ink-deep: #0a1317;        /* headlines, primary text, black pill buttons */
+  --color-ink: #1c2b33;             /* body */
+  --color-charcoal: #344854;        /* tertiary text */
+  --color-slate: #465a69;           /* supporting copy */
+  --color-steel: #5d6c7b;           /* captions */
+  --color-stone: #8595a4;           /* disabled, separators */
 
-  --color-blue: #0866ff;         /* primary action, links, focus, first series */
-  --color-blue-hover: #0756d6;
-  --color-blue-soft: #ebf5ff;    /* selected, the analyst's question bubble */
-  --color-blue-ink: #0064d1;     /* text on blue-soft */
+  /* The core action, and nothing else */
+  --color-primary: #0064e0;
+  --color-primary-deep: #0143b5;
+  --color-primary-soft: rgb(0 100 224 / .12);
 
-  --color-green: #31a24c;        /* verified, high confidence */
-  --color-green-soft: #e6f4ea;
-  --color-green-ink: #1f7a37;
-  --color-amber: #f7b928;        /* needs a look, medium, caveats, waiting */
-  --color-amber-soft: #fff4d6;
-  --color-amber-ink: #8a5a00;
-  --color-red: #e41e3f;          /* errors, low confidence, disagreement */
-  --color-red-soft: #fde7ea;
-  --color-red-ink: #b3152f;
+  --color-purple: #7b3fe4;          /* second accent in graphics and charts */
 
-  --color-series-1: #0866ff;
-  --color-series-2: #00a7b5;
-  --color-series-3: #7b61ff;
-  --color-series-4: #f5803e;
-  --color-series-5: #e5468f;
-  --color-series-6: #2fa24b;
-  --color-series-7: #8a8d91;
+  --color-success: #007d1e;
+  --color-success-soft: #e1f5e5;
+  --color-attention: #b45f06;
+  --color-attention-soft: #fff1df;
+  /* Added, not substituted. §2's `attention` is 4.58:1 on white (fine) but 4.13:1 on its own
+     tint — and the medium-confidence badge is 12px bold amber on exactly that tint. This is the
+     same hue one step deeper, 5.3:1 on the tint and 5.9:1 on white, and it is used *only* for
+     words sitting on attention-soft. Every other use of attention is unchanged. */
+  --color-attention-ink: #9a5205;
+  --color-warning: #ffd60a;         /* the promo strip only */
+  --color-critical: #c80a28;
+  --color-critical-soft: #fde8eb;
 
-  --radius-input: 6px;           /* inputs and small buttons */
-  --radius-card: 8px;            /* cards and dialogs */
-  --radius-hero: 12px;           /* the large hero surfaces */
-  --radius-pill: 999px;          /* chips, pills, icon buttons */
+  /* Chart series, in order. §2. */
+  --color-chart-1: #0064e0;
+  --color-chart-2: #7b3fe4;
+  --color-chart-3: #00a38d;
+  --color-chart-4: #f2781f;
+  --color-chart-5: #e0457b;
+  --color-chart-6: #5d6c7b;
+  --color-heat-low: #e8f1fd;
+  --color-heat-high: #0064e0;
 
-  --shadow-1: 0 1px 2px rgb(0 0 0 / .10);
-  --shadow-2: 0 2px 12px rgb(0 0 0 / .12);
-  --shadow-3: 0 12px 28px rgb(0 0 0 / .20), 0 2px 4px rgb(0 0 0 / .10);
+  /* Radius. A squared button is a bug: every button, chip, tab and badge is `full`. */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;                 /* inputs */
+  --radius-xl: 16px;                /* small tiles, accordion items */
+  --radius-xxl: 24px;               /* standard cards, the docked composer */
+  --radius-xxxl: 32px;              /* hero frames, showcase cards, the hero composer */
+  --radius-feature: 40px;
+  --radius-full: 100px;
+  --radius-circle: 50%;
 
-  --ease-standard: cubic-bezier(.08,.52,.52,1);
-  --ease-enter: cubic-bezier(.14,1,.34,1);
-  --ease-exit: cubic-bezier(.45,.1,.2,1);
-  --dur-press: 100ms;
-  --dur-pop: 200ms;
-  --dur-card: 280ms;
-  --dur-draw: 400ms;
+  /* Elevation. Flat by default — a card is a hairline, never a shadow. */
+  --shadow-level-1: 1px 1px 0 rgb(0 0 0 / .2);        /* the active pill tab, and nothing else */
+  --shadow-level-2: 0 1px 4px rgb(20 22 26 / .3);     /* sticky composer, drawers, menus, dialogs */
 
-  --animate-fade: fade-in var(--dur-pop) var(--ease-enter) both;
-  --animate-breathe: breathe 1.4s var(--ease-standard) infinite;
+  /* Motion. §4. */
+  --ease-out: cubic-bezier(0, 0, .2, 1);
+  --ease-in-out: cubic-bezier(.4, 0, .2, 1);
+  --ease-spring: cubic-bezier(.2, .8, .2, 1);         /* presses and reveals */
+  --dur-fast: 150ms;                                   /* hover, press */
+  --dur-surface: 200ms;                                /* a surface appearing or changing */
+  --dur-slow: 250ms;
+  --dur-panel: 300ms;                                  /* accordions and drawers */
+  --dur-draw: 400ms;                                   /* charts and count-ups */
+  --dur-long: 600ms;
 
-}
+  --animate-fade: fade-in var(--dur-surface) var(--ease-out) both;
+  --animate-breathe: breathe 1.4s var(--ease-in-out) infinite;
 
-/* --- §2 Light, again -------------------------------------------------------
-   @theme puts the light values on :root, which is enough for the page. This
-   repeats them for any element carrying data-theme="light", so a light frame
-   nested inside a dark page (the #/ui gallery shows both at once) comes back to
-   light instead of inheriting the dark tokens. Keep it in step with @theme.
-   Legacy bridge names are deliberately not repeated: they resolve at :root and
-   are on their way out anyway. */
-[data-theme="light"] {
-  --color-wash: #f0f2f5;
+  /* --- TEMPORARY v2 aliases ------------------------------------------------
+     Screens still on the "Clarity" names compile against these until their
+     owner migrates them to the §2 names above. Nothing new may use them, and
+     the block is deleted the day `grep -r 'bg-wash\|text-ink-2\|type-body'`
+     comes back empty. */
+  --color-wash: #ffffff;            /* the page was grey; v3 is a white canvas */
   --color-surface: #ffffff;
-  --color-surface-2: #f7f8fa;
-  --color-fill: #e4e6eb;
-  --color-fill-hover: #d8dadf;
-  --color-line: #ced0d4;
-  --color-line-soft: #e4e6eb;
-
-  --color-ink: #050505;
-  --color-ink-2: #65676b;
-  --color-ink-3: #8a8d91;
-
-  --color-blue: #0866ff;
-  --color-blue-hover: #0756d6;
-  --color-blue-soft: #ebf5ff;
-  --color-blue-ink: #0064d1;
-
-  --color-green: #31a24c;
-  --color-green-soft: #e6f4ea;
-  --color-green-ink: #1f7a37;
-  --color-amber: #f7b928;
-  --color-amber-soft: #fff4d6;
-  --color-amber-ink: #8a5a00;
-  --color-red: #e41e3f;
-  --color-red-soft: #fde7ea;
-  --color-red-ink: #b3152f;
-
-  --shadow-1: 0 1px 2px rgb(0 0 0 / .10);
-  --shadow-2: 0 2px 12px rgb(0 0 0 / .12);
-  --shadow-3: 0 12px 28px rgb(0 0 0 / .20), 0 2px 4px rgb(0 0 0 / .10);
-
-  color-scheme: light;
-}
-
-/* --- §2 Dark ---------------------------------------------------------------
-   The same names, different values. `data-theme` is stamped on <html> by the
-   inline script in index.html before first paint, so there is no flash. */
-[data-theme="dark"] {
-  --color-wash: #18191a;
-  --color-surface: #242526;
-  --color-surface-2: #3a3b3c;
-  --color-fill: #3a3b3c;
-  --color-fill-hover: #4e4f50;
-  --color-line: #3e4042;
-  --color-line-soft: #2f3031;
-
-  --color-ink: #e4e6eb;
-  --color-ink-2: #b0b3b8;
-  --color-ink-3: #8a8d91;
-
-  --color-blue: #2d88ff;
-  --color-blue-hover: #4599ff;
-  --color-blue-soft: #263951;
-  --color-blue-ink: #75b6ff;
-
-  --color-green: #45bd62;
-  --color-green-soft: #1d3a25;
-  --color-green-ink: #7bd88f;
-  --color-amber: #f7b928;
-  --color-amber-soft: #3d3218;
-  --color-amber-ink: #ffd772;
-  --color-red: #f3425f;
-  --color-red-soft: #3f1d24;
-  --color-red-ink: #ff8a9b;
-
-  /* Dark needs deeper shadows to separate a #242526 card from a #18191a page. */
-  --shadow-1: 0 1px 2px rgb(0 0 0 / .40);
-  --shadow-2: 0 2px 12px rgb(0 0 0 / .48);
-  --shadow-3: 0 12px 28px rgb(0 0 0 / .60), 0 2px 4px rgb(0 0 0 / .40);
-
-  color-scheme: dark;
+  --color-surface-2: #f1f4f7;
+  --color-fill: #f1f4f7;
+  --color-fill-hover: #e3e9ef;
+  --color-line: #cbd2d9;
+  --color-line-soft: #dee3e9;
+  --color-ink-2: #465a69;           /* was secondary text → slate */
+  --color-ink-3: #5d6c7b;           /* was hints → steel, not stone: some are body-sized */
+  --color-blue: #0064e0;
+  --color-blue-hover: #0143b5;
+  --color-blue-soft: rgb(0 100 224 / .12);
+  --color-blue-ink: #0143b5;
+  --color-green: #007d1e;
+  --color-green-soft: #e1f5e5;
+  --color-green-ink: #007d1e;
+  --color-amber: #b45f06;
+  --color-amber-soft: #fff1df;
+  --color-amber-ink: #9a5205;
+  --color-red: #c80a28;
+  --color-red-soft: #fde8eb;
+  --color-red-ink: #c80a28;
+  --color-series-1: #0064e0;
+  --color-series-2: #7b3fe4;
+  --color-series-3: #00a38d;
+  --color-series-4: #f2781f;
+  --color-series-5: #e0457b;
+  --color-series-6: #5d6c7b;
+  --color-series-7: #8595a4;
+  --radius-input: 8px;
+  --radius-card: 16px;
+  --radius-hero: 32px;
+  --radius-pill: 100px;
+  --shadow-1: none;                 /* §2: nothing rests on a shadow any more */
+  --shadow-2: 0 1px 4px rgb(20 22 26 / .3);
+  --shadow-3: 0 1px 4px rgb(20 22 26 / .3);
+  --ease-standard: cubic-bezier(.2, .8, .2, 1);
+  --ease-enter: cubic-bezier(0, 0, .2, 1);
+  --ease-exit: cubic-bezier(.4, 0, 1, 1);
+  --dur-press: 150ms;
+  --dur-pop: 200ms;
+  --dur-card: 250ms;
 }
 
 @layer base {
+  html {
+    /* One theme, designed properly (§2). */
+    color-scheme: light;
+  }
+
   html, body, #root { height: 100%; }
 
   body {
-    background: var(--color-wash);
+    background: var(--color-canvas);
     color: var(--color-ink);
     font-family: var(--font-sans);
-    font-size: 15px;
-    line-height: 22px;
+    font-size: 16px;
+    line-height: 1.5;
+    letter-spacing: -0.16px;
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
-  /* A link is blue and underlined in running text; nav items and wordmarks carry
-     `no-underline`, because a row of underlined words is not navigation.
-     blue-ink rather than blue: #0866FF is 4.3:1 on the grey wash, just under the
-     4.5:1 floor, and a link is as likely to sit on the page as inside a card. */
+  /* A link in running text is the deep blue and underlined; wordmarks, tabs and
+     pill links carry `no-underline`, because a row of underlined words is not
+     navigation. primary-deep, not primary: #0064E0 is 4.4:1 on white. */
   a {
-    color: var(--color-blue-ink);
+    color: var(--color-primary-deep);
     text-decoration: underline;
     text-underline-offset: 2px;
-    text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+    text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
   }
   a:hover { text-decoration-color: currentColor; }
 
-  ::selection { background: var(--color-blue-soft); color: var(--color-ink); }
+  ::selection { background: var(--color-primary-soft); color: var(--color-ink-deep); }
 
-  /* §9 One focus ring everywhere, on every kind of control. */
+  /* §12 One focus ring, on every kind of control. The radius lives here, in the base layer, so
+     a `rounded-full` on a pill still wins and a focused button does not square off; the ring
+     itself is declared unlayered below, so nothing can repaint it. */
   :focus-visible {
-    outline: 2px solid var(--color-blue);
-    outline-offset: 2px;
     border-radius: 3px;
   }
 
-  /* Native dialog, styled once so <Dialog> stays small (§5). */
+  /* The native <dialog>, styled once so <Dialog> stays small (§5). Level 2 and a scrim. */
   dialog {
     margin: auto;
     padding: 0;
     max-width: calc(100vw - 2rem);
     max-height: calc(100dvh - 3rem);
     border: none;
-    border-radius: var(--radius-card);
-    background: var(--color-surface);
+    border-radius: var(--radius-xxl);
+    background: var(--color-canvas);
     color: var(--color-ink);
-    box-shadow: var(--shadow-3);
+    box-shadow: var(--shadow-level-2);
   }
-  dialog[open] { animation: dialog-in var(--dur-pop) var(--ease-enter) backwards; }
-  dialog::backdrop { background: rgb(0 0 0 / .45); }
-  dialog[open]::backdrop { animation: fade-in var(--dur-pop) var(--ease-enter) both; }
+  dialog[open] { animation: scale-in var(--dur-surface) var(--ease-spring) backwards; }
+  dialog::backdrop { background: rgb(10 19 23 / .4); }
+  dialog[open]::backdrop { animation: fade-in var(--dur-surface) var(--ease-out) both; }
 
-  /* Scrollbars follow the theme on the browsers that let them. */
-  * { scrollbar-color: var(--color-line) transparent; }
+  * { scrollbar-color: var(--color-hairline) transparent; }
 }
 
 @layer components {
   /* --- §3 Type roles ------------------------------------------------------
-     One class per row of the table in §3. Plain classes in the components
-     layer, so any utility (text-ink-2, text-right) still wins over them. */
-  .type-hero {
-    font-size: 40px; line-height: 44px; font-weight: 700;
-    letter-spacing: -0.02em;
+     One class per row of the §3 table. Plain classes in the components layer,
+     so any utility (text-slate, text-right, font-bold) still wins over them. */
+  .text-hero-display {
+    font-size: 28px; line-height: 1.16; font-weight: 500; letter-spacing: 0;
+    font-feature-settings: "ss01", "ss02";
+  }
+  @media (min-width: 480px) { .text-hero-display { font-size: 36px; } }
+  @media (min-width: 768px) { .text-hero-display { font-size: 64px; } }
+
+  .text-display-lg {
+    font-size: 32px; line-height: 1.17; font-weight: 500; letter-spacing: 0;
+    font-feature-settings: "ss01", "ss02";
+  }
+  @media (min-width: 640px) { .text-display-lg { font-size: 48px; } }
+
+  .text-heading-lg {
+    font-size: 28px; line-height: 1.28; font-weight: 500; letter-spacing: 0;
+    font-feature-settings: "ss01", "ss02";
     font-variant-numeric: tabular-nums lining-nums;
   }
-  .type-page { font-size: 22px; line-height: 28px; font-weight: 700; letter-spacing: -0.01em; }
-  @media (min-width: 640px) { .type-page { font-size: 28px; line-height: 34px; } }
-  .type-card { font-size: 20px; line-height: 26px; font-weight: 700; letter-spacing: -0.01em; }
-  .type-section { font-size: 17px; line-height: 22px; font-weight: 600; }
-  .type-body { font-size: 15px; line-height: 22px; font-weight: 400; }
-  .type-small { font-size: 13px; line-height: 18px; font-weight: 400; }
-  .type-micro { font-size: 12px; line-height: 16px; font-weight: 500; }
-  /* SQL only. Never a data label. */
-  .type-code { font-family: var(--font-mono); font-size: 13px; line-height: 20px; font-weight: 400; }
+  @media (min-width: 640px) { .text-heading-lg { font-size: 36px; } }
 
+  .text-heading-md {
+    /* The light weight is the rhythm (§3): it is what keeps an editorial subhead
+       from reading as another bold card title. */
+    font-size: 24px; line-height: 1.21; font-weight: 300; letter-spacing: 0;
+    font-feature-settings: "ss01", "ss02";
+  }
+  @media (min-width: 640px) { .text-heading-md { font-size: 28px; } }
+
+  .text-heading-sm {
+    font-size: 24px; line-height: 1.25; font-weight: 500; letter-spacing: 0;
+    font-feature-settings: "ss01", "ss02";
+  }
+
+  .text-subtitle-lg { font-size: 18px; line-height: 1.44; font-weight: 700; letter-spacing: 0; }
+  .text-subtitle-md { font-size: 18px; line-height: 1.44; font-weight: 400; letter-spacing: 0; }
+  .text-body-md     { font-size: 16px; line-height: 1.5;  font-weight: 400; letter-spacing: -0.16px; }
+  .text-body-sm     { font-size: 14px; line-height: 1.43; font-weight: 400; letter-spacing: -0.14px; }
+  .text-button-md   { font-size: 14px; line-height: 1.43; font-weight: 700; letter-spacing: -0.14px; }
+  .text-caption     { font-size: 12px; line-height: 1.33; font-weight: 400; letter-spacing: 0; }
+
+  /* SQL only. Never a data label. */
+  .text-code { font-family: var(--font-mono); font-size: 13px; line-height: 1.55; font-weight: 400; letter-spacing: 0; }
 
   /* Reading measure: under 72 characters (§3). */
-  .measure { max-width: 66ch; }
+  .measure { max-width: 64ch; }
   .tnum { font-variant-numeric: tabular-nums lining-nums; }
 
-  /* --- §4 Motion utilities ------------------------------------------------ */
+  /* --- §4 Motion utilities ------------------------------------------------
+     Every entrance fills `backwards`, never `both`: a transform animation still
+     filling after it ends keeps its element a containing block for `position:
+     fixed` descendants for ever, which puts drawers and toasts in the wrong
+     place. `backwards` covers a staggered child's delay and then lets go. */
 
-  /* Every entrance animation below fills `backwards`, never `both`. A transform animation that
-     is still filling after it ends keeps its element a containing block for `position: fixed`
-     descendants for ever — which put the tour ring, the toasts and the phone tab bar 72px out,
-     the width of the nav rail. `backwards` covers the delay a staggered child waits through and
-     then lets go; the last keyframe is the element's natural state anyway, so nothing moves. */
+  .page-enter { animation: page-enter var(--dur-slow) var(--ease-out) backwards; }
 
-  /* The incoming page rises and fades. No exit animation: leaving must feel instant. */
-  .page-enter { animation: page-enter var(--dur-card) var(--ease-enter) backwards; }
-
-  /* Lists and grids: the first eight children rise 40 ms apart, once per mount.
-     Nine onwards appear with the eighth, so a long list never staggers into
-     a slideshow. */
-  .stagger-children > * { animation: rise-in var(--dur-card) var(--ease-enter) backwards; }
+  /* Bento and card grids: the first nine children rise 50ms apart, once (§4). */
+  .stagger-children > * { animation: rise-in var(--dur-slow) var(--ease-out) backwards; }
   .stagger-children > *:nth-child(1) { animation-delay: 0ms; }
-  .stagger-children > *:nth-child(2) { animation-delay: 40ms; }
-  .stagger-children > *:nth-child(3) { animation-delay: 80ms; }
-  .stagger-children > *:nth-child(4) { animation-delay: 120ms; }
-  .stagger-children > *:nth-child(5) { animation-delay: 160ms; }
-  .stagger-children > *:nth-child(6) { animation-delay: 200ms; }
-  .stagger-children > *:nth-child(7) { animation-delay: 240ms; }
-  .stagger-children > *:nth-child(n+8) { animation-delay: 280ms; }
-
-  /* Only a card you can act on moves. A card that is only a container never does. */
-  .card-hover {
-    transition: box-shadow var(--dur-pop) var(--ease-standard), transform var(--dur-pop) var(--ease-standard);
-  }
-  .card-hover:hover { box-shadow: var(--shadow-2); transform: translateY(-1px); }
+  .stagger-children > *:nth-child(2) { animation-delay: 50ms; }
+  .stagger-children > *:nth-child(3) { animation-delay: 100ms; }
+  .stagger-children > *:nth-child(4) { animation-delay: 150ms; }
+  .stagger-children > *:nth-child(5) { animation-delay: 200ms; }
+  .stagger-children > *:nth-child(6) { animation-delay: 250ms; }
+  .stagger-children > *:nth-child(7) { animation-delay: 300ms; }
+  .stagger-children > *:nth-child(8) { animation-delay: 350ms; }
+  .stagger-children > *:nth-child(n+9) { animation-delay: 400ms; }
 
   /* Every button, chip and tab presses in. :active only, so a hover never shrinks. */
-  .press { transition: transform var(--dur-press) var(--ease-standard), background-color var(--dur-press) var(--ease-standard), color var(--dur-press) var(--ease-standard); }
+  .press {
+    transition: transform var(--dur-fast) var(--ease-spring),
+                background-color var(--dur-fast) var(--ease-out),
+                border-color var(--dur-fast) var(--ease-out),
+                color var(--dur-fast) var(--ease-out);
+  }
   .press:active:not(:disabled) { transform: scale(.97); }
 
-  .dialog-in { animation: dialog-in var(--dur-pop) var(--ease-enter) backwards; }
-  .popover-in { animation: popover-in var(--dur-pop) var(--ease-enter) backwards; }
-  .toast-in { animation: toast-in var(--dur-pop) var(--ease-enter) backwards; }
-  .check-pop { animation: check-pop var(--dur-pop) var(--ease-enter) backwards; }
+  /* Only a card you can act on moves, and it moves by its border, not a shadow. */
+  .card-hover { transition: border-color var(--dur-surface) var(--ease-out), transform var(--dur-surface) var(--ease-out); }
+  .card-hover:hover { border-color: var(--color-hairline); transform: translateY(-2px); }
 
-  /* A light sweep across a placeholder or a running step. The gradient is the
-     animation itself, not decoration — §4 bans decorative gradients, not this. */
+  .rise-in    { animation: rise-in var(--dur-slow) var(--ease-out) backwards; }
+  .dialog-in  { animation: scale-in var(--dur-surface) var(--ease-spring) backwards; }
+  .popover-in { animation: drop-in var(--dur-surface) var(--ease-out) backwards; }
+  .toast-in   { animation: lift-in var(--dur-surface) var(--ease-spring) backwards; }
+  .check-pop  { animation: check-pop var(--dur-surface) var(--ease-spring) backwards; }
+  .drawer-in  { animation: slide-in-right var(--dur-panel) var(--ease-in-out) backwards; }
+
+  /* A light sweeping across a placeholder. The gradient is the animation itself. */
   .shimmer {
-    background-image: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--color-surface) 70%, transparent) 50%, transparent 100%);
+    background-image: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / .75) 50%, transparent 100%);
     background-size: 40% 100%;
     background-repeat: no-repeat;
     animation: shimmer 1.2s linear infinite;
   }
+
+  /* The active step's own words glow (§4). Needs a colour under it for the fallback
+     when background-clip:text is unavailable. */
+  .shimmer-text {
+    background-image: linear-gradient(100deg, var(--color-slate) 20%, var(--color-primary) 45%, var(--color-slate) 70%);
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer-text 1.8s linear infinite;
+  }
+
+  /* The typewriter caret beside a placeholder that is typing itself. */
+  .caret { animation: caret-blink 1.1s steps(1, end) infinite; }
 }
 
-/* §4 Reduced motion: everything is instant, and nothing depends on an animation
-   to be understood. Near-zero durations rather than `animation: none`, which
-   would freeze a check at scale .6 — i.e. leave it invisible. */
+/* §12 The focus ring, unlayered so it beats every layer. It is deliberately the one style in
+   this file that a component cannot override: a form control's own focus treatment — the
+   browser's, Tailwind's preflight, a `focus:` utility — otherwise repaints the ring a different
+   colour on inputs than on buttons, and then there is no one ring. */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* §4 Reduced motion: everything is instant, and nothing depends on an animation to be
+   understood. Near-zero durations rather than `animation: none`, which would freeze a
+   check at scale .6 — i.e. leave it invisible. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -304,20 +383,21 @@
     scroll-behavior: auto !important;
   }
   .card-hover:hover, .press:active { transform: none !important; }
+  /* The shimmering label is a moving gradient, so it has to settle on a readable colour
+     rather than on whichever frame it stopped at. */
+  .shimmer-text { background-image: none; color: var(--color-primary-deep); }
 }
 
-/* --- Print: the saved board as a report (§6.5, §15) -----------------------
+/* --- Print: the saved board as a report (§8) ------------------------------
    Unlayered and last, so it beats every utility.
-   Controls disappear on their own: every Button, Chip and tab is a <button>,
-   and the composer is a <textarea>. Anything else that is chrome rather than
-   report — the rail, the tab bar, the header, a drawer — carries `print-hide`
-   or data-print="hide". No element-name guessing: the board's own title block
-   is a <header> too. */
+   Controls disappear on their own: every Button, Chip and tab is a <button>, and the
+   composer is a <textarea>. Anything else that is chrome rather than report carries
+   `print-hide` or data-print="hide". */
 @media print {
   @page { margin: 16mm; }
 
   html, body, #root { height: auto; background: #fff; }
-  body { background: #fff; color: #000; font-size: 11pt; line-height: 1.45; }
+  body { background: #fff; color: #000; font-size: 11pt; line-height: 1.45; letter-spacing: 0; }
 
   .print-hide, [data-print="hide"],
   nav, button, [role="tablist"], [role="tab"],
@@ -334,14 +414,30 @@
   [data-ui="card"], .print-keep, figure, table { break-inside: avoid; page-break-inside: avoid; }
   [data-ui="card"] { box-shadow: none !important; border: 1px solid #ddd; }
 
-  /* Charts are the evidence — print the ink, not a blank frame. The width cap
-     goes on the responsive container and nowhere inside it: Recharts nests its
-     wrapper in a deliberately zero-width div that the wrapper overflows, so
-     `max-width: 100%` on the wrapper resolves against 0 and every chart prints
-     as an empty box. */
+  /* Charts are the evidence — print the ink, not a blank frame. The width cap goes on the
+     responsive container and nowhere inside it: Recharts nests its wrapper in a deliberately
+     zero-width div that the wrapper overflows, so `max-width: 100%` on the wrapper resolves
+     against 0 and every chart prints as an empty box. */
   *, *::before, *::after { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .recharts-responsive-container { max-width: 100% !important; }
   svg, .recharts-wrapper, .recharts-surface { break-inside: avoid; page-break-inside: avoid; }
 
   a { text-decoration: none; color: #000; }
+}
+
+/* --- TEMPORARY v2 type aliases --------------------------------------------
+   The old `type-*` classes, re-pointed at their §3 replacement so an unmigrated
+   screen changes its look with everything else instead of staying 2010. Same
+   deletion rule as the colour aliases above. */
+@layer components {
+  .type-hero    { font-size: 28px; line-height: 1.28; font-weight: 500; letter-spacing: 0; font-feature-settings: "ss01", "ss02"; font-variant-numeric: tabular-nums lining-nums; }
+  @media (min-width: 640px) { .type-hero { font-size: 36px; } }
+  .type-page    { font-size: 28px; line-height: 1.28; font-weight: 500; letter-spacing: 0; font-feature-settings: "ss01", "ss02"; }
+  @media (min-width: 640px) { .type-page { font-size: 36px; } }
+  .type-card    { font-size: 24px; line-height: 1.25; font-weight: 500; letter-spacing: 0; font-feature-settings: "ss01", "ss02"; }
+  .type-section { font-size: 18px; line-height: 1.44; font-weight: 700; letter-spacing: 0; }
+  .type-body    { font-size: 16px; line-height: 1.5;  font-weight: 400; letter-spacing: -0.16px; }
+  .type-small   { font-size: 14px; line-height: 1.43; font-weight: 400; letter-spacing: -0.14px; }
+  .type-micro   { font-size: 12px; line-height: 1.33; font-weight: 400; letter-spacing: 0; }
+  .type-code    { font-family: var(--font-mono); font-size: 13px; line-height: 1.55; font-weight: 400; letter-spacing: 0; }
 }

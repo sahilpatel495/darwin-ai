@@ -1,4 +1,4 @@
-// Thinking, made visible (§11) — the first of the product's two bold moments. While a question
+// Thinking, made visible (§8) — the first of the product's two bold moments. While a question
 // runs the analyst watches each check happen, with the live detail the server sends, the time so
 // far, and the model doing the writing. It is the honest answer to "is it stuck?".
 //
@@ -43,19 +43,19 @@ function Elapsed({ startedAt }: { startedAt: number }) {
   return <span className="tnum">{Math.max(0, (now - startedAt) / 1000).toFixed(1)} s</span>
 }
 
-/** The shape of the answer that is coming, so nothing jumps when it lands (§9). */
+/** The shape of the answer that is coming, so nothing jumps when it lands (§12). */
 function AnswerSkeleton() {
   return (
     <Card aria-hidden>
       <div className="flex items-start justify-between gap-4">
-        <Skeleton className="h-6 w-3/5" />
-        <Skeleton className="h-6 w-28 rounded-pill" />
+        <Skeleton className="h-7 w-3/5" />
+        <Skeleton className="h-7 w-36" />
       </div>
-      <div className="mt-5 space-y-2.5">
+      <div className="mt-6 space-y-2.5">
         <Skeleton className="h-4 w-2/3" />
         <Skeleton className="h-4 w-1/2" />
       </div>
-      <Skeleton className="mt-5 h-40 w-full" />
+      <Skeleton shape="card" className="mt-6 h-44 w-full" />
     </Card>
   )
 }
@@ -74,13 +74,13 @@ export default function Working({ steps, running, startedAt, ms = null, onStop }
       <details className="group">
         {/* The chevron replaces the browser's own triangle, which does not follow the type or the
             colour and sits outside the pill. */}
-        <summary className="inline-flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-pill bg-fill px-3 py-1 type-small text-ink-2 select-none hover:bg-fill-hover [&::-webkit-details-marker]:hidden">
+        <summary className="press inline-flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-full border border-hairline-soft px-3.5 py-1.5 text-body-sm text-slate select-none hover:border-hairline hover:text-ink-deep [&::-webkit-details-marker]:hidden">
           <svg aria-hidden width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-transform duration-200 group-open:rotate-90">
             <path d="M7.5 4.5 13 10l-5.5 5.5" />
           </svg>
           {summarizeRun(steps, ms)}
         </summary>
-        <Card className="mt-2">
+        <Card className="mt-3">
           <ProgressSteps steps={progress} />
         </Card>
       </details>
@@ -90,12 +90,16 @@ export default function Working({ steps, running, startedAt, ms = null, onStop }
   return (
     <>
       <Card>
-        <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
-          <h3 className="type-section text-ink">Working on it</h3>
-          {model && <span className="rounded-pill bg-fill px-2 py-0.5 type-micro text-ink-2">{model}</span>}
-          {startedAt !== undefined && <span className="type-micro text-ink-2"><Elapsed startedAt={startedAt} /></span>}
+        <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <h3 className="text-heading-sm text-ink-deep">Working on it</h3>
+          {model && <span className="rounded-full bg-surface-soft px-3 py-1 text-caption text-slate">{model}</span>}
+          {startedAt !== undefined && (
+            <span className="text-caption text-steel">
+              <Elapsed startedAt={startedAt} />
+            </span>
+          )}
           {onStop && (
-            <Button size="sm" onClick={onStop} className="ml-auto">
+            <Button variant="ghost" size="sm" onClick={onStop} className="ml-auto">
               Stop
             </Button>
           )}
