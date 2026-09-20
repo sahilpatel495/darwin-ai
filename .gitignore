@@ -1,0 +1,23 @@
+# secrets & private material
+.env
+.env.*
+!.env.example
+FDE_Assignment_Darwinbox.pdf
+
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# node
+node_modules/
+frontend/dist/
+
+# runtime / tooling
+.DS_Store
+*.log
+playwright-report/
+test-results/
+.sessions/
