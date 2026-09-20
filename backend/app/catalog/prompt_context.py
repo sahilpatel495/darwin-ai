@@ -7,19 +7,38 @@ the codebase may serialise table contents into a prompt. Inputs are profiles
 
 What can appear: table and column names, types, roles, null share, numeric/date
 ranges, and the true distinct values of non-PII columns with <= 30 distinct values
-(the model needs real filter literals such as "Bengaluru"), each at most 40 characters.
-PII columns expose a name and a kind, nothing else.
+(the model needs real filter literals such as "Bengaluru"). PII columns expose a name and
+a kind, nothing else.
+
+Two things never appear, whatever profiling decided upstream (defence in depth):
+- a category value that is long (free text, possibly an injected instruction) or that looks
+  like personal data (one email inside a "Remarks" column is still an email);
+- the uploaded file or sheet name. The cleaned table name already identifies it, and a file
+  name is attacker-controlled text.
 """
 
 from __future__ import annotations
 
 import json
+import re
 
 from app.contracts import Catalog, ColumnProfile, ResolvedMetric, TableProfile
 
 MAX_COLUMNS_PER_TABLE = 60  # wider tables list the remaining column names only
 MAX_VALUES = 30
 MAX_VALUE_CHARS = 40
+
+_EMAIL = re.compile(r"[\w.+\-]+@[\w\-]+\.[\w.\-]+")
+_PAN_OR_IFSC = re.compile(r"\b([A-Z]{5}\d{4}[A-Z]|[A-Z]{4}0[A-Z0-9]{6})\b", re.IGNORECASE)
+_SEPARATORS = re.compile(r"[\s\-()+]")
+_LONG_NUMBER = re.compile(r"\d{9,}")  # phone, Aadhaar, UAN, bank account; an ISO date is 8 digits
+
+
+def _is_safe_value(value: str) -> bool:
+    """A category label the model may see: short, and nothing that looks like personal data."""
+    if len(value) > MAX_VALUE_CHARS or _EMAIL.search(value) or _PAN_OR_IFSC.search(value):
+        return False
+    return not _LONG_NUMBER.fullmatch(_SEPARATORS.sub("", value))
 
 
 def _column_line(col: ColumnProfile) -> str:
@@ -37,11 +56,9 @@ def _column_line(col: ColumnProfile) -> str:
 
     parts = []
     if col.values and len(col.values) <= MAX_VALUES:
-        # Category labels are short. Anything longer is free text (a possible injected
-        # instruction), so it is dropped, not truncated.
-        short = [v for v in col.values if len(v) <= MAX_VALUE_CHARS]
-        hidden = " (long values hidden)" if len(short) < len(col.values) else ""
-        parts.append("values: " + json.dumps(short, ensure_ascii=False) + hidden)
+        safe = [v for v in col.values if _is_safe_value(v)]  # dropped, never truncated
+        hidden = " (some values hidden)" if len(safe) < len(col.values) else ""
+        parts.append("values: " + json.dumps(safe, ensure_ascii=False) + hidden)
     elif col.min is not None and col.max is not None and col.type != "text":
         parts.append(f"range: {col.min}..{col.max}")
     if col.null_fraction >= 0.01:
@@ -51,8 +68,7 @@ def _column_line(col: ColumnProfile) -> str:
 
 def _table_block(table: TableProfile) -> str:
     kind = "VIEW" if table.is_view else "TABLE"
-    origin = table.source_file + (f" / sheet {table.sheet}" if table.sheet else "")
-    lines = [f"{kind} {table.name} ({table.row_count} rows) from {origin}"]
+    lines = [f"{kind} {table.name} ({table.row_count} rows)"]
     lines += [_column_line(c) for c in table.columns[:MAX_COLUMNS_PER_TABLE]]
     rest = table.columns[MAX_COLUMNS_PER_TABLE:]
     if rest:
@@ -86,12 +102,21 @@ def build_schema_context(catalog: Catalog) -> str:
 
 
 def build_metric_context(resolved: list[ResolvedMetric]) -> str:
-    """Render matched glossary metrics. Empty string when nothing matched."""
-    usable = [m for m in resolved if not m.missing_roles]
-    if not usable:
+    """Render matched glossary metrics. Empty string when nothing matched.
+
+    A metric whose columns are absent is stated too, so the model refuses and names the gap
+    instead of improvising a different definition."""
+    if not resolved:
         return ""
     lines = ["BUSINESS DEFINITIONS (use these exactly when the question refers to them)"]
-    for m in usable:
-        lines.append(f"  {m.metric.name}: {m.metric.definition}")
+    for m in resolved:
+        if m.missing_roles:
+            lines.append(
+                f"  {m.metric.name} cannot be computed from this data: no column for "
+                f"{', '.join(m.missing_roles)}. If the question needs it, return unanswerable "
+                "and say which data is missing."
+            )
+            continue
+        lines.append(f"  [{m.metric.key}] {m.metric.name}: {m.metric.definition}")
         lines.append(f"    SQL pattern: {m.sql_hint}")
     return "\n".join(lines)
