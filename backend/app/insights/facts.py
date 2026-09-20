@@ -28,6 +28,12 @@ NOTHING = "There is nothing to show for this yet."
 
 _MEASURE_KINDS = frozenset({"currency", "percent", "integer", "decimal"})
 _MAX_LINES = 3
+# Words that mean a column holds a statistic *about* rows rather than an amount *of* something.
+# Adding six averages together gives a number that is not the total of anything, so no share of
+# it may be claimed. Matched against the underscore-separated words of the output name, which
+# dashboard.py and analyses.py write ("average_ctc", "median_ctc", "total_gross", "employees").
+_NOT_ADDABLE_WORDS = frozenset({"average", "avg", "mean", "median", "quartile", "percentile",
+                                "p25", "p50", "p75", "lowest", "highest", "min", "max", "rate"})
 # Column names that carry a summary statistic, matched as substrings of the output name so
 # "median_ctc" and "ctc_median" both count.
 _MEDIAN_NAMES = ("median", "p50")
@@ -145,13 +151,13 @@ def _spread_lines(shape: _Shape, measure: int, ranked: list[int],
 
     Every line here is skipped when the rows cannot support it: shares need the whole total
     (a truncated result has only part of it) and non-negative parts, a ratio needs a positive
-    lowest, and adding up a column of percentages measures nothing at all.
+    lowest, and adding up a column of percentages — or of averages — measures nothing at all.
     """
     values = [shape.value(i, measure) for i in ranked]
     kind = shape.kinds[measure]
     addable = kind != "percent" and not shape.table.truncated and all(v >= 0 for v in values)
     lines = []
-    if addable and len(ranked) > 3 and (total := sum(values)) > 0:
+    if addable and _addable_name(shape, measure) and len(ranked) > 3 and (total := sum(values)) > 0:
         top_three = sum(sorted(values, reverse=True)[:3])
         lines.append(f"Top 3 make up {to_display(100 * top_three / total, 'percent')} of the total.")
     low, high = shape.value(bottoms[0], measure), shape.value(tops[0], measure)
@@ -246,7 +252,8 @@ def _share(shape: _Shape, title: str) -> tuple[str, list[str]]:
 
     values = [shape.value(i, measure) for i in ranked]
     total = sum(values)
-    if shape.table.truncated or total <= 0 or any(v < 0 for v in values):
+    if (shape.table.truncated or total <= 0 or any(v < 0 for v in values)
+            or not _addable_name(shape, measure)):
         return _breakdown(shape, title)
     share = to_display(100 * shape.value(tops[0], measure) / total, "percent")
     statement = (f"{names} {verb} the largest share at {share} of the total"
@@ -268,13 +275,19 @@ def _two_way(shape: _Shape, title: str) -> tuple[str, list[str]]:
     tops = _winners(shape, measure, ranked, best=True)
     bottoms = _winners(shape, measure, ranked, best=False)
     cell = f"{shape.display(tops[0], rows)} / {shape.display(tops[0], columns)}"
-    count = to_display(len(ranked), "integer")
+    count, top_value = to_display(len(ranked), "integer"), shape.display(tops[0], measure)
+    if len(tops) == len(ranked):
+        # Every cell holds the same number: naming one of them "the largest" would invent a
+        # difference the rows do not have.
+        return f"All {count} combinations are level at {top_value}.", []
     if len(tops) > 1:
-        statement = (f"{count} combinations are tied at the top on"
-                     f" {shape.display(tops[0], measure)}.")
+        # The tie is between `tops`, not between every combination in the result: saying
+        # "48 combinations are tied" when two are is the false sentence this module exists
+        # to avoid.
+        statement = (f"{to_display(len(tops), 'integer')} of {count} combinations are tied at"
+                     f" the top on {top_value}, including {cell}.")
     else:
-        statement = (f"{cell} is the largest at {shape.display(tops[0], measure)},"
-                     f" across {count} combinations.")
+        statement = f"{cell} is the largest at {top_value}, across {count} combinations."
     lines = [(f"{shape.display(bottoms[0], rows)} / {shape.display(bottoms[0], columns)}"
               f" is the smallest at {shape.display(bottoms[0], measure)}.")]
     return statement, lines + _spread_lines(shape, measure, ranked, tops, bottoms)
@@ -355,6 +368,19 @@ def _names(shape: _Shape, column: int, rows: list[int]) -> str:
 
 def _first(*groups: list[int]) -> int | None:
     return next((g[0] for g in groups if g), None)
+
+
+def _addable_name(shape: _Shape, measure: int) -> bool:
+    """Can this column be totalled at all?
+
+    A column of averages, medians, minimums or rates is a statistic per group, and the sum of
+    those is not the total of anything — so "Top 3 make up 72.0% of the total" over it would be
+    arithmetic dressed as a finding. The aggregate is not in the result, but the name our own
+    templates give the column is ("average_ctc", "total_gross", "employees"), and an unknown
+    name is treated as addable because a plain amount column is the common case.
+    """
+    words = set(shape.table.columns[measure].lower().split("_"))
+    return not (words & _NOT_ADDABLE_WORDS)
 
 
 def _named_column(shape: _Shape, options: tuple[str, ...]) -> int | None:

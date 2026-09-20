@@ -408,11 +408,21 @@ def _where(*conditions: str | None) -> str:
     return f" WHERE {' AND '.join(live)}" if live else ""
 
 
-def _still_here(exit_date: Ref | None) -> str | None:
-    """The "currently employed" test, used by every People tile so the headcount KPI and the
-    headcount-by-department bars can never disagree. Someone whose last day is today has left,
-    which is the glossary's rule."""
-    return None if exit_date is None else f"({_q(exit_date)} IS NULL OR {_q(exit_date)} > current_date)"
+def _still_here(joined: Ref | None, exit_date: Ref | None) -> str | None:
+    """The one "counts as an employee today" test, so the headcount KPI, the bars, the tenure
+    bands and the CTC tiles can never disagree.
+
+    Both halves, always together. Someone whose last day is today has left, which is the
+    glossary's rule; someone who has not started yet — or whose joining date is missing, which
+    reads the same way in SQL — is not on the books. Splitting them is how the KPI came to say
+    430 while the bars beside it added up to 431: the KPI had the joining test and they did not.
+    """
+    conditions = [
+        f"{_q(joined)} <= current_date" if joined is not None else None,
+        f"({_q(exit_date)} IS NULL OR {_q(exit_date)} > current_date)" if exit_date is not None else None,
+    ]
+    live = [c for c in conditions if c]
+    return " AND ".join(live) if live else None
 
 
 # --------------------------------------------------------------------------- HR sections
@@ -424,20 +434,20 @@ def _people_section(catalog: Catalog, table: TableProfile | None) -> _Section | 
     if table is None or not refs:
         return None
     section = _Section("People", _DESCRIPTIONS["People"], _DEPTH["People"])
-    source, active = ident(table.name), _still_here(refs.get("exit_date"))
+    source = ident(table.name)
     joined = refs.get("join_date")
     left = refs.get("exit_date")
+    active = _still_here(joined, left)
 
-    if active:
+    if left is not None:
         section.add(_Candidate(
             "people-headcount", "Active headcount", "kpi",
-            f"SELECT count(*) AS active_headcount FROM {source}"
-            + _where(active, f"{_q(joined)} <= current_date" if joined else None),
+            f"SELECT count(*) AS active_headcount FROM {source}" + _where(active),
             ask="How has headcount changed over the last year?"))
     else:
         section.add(_Candidate(
             "people-headcount", "People on file", "kpi",
-            f"SELECT count(*) AS people FROM {source}",
+            f"SELECT count(*) AS people FROM {source}" + _where(active),
             ask="How many people are in each department?"))
 
     section.add(_group_count(refs.get("department"), "people-by-department",
@@ -550,7 +560,10 @@ def _flow(table: TableProfile, joined: Ref | None, left: Ref | None) -> _Candida
     if joined is None or left is None:
         return None
     source = ident(table.name)
+    # Both arms drop their own empty dates: a row with no joining date would otherwise become a
+    # bar labelled "—", which is a gap in the file rather than a year anybody joined in.
     sql = (f"WITH movements AS (SELECT year({_q(joined)}) AS yr, 'Joined' AS movement FROM {source}"
+           f" WHERE {_q(joined)} IS NOT NULL"
            f" UNION ALL SELECT year({_q(left)}) AS yr, 'Left' AS movement FROM {source}"
            f" WHERE {_q(left)} IS NOT NULL)"
            " SELECT yr AS year, movement AS movement, count(*) AS people FROM movements"
@@ -564,6 +577,10 @@ def _tenure(table: TableProfile, joined: Ref | None, active: str | None) -> _Can
 
     Bands rather than a histogram of years: "under 1 year" and "10 years or more" are the two
     groups anybody acts on, and fixed bands need no thresholds invented from the data.
+
+    `active` carries the joining test (see `_still_here`), which is what keeps a row with no
+    joining date out: its tenure is NULL, every WHEN is NULL rather than false, and the ELSE
+    would file it under "10 years or more".
     """
     if joined is None:
         return None
@@ -583,7 +600,7 @@ def _pay_section(catalog: Catalog, pay: TableProfile | None,
                  people: TableProfile | None) -> _Section | None:
     """The payroll total and its monthly shape, then what CTC looks like across the company."""
     refs = _refs(pay, catalog, _PAY_ROLES)
-    people_refs = _refs(people, catalog, ("ctc", "grade", "department", "exit_date"))
+    people_refs = _refs(people, catalog, ("ctc", "grade", "department", "join_date", "exit_date"))
     money = refs.get("gross") or refs.get("net")
     month = refs.get("pay_month")
     ctc = people_refs.get("ctc")
@@ -608,7 +625,7 @@ def _pay_section(catalog: Catalog, pay: TableProfile | None,
 
     if ctc is not None:
         group = people_refs.get("grade") or people_refs.get("department")
-        active = _still_here(people_refs.get("exit_date"))
+        active = _still_here(people_refs.get("join_date"), people_refs.get("exit_date"))
         if group is not None:
             section.add(_Candidate(
                 "pay-ctc-by-group", f"Average CTC by {_spoken(group)}", "breakdown",
@@ -841,13 +858,19 @@ def _quality_tiles(catalog: Catalog) -> list[InsightTile]:
     return [tile for tile in tiles if tile is not None]
 
 
-def _rows(count: int) -> str:
-    """"1 row" / "6 rows", the number formatted the way every other number in the app is."""
-    return f"{to_display(count, 'integer')} row{'' if count == 1 else 's'}"
+def _count(number: int, noun: str) -> str:
+    """"1 row" / "6 rows": the number formatted the way every other number in the app is, with
+    the noun agreeing with it. A data-quality card that says "1 columns" is the first thing a
+    reader stops trusting, and these tiles exist to be trusted."""
+    return f"{to_display(number, 'integer')} {noun}{'' if number == 1 else 's'}"
 
 
 def _cleaned_tile(files: list[TableProfile]) -> InsightTile:
-    """What ingestion changed before any number was calculated."""
+    """What ingestion changed before any number was calculated.
+
+    Every line is written in the imperative ("Read 25 columns as dates"), which is both what
+    happened and the one phrasing that needs no verb to agree with a count.
+    """
     typed = sum(len(t.health.coercions) for t in files)
     titles = sum(t.health.skipped_title_rows for t in files)
     totals = sum(t.health.dropped_total_rows for t in files)
@@ -856,23 +879,21 @@ def _cleaned_tile(files: list[TableProfile]) -> InsightTile:
 
     lines = []
     if typed:
-        lines.append(f"{to_display(typed, 'integer')} columns were read as dates, whole numbers"
-                     " or rupee amounts instead of text.")
+        lines.append(f"Read {_count(typed, 'column')} as dates, whole numbers or rupee amounts"
+                     " instead of text.")
     if titles or totals:
         parts = []
         if titles:
-            parts.append(f"{_rows(titles)} of title above the header")
+            parts.append(f"{_count(titles, 'row')} of title above the header")
         if totals:
-            parts.append(f"{_rows(totals)} of totals at the foot")
+            parts.append(f"{_count(totals, 'row')} of totals at the foot")
         lines.append(f"Dropped {' and '.join(parts)}, which would have been counted twice.")
     if removed:
-        lines.append(f"{_rows(removed)} were exact duplicates, including their id,"
-                     " and were removed.")
+        lines.append(f"Removed {_count(removed, 'row')} of exact duplicates, id included.")
     if not lines:
         lines.append("Nothing had to be corrected: every column parsed cleanly.")
-    tables = f"{to_display(len(files), 'integer')} table{'' if len(files) == 1 else 's'}"
-    statement = (f"{_rows(rows)} across {tables} were read and cleaned before anything was"
-                 " calculated.")
+    statement = (f"Read and cleaned {_count(rows, 'row')} across {_count(len(files), 'table')}"
+                 " before anything was calculated.")
     return InsightTile(id="quality-cleaned", title="What was cleaned", kind="quality",
                        statement=statement, insights=lines[:3],
                        ask="How many rows are in each file?")
@@ -899,11 +920,14 @@ def _attention_tile(files: list[TableProfile]) -> InsightTile | None:
     if not lines:
         return None
     lines = lines[:3]
-    statement = (f"{to_display(len(lines), 'integer')} things are worth a look before you quote"
-                 " these numbers." if len(lines) > 1 else lines[0])
+    if len(lines) == 1:
+        # One finding is the whole tile: repeating it underneath itself reads as two problems.
+        return InsightTile(id="quality-attention", title="What needs a look", kind="quality",
+                           statement=lines[0], ask="Which columns have the most empty values?")
     return InsightTile(id="quality-attention", title="What needs a look", kind="quality",
-                       statement=statement, insights=lines,
-                       ask="Which columns have the most empty values?")
+                       statement=f"{to_display(len(lines), 'integer')} things are worth a look"
+                                 " before you quote these numbers.",
+                       insights=lines, ask="Which columns have the most empty values?")
 
 
 def _privacy_tile(files: list[TableProfile]) -> InsightTile:
@@ -919,8 +943,7 @@ def _privacy_tile(files: list[TableProfile]) -> InsightTile:
             insights=[("The AI never sees a row either way: it is given column names, types"
                        " and statistics, and writes SQL that this app runs.")])
     columns = ", ".join(sorted({label for _, label in hidden}))
-    statement = (f"{to_display(len(hidden), 'integer')} columns hold personal data and are"
-                 " hidden from the AI.")
+    statement = f"Personal data found in {_count(len(hidden), 'column')}, all hidden from the AI."
     return InsightTile(
         id="quality-privacy", title="Personal data", kind="quality", statement=statement, ask=ask,
         insights=[f"Hidden: {columns[:200]}.",
@@ -949,10 +972,12 @@ def _links_tile(catalog: Catalog) -> InsightTile | None:
         lines.append(f"{' and '.join(union.tables)} have the same columns and are stacked"
                      f" into {union.view_name}, so a question covers all of them at once.")
     weakest = min(active, key=lambda r: (r.match_left, r.id), default=None)
-    statement = (f"{to_display(len(active), 'integer')} links between your files are switched on,"
-                 " so a question can cross them." if active else
-                 f"{to_display(len(stacked), 'integer')} files with the same columns are stacked"
-                 " into one view.")
+    statement = (f"Your files have {_count(len(active), 'active link')}, so a question can cross"
+                 " them." if active else
+                 # The count is of files, not of views: a union always stacks at least two, so
+                 # "are" never has to agree with a one.
+                 f"{_count(sum(len(u.tables) for u in stacked), 'file')} with the same columns"
+                 " are stacked into one view.")
     ask = (f"How many rows in {weakest.left_table} have no match in {weakest.right_table}?"
            if weakest is not None else None)
     return InsightTile(id="quality-links", title="How your files link up", kind="quality",

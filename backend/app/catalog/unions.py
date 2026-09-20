@@ -38,8 +38,15 @@ def union_signature(table: TableProfile) -> frozenset[str]:
 
 
 def _is_empty(column: ColumnProfile) -> bool:
-    """No values at all: "LWD" on the sheet of the people who have not left."""
-    return column.null_fraction >= 1.0
+    """No values at all: "LWD" on the sheet of the people who have not left.
+
+    The distinct count decides, not the null share: `null_fraction` is rounded to four
+    decimals, so one value in 25,000 rows rounds to 1.0. Forgiving a type clash there let
+    `_member_select` write that side as a bare NULL, and the one real value disappeared
+    from the view while the base table still had it — a silent loss in the very place
+    combined views exist to prevent one.
+    """
+    return column.distinct_count == 0 and column.null_fraction >= 1.0
 
 
 def resolve_columns(members: list[TableProfile]) -> dict[str, ColumnProfile] | None:

@@ -22,7 +22,7 @@ shown next to the picker that caused it.
 from __future__ import annotations
 
 from collections.abc import Callable
-from math import floor, log10
+from math import floor, isfinite, log10
 from typing import Any
 
 from app.contracts import Catalog, TableProfile
@@ -318,7 +318,7 @@ def _distribution(session: SessionLike, refs: dict[str, Ref], options: dict[str,
                f" FROM {table}")
     shown, values = _one_row(session, summary)
     median, low, high = values[0], values[3], values[4]
-    step = 1.0 if low is None else _nice_step(low, high, measure.profile.type == "integer")
+    step = _nice_step(low, high, measure.profile.type == "integer")
 
     band, count_name = _aliases(f"{measure.column}_band", _measure_alias("count", measure))
     sql = (f"SELECT floor({column} / {step!r}) * {step!r} AS {ident(band)},"
@@ -328,13 +328,16 @@ def _distribution(session: SessionLike, refs: dict[str, Ref], options: dict[str,
     tile = run_tile(session, tile_id="analysis-distribution", title=f"How {label} is spread",
                     kind="distribution", sql=sql, chart_type="histogram",
                     ask=f"Who sits in the top 10% of {label}?")
-    if median is None:  # nothing but empty cells: run_tile already says so
+    if None in (median, values[1], values[2]):
+        # Nothing but empty cells, or values quantile_cont cannot rank (NaN). run_tile's own
+        # sentence is the honest one; "falls between 2 and —" is a sentence with a hole in it.
         return tile
+    ends = ([] if None in (values[3], values[4]) else
+            [f"The lowest is {shown[3]} and the highest is {shown[4]}."])
     return tile.model_copy(update={
         "statement": (f"Half of {label} falls between {shown[1]} and {shown[2]},"
                       f" and the median is {shown[0]}."),
-        "insights": [f"The lowest is {shown[3]} and the highest is {shown[4]}.",
-                     *_biggest_band(tile, label)],
+        "insights": [*ends, *_biggest_band(tile, label)],
     })
 
 
@@ -343,14 +346,20 @@ def _share(session: SessionLike, refs: dict[str, Ref], options: dict[str, str]) 
 
     Past six groups the rest are added together as "Other", so the slices still add up to the
     whole. That is only done for a sum or a count: adding six averages together would produce a
-    number that means nothing, so those keep every group and are drawn as bars.
+    number that means nothing.
+
+    And when the aggregate is not a sum or a count this stops being a share at all. A donut of
+    averages draws six numbers as parts of a whole that does not exist, so the tile becomes what
+    it really is — a breakdown, on bars, titled as one. `facts` refuses to compute a share over
+    such a column too, so the picture and the sentence agree.
     """
     measure, group = refs["measure"], refs["by"]
     func = options["aggregate"]
+    whole = func in ("sum", "count")
     group_name, measure_name = _aliases(group.column, _measure_alias(func, measure))
     totals = (f"SELECT {_col(group)} AS grouped, {aggregate(func, _col(measure))} AS measured"
               f" {from_clause([measure, group], session.catalog)} GROUP BY 1")
-    if func in ("sum", "count"):
+    if whole:
         # A group genuinely called "Other" merges with the remainder. The total stays right.
         sql = (f"WITH totals AS ({totals}), ranked AS (SELECT grouped, measured,"
                " row_number() OVER (ORDER BY measured DESC, grouped) AS place FROM totals)"
@@ -361,10 +370,12 @@ def _share(session: SessionLike, refs: dict[str, Ref], options: dict[str, str]) 
         sql = (f"WITH totals AS ({totals}) SELECT grouped AS {ident(group_name)},"
                f" measured AS {ident(measure_name)} FROM totals ORDER BY 2 DESC, 1")
     phrase, by = _phrase(func, measure), _words(group.profile.label)
-    return run_tile(session, tile_id="analysis-share", title=f"Share of {phrase} by {by}",
-                    kind="share", sql=sql,
-                    # A donut has to show the whole; past six real groups it is a bar.
-                    chart_type="donut" if group.profile.distinct_count <= MAX_SLICES else "bar",
+    # A donut has to show a whole: only a total or a count is one, and only up to six slices.
+    donut = whole and group.profile.distinct_count <= MAX_SLICES
+    return run_tile(session, tile_id="analysis-share",
+                    title=f"Share of {phrase} by {by}" if whole else f"{_cap(phrase)} by {by}",
+                    kind="share" if whole else "breakdown", sql=sql,
+                    chart_type="donut" if donut else "bar",
                     ask=f"How has the share of {phrase} by {by} moved over time?")
 
 
@@ -510,7 +521,10 @@ def _outliers(session: SessionLike, refs: dict[str, Ref], options: dict[str, str
                     kind="distribution", sql=sql, chart_type="table",
                     ask=f"What do the unusual {label} rows have in common?")
     if values[0] is None:
-        return tile.model_copy(update={"statement": f"{_cap(label)} has no values to check."})
+        # Empty, or holding values quantile_cont cannot rank (NaN). Either way there is no
+        # range, and "has no values" would be false for the second case.
+        return tile.model_copy(update={
+            "statement": f"{_cap(label)} could not be checked for unusual values."})
     count = to_display(tile.table.row_count, "integer")
     if not tile.table.rows:
         statement = (f"No {label} value is unusual: they all sit between"
@@ -519,10 +533,11 @@ def _outliers(session: SessionLike, refs: dict[str, Ref], options: dict[str, str
         rows = "row" if tile.table.row_count == 1 else "rows"
         statement = (f"{count} {rows} sit outside the usual range for {label}"
                      f" (below {shown[0]} or above {shown[1]}).")
+    # `facts` reads a result as groups of something; this one is a list of rows, so its computed
+    # lines would call 35 individual salaries "the groups" and offer a share of their sum.
     return tile.model_copy(update={
         "statement": statement,
-        "insights": ["Unusual is not the same as wrong: these are the rows worth checking.",
-                     *tile.insights],
+        "insights": ["Unusual is not the same as wrong: these are the rows worth checking."],
     })
 
 
@@ -574,6 +589,10 @@ def _change_words(tile: InsightTile, phrase: str, grain: str, kind: ValueKind) -
         return {}
     shown, values = tile.table.display[0], tile.table.rows[0]
     earlier, change = values[1], values[4]
+    if values[2] is None:
+        # No latest period means no dated rows at all. The one-period sentence below would name
+        # that period, and "There is only one month ... (—)" is a claim about nothing.
+        return {"statement": f"No row here has a date, so there are no {grain}s to compare."}
     if earlier is None or change is None:
         return {"statement": f"There is only one {grain} of {phrase} in this data"
                              f" ({shown[2]}), so there is nothing to compare it with."}
@@ -614,7 +633,7 @@ def _biggest_band(tile: InsightTile, label: str) -> list[str]:
         return []
     top = max(range(len(tile.table.rows)), key=lambda i: tile.table.rows[i][1])
     band, count = tile.table.display[top][0], tile.table.display[top][1]
-    return [f"Most {label} values start at {band} ({count} rows)."]
+    return [f"Most {label} values start at {band} ({count} of them)."]
 
 
 # --------------------------------------------------------------------------- helpers
@@ -669,9 +688,12 @@ def _group_value(text: str, ref: Ref) -> str:
     spelling. An unmatched value is refused rather than passed through, which is what keeps a
     request's text out of the WHERE clause."""
     values = ref.profile.values
-    if not values:
+    if values is None:  # the profiler lists values only below its own cap
         raise ValueError(f"{ref.profile.label} has too many different values to compare two of"
                          " them. Pick a column with a short list of values, such as department.")
+    if not values:  # listed, and empty: the column is blank in every row
+        raise ValueError(f"{ref.profile.label} is empty in every row, so there is nothing to"
+                         " compare. Pick a column that has values in it.")
     match = next((value for value in values if value.lower() == text.strip().lower()), None)
     if match is None:
         raise ValueError(f"{_shown(text)} is not a value in {ref.profile.label}."
@@ -710,12 +732,19 @@ def _value_kind(func: str, ref: Ref) -> ValueKind:
     return "integer" if func == "count" else ref.profile.type
 
 
-def _nice_step(low: float, high: float, whole_numbers: bool) -> float:
+def _nice_step(low: float | None, high: float | None, whole_numbers: bool) -> float:
     """A bucket width a person would choose: 1, 2, 2.5 or 5 times a power of ten, so the bands
     start at round numbers. Ten buckets at most, and never a fraction of a whole-number column.
+
+    A width of 1 is the answer whenever the ends cannot be read. An all-empty column gives no
+    ends at all, and a column holding NaN or ±1e308 (a spreadsheet can write both) gives ends
+    that are not numbers: log10 of those raises ValueError or OverflowError, neither of which
+    is a ValueError carrying a sentence, so they would reach the browser as a 500.
     """
-    span = high - low
-    if span <= 0:
+    if low is None or high is None:
+        return 1.0
+    span = high - low  # -1e308 to 1e308 overflows to inf, so the span is checked, not the ends
+    if not isfinite(span) or span <= 0:
         return 1.0
     rough = span / 10
     power = 10.0 ** floor(log10(rough))

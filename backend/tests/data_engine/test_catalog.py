@@ -393,3 +393,14 @@ def test_rejected_unions_have_no_view(conn):
     assert create_union_views(conn, rejected, tables) == []
     with pytest.raises(duckdb.Error):
         conn.execute("SELECT * FROM attendance_all")
+
+
+def test_a_column_with_one_value_in_a_huge_sheet_is_not_treated_as_empty(conn):
+    """null_fraction is rounded to four decimals, so one value in 25,000 rows reads as 1.0.
+    Forgiving the type clash there wrote that side of the view as a bare NULL and the single
+    real value vanished from the view while the base table still had it."""
+    nearly = _table("punches_jan", [_column("emp_no", is_identifier=True),
+                                    _column("note", "date", null_fraction=1.0, distinct_count=1)], 25000)
+    other = _table("punches_feb", [_column("emp_no", is_identifier=True),
+                                   _column("note", "text", distinct_count=1)], 3)
+    assert detect_unions([nearly, other], []) == []

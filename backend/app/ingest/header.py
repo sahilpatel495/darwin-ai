@@ -85,11 +85,21 @@ def header_cells(grid: Grid, header_index: int) -> list[str | None]:
     ignored, but `EmpNo` sits above a blank one, and without its name the whole file joins
     to nothing. A cell too long to be a header is a title line, not a name, so it is not
     borrowed.
+
+    Only a row that names at least two columns is borrowed from. A report title ("Northwind
+    Retail India Pvt Ltd") is one cell in a wide row, usually merged across the sheet, and it
+    sits directly above the header in most HR exports: without this test it became the name
+    of the first column, which is worse than `column_1` because it reads like a real name and
+    is sent to the model as one. The upper row of a real two-row header labels several
+    groups. Same rule as the sign-off line in `drop_footer_totals`: one cell alone in a row
+    is a caption, not part of the table.
     """
     row = grid[header_index]
     if header_index == 0:
         return row
     above = grid[header_index - 1]
+    if sum(not is_null(cell) for cell in above) < 2:
+        return row
     return [cell if not is_null(cell) else _borrowed(above, i) for i, cell in enumerate(row)]
 
 

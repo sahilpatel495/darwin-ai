@@ -228,6 +228,62 @@ def test_two_way_names_the_largest_cell():
     assert lines[0] == "HR / Mumbai is the smallest at 1."
 
 
+def test_two_way_counts_the_cells_that_are_tied_not_every_cell():
+    """Two of four cells tied used to be reported as "4 combinations are tied at the top",
+    which is the whole result claimed as a tie. It names one of the winners now, so the
+    analyst can check the claim against the table."""
+    kinds = ["text", "text", "integer"]
+    rows = table(["department", "location", "people"], kinds,
+                 [["Eng", "BLR", 5], ["Eng", "PNQ", 5], ["Sales", "BLR", 1], ["Sales", "PNQ", 2]])
+    statement, lines = describe(rows, kinds, "comparison", "Headcount")
+    assert statement == ("2 of 4 combinations are tied at the top on 5,"
+                         " including Eng / BLR.")
+    assert lines[0] == "Sales / BLR is the smallest at 1."
+
+
+def test_two_way_with_every_cell_equal_says_so_rather_than_naming_a_winner():
+    kinds = ["text", "text", "integer"]
+    rows = table(["department", "location", "people"], kinds,
+                 [["Eng", "BLR", 1], ["Eng", "PNQ", 1], ["Sales", "BLR", 1]])
+    assert describe(rows, kinds, "comparison", "Headcount") == (
+        "All 3 combinations are level at 1.", [])
+
+
+# ---- what may be added up ------------------------------------------------------------------
+
+
+def test_a_column_of_averages_is_never_totalled():
+    """Six averages added together is not the total of anything, so no share of it may be
+    claimed. The ratio and the mean across the groups are still true and still shown."""
+    kinds = ["text", "currency"]
+    rows = table(["grade", "average_ctc"], kinds,
+                 [["L4", 2400000], ["L3", 1400000], ["L2", 800000], ["L1", 400000]])
+    statement, lines = describe(rows, kinds, "breakdown", "Average CTC by grade")
+    assert statement.startswith("L4 is highest at ₹24.00 L")
+    assert not any("Top 3" in line for line in lines)
+    assert "The highest is 6× the lowest." in lines
+    assert "The average across the groups is ₹12.50 L." in lines
+
+
+def test_the_same_rows_under_an_addable_name_do_report_concentration():
+    """The guard is the column name our own templates write, so this is the control: change
+    average_ctc to total_ctc and the share comes back."""
+    kinds = ["text", "currency"]
+    rows = table(["grade", "total_ctc"], kinds,
+                 [["L4", 2400000], ["L3", 1400000], ["L2", 800000], ["L1", 400000]])
+    assert any("Top 3 make up" in line for line in describe(rows, kinds, "breakdown", "t")[1])
+
+
+@pytest.mark.parametrize("column", ["average_ctc", "median_ctc", "lowest_ctc", "highest_ctc",
+                                    "min_ctc", "max_ctc", "absence_rate", "mean_ctc"])
+def test_no_statistic_column_is_read_as_a_share_of_a_whole(column):
+    kinds = ["text", "decimal"]
+    rows = table(["grade", column], kinds, [["A", 4], ["B", 3], ["C", 2], ["D", 1]])
+    statement, lines = describe(rows, kinds, "share", "t")
+    assert "largest share" not in statement, statement
+    assert not any("Top 3" in line for line in lines)
+
+
 # ---- robustness ----------------------------------------------------------------------------
 
 

@@ -153,10 +153,13 @@ script are out of date and are not this section's to rewrite.
    Nothing that differs by more than case and space is ever folded, and identifier and PII
    columns are left alone entirely.
 4. **The two-row header keeps its key.** A blank header cell takes the text from the row
-   directly above it when that text is short enough to be a column name, so `EmpNo` is named
-   `EmpNo` rather than `column_1`, gets the `employee_id` role, and joins to the staff master
-   (1:1, 1.00 / 0.80). Two-row headers are still a declared limitation: the second row still
-   wins and `Earnings` / `Ratings` are still thrown away.
+   directly above it when that row names at least two columns and the text is short enough
+   to be a column name, so `EmpNo` is named `EmpNo` rather than `column_1`, gets the
+   `employee_id` role, and joins to the staff master (1:1, 1.00 / 0.80). A report title is
+   one cell alone in its row (`staff_master.xlsx` has two of them), so it is never borrowed:
+   a company name reads like a real column name and would be sent to the model as one.
+   Two-row headers are still a declared limitation: the second row still wins and
+   `Earnings` / `Ratings` are still thrown away.
 5. **The empty sheet is reported.** `Notes` now comes back from the reader empty instead of
    being filtered out of existence, so ingest skips it with the same warning a header-only
    sheet gets: "The sheet “Notes” has no data rows, so it was skipped." A workbook whose

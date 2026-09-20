@@ -199,11 +199,29 @@ def test_a_share_of_many_groups_keeps_the_biggest_six_and_adds_up_the_rest(sessi
 
 
 def test_a_share_of_averages_never_adds_averages_together(session):
-    """Six averages added up is not a total, so those groups are never lumped into "Other"."""
+    """Six averages added up is not a total, so those groups are never lumped into "Other" —
+    and the tile stops calling itself a share at all. A donut of averages draws numbers as
+    parts of a whole that does not exist, and the sentence under it would read a percentage off
+    a denominator that means nothing. It is a breakdown, so it is drawn and read as one."""
     tile = analyses.run(session, AnalysisRequest(
         kind="share", inputs={"measure": "employees.ctc", "by": "employees.department"},
         options={"aggregate": "average"}))
     assert "'Other'" not in tile.sql
+    assert tile.chart.type == "bar" and tile.kind == "breakdown"
+    assert tile.title == "Average ctc by department"
+    assert "share" not in tile.statement
+    assert tile.statement == ("Engineering is highest at ₹24.00 L and HR lowest at ₹9.00 L,"
+                              " across 3 groups.")
+
+
+def test_a_share_of_a_count_is_still_a_donut_of_the_whole(session):
+    """The control for the test above: a count does add up, so nothing changes for it."""
+    tile = analyses.run(session, AnalysisRequest(
+        kind="share", inputs={"measure": "employees.ctc", "by": "employees.department"},
+        options={"aggregate": "count"}))
+    assert tile.chart.type == "donut" and tile.kind == "share"
+    assert tile.title.startswith("Share of")
+    assert "largest share" in tile.statement
 
 
 def test_pivot(session):

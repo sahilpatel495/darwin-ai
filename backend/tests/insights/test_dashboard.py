@@ -243,7 +243,7 @@ def test_no_personal_data_reaches_a_tile_on_the_real_sample(sample):
 
 def test_pii_columns_are_named_as_hidden_but_never_quoted(sample):
     card = tile(build(sample), "quality-privacy")
-    assert "4 columns hold personal data and are hidden from the AI." == card.statement
+    assert "Personal data found in 4 columns, all hidden from the AI." == card.statement
     assert "Hidden: email, name, pan, phone." in card.insights
 
 

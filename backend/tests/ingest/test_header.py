@@ -187,3 +187,16 @@ def test_a_title_line_is_too_long_to_be_borrowed_as_a_column_name():
 def test_the_first_row_has_nothing_above_it():
     grid = [[None, "Gross"], ["1", "2"]]
     assert header_cells(grid, 0) == [None, "Gross"]
+
+
+def test_a_report_title_above_the_header_is_not_borrowed_as_a_column_name():
+    """Every HR export starts with a company line, usually merged across the sheet, so in
+    read-only mode it is one cell directly above the header. Short enough to pass for a name,
+    it used to become the first column's, which reads like a real header and reaches the
+    model as one. A row naming only one column is a caption, not the top half of a header."""
+    grid = [
+        ["Northwind Payroll Report", None, None, None],
+        [None, "Dept", "Note", "Amount"],
+        ["E1", "Ops", "x", "10"],
+    ]
+    assert header_cells(grid, 1) == [None, "Dept", "Note", "Amount"]
