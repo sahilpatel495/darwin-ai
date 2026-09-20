@@ -1,33 +1,37 @@
 # Pending work
 
-Rewritten 2026-09-20, 23:00 IST, after the day's second half (the no-AI screens, the Clarity
-redesign, the correctness and catalog fixes). This is the honest list of what is left, in the
-order it matters. Nothing here stops the app running; two things stop the *submission* being
-complete, and they are first.
+Rewritten 2026-09-21, after the deploy, the accounts work, the v3 "Canvas" rebuild and the MCP
+endpoint. This is the honest list of what is left, in the order it matters. Nothing here stops the
+app running, and the two things that used to block the submission — the deploy and the demo URL —
+are done.
+
+**Live:** <https://darwinlens.onrender.com> (Render free, Docker, Singapore region, auto-deploys
+from `main`). Checked after the first deploy: `/healthz`, guest sign-in, the sample company loading
+to 8 tables and 4 links in about 8 seconds, the Overview computing its 14 tiles, a JSON 404 on an
+unknown route, and a 401 with `WWW-Authenticate` on `/mcp` without a token.
 
 ## 1. Needs Sahil (nobody else can do these)
 
-1. **Deploy on Render.** Follow "Deploy in 5 minutes" in `README.md`. `render.yaml` is written
-   and needs no editing. Paste the keys from `.env` into Render's form (it asks for
-   `GROQ_API_KEY`, `NVIDIA_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`; one is enough).
-   Then `make warm URL=https://<app>.onrender.com` and set the GitHub repository variable
-   `APP_URL` so `.github/workflows/keepwarm.yml` starts pinging.
-2. **Fill the two markers.** `<!-- SCREENSHOT -->` and `<!-- DEPLOY_URL -->` in `README.md`, and
-   `<!-- DEPLOY_URL -->` in `WRITEUP.md`. Take the screenshot on the Overview page or on an
-   answer card with "How I got this" open — those are the two screens that make the argument.
-3. **Record the 3-minute video** from `DEMO_SCRIPT.md`.
-4. **Rotate the five API keys** that were pasted into chat today (Groq, OpenRouter, Hugging
-   Face, NVIDIA, Gemini). Do it after submitting, not before, or the demo goes dark.
+1. **Fill `<!-- SCREENSHOT -->` in `README.md`.** `<!-- DEPLOY_URL -->` is done. Take the shot on
+   the Overview page or on an answer card with "How I got this" open — those are the two screens
+   that make the argument.
+2. **Record the 3-minute video** from `DEMO_SCRIPT.md`. Warm the instance first
+   (`make warm URL=https://darwinlens.onrender.com`); it sleeps after 15 idle minutes and takes
+   about a minute to wake.
+3. **Done: the GitHub repository variable `APP_URL`** is set to the live URL, and
+   `.github/workflows/keepwarm.yml` pings `/healthz` every 10 minutes (first successful run
+   01:33 IST on 21 September). GitHub runs scheduled jobs late, so a free uptime monitor on the
+   same address is still worth adding.
+4. **Rotate the five API keys** that were pasted into chat (Groq, OpenRouter, Hugging Face, NVIDIA,
+   Gemini). After submitting, not before, or the demo goes dark.
 
 ## 2. Re-run the evaluation on the final code
 
-`eval/REPORT.md` was generated at **17:55 and 18:05 IST**. Two commits after it change what the
-model is sent: `0b7c556` (18:56, the combined-view follow-ups) and `df2bef1` (21:29, the batched
-SQL-prompt rules). The numbers are therefore honest about the code *at 18:00*, not about the
-final commit, and every document that quotes them says so.
-
-A re-run was started twice tonight and finished neither time: Groq's daily free allowance was
-spent and Google's Gemma endpoint was taking minutes per call. Scheduled for the morning:
+Deliberately not done, and the reasons are in `DECISIONS.md` 30 and 36. `eval/REPORT.md` was
+generated at **17:55 and 18:05 IST on 20 September**. Two commits after it change what the model is
+sent: `0b7c556` (18:56, the combined-view follow-ups) and `df2bef1` (21:29, the batched SQL-prompt
+rules). The numbers are honest about the code *at 18:00*, not about the final commit, and every
+document that quotes them says so.
 
 ```
 PYTHONPATH=backend:. uv run --env-file .env python -m eval.run_eval --split all --sleep 20 --hide-holdout-failures
@@ -35,40 +39,34 @@ PYTHONPATH=backend:. uv run --env-file .env python -m eval.run_eval --set challe
 ```
 
 Two things to know before running it. `eval/.llm_cache` holds the old SQL, so the prompt change
-means most of it misses and the run costs close to a full day's allowance — budget for that.
+means most of it misses and the run costs close to a full day's free allowance — budget for that.
 And `eval/REPORT.md` carries hand-added lines (the dev/holdout split, the sentence-grading line,
 the "which models answered" table, the challenge classification and the ceiling paragraph) that
 `eval/report.py` does not produce; a regeneration drops them and they have to go back by hand.
 
 If the numbers move, the four places to update are `README.md` ("Results"), `WRITEUP.md`
-("Results"), `DECISIONS.md` (a new dated pass under "Eval iterations") and this file.
+("Honest limits"), `DECISIONS.md` (a new dated pass under "Eval iterations") and this file.
 
-## 3. Half-finished, decide before submitting
+## 3. Half-finished, named rather than hidden
 
 - **The tenth guided analysis cannot be run.** `compare` ("Compare two groups") is published by
   `backend/app/insights/analyses.py` with `group_a` and `group_b` as options carrying an **empty
-  choice list** — the backend expects the UI to fill them from the chosen column's own distinct
-  values, and `AnalysisForm.tsx` renders them as two segmented controls with nothing in them.
-  The form's `ready` check looks only at inputs, so Run is enabled and the engine answers
-  "Choose a value for "First group"." every time. It also has no icon of its own
-  (`kindIcons.tsx` falls back to a generic chart glyph) and no preview sentence
-  (`form.ts` falls back to `"<kind name>: <columns>"`).
-  Two ways out, in order of cost: **drop `compare` from `KINDS`** in `analyses.py`, which is one
-  line and obeys the project's own rule about not shipping half a feature; or have `catalog()`
-  fill the two choice lists from the column's distinct values, which is the real fix and needs
-  the choices recomputed when the column picker changes. Until one of them is done, the documents
-  say that nine of the ten in the picker run and name this one as unfinished — they do not claim
-  nine exist, because the analyst can see ten cards.
+  choice list** — the backend expects the picker to fill them from the chosen column's own distinct
+  values, and the sentence builder renders them with nothing in them. The form's `ready` check
+  looks only at inputs, so Run is enabled and the engine answers "Choose a value for "First
+  group"." every time. Two ways out, in order of cost: **drop `compare` from `KINDS`** in
+  `analyses.py`, which is one line and obeys the project's own rule about not shipping half a
+  feature; or have `catalog()` fill the two choice lists from the column's distinct values, which
+  is the real fix and needs the choices recomputed when the column picker changes. Until one of
+  them is done, the documents say that nine of the ten in the picker run and name this one as
+  unfinished — they do not claim nine exist, because the analyst can see ten cards. It is also
+  published as a kind by `list_analyses` over MCP, with the same empty choice lists.
 
-- **Four files still say "Verity".** The rename to DarwinLens (`DECISIONS.md` 31) skipped the
-  files that were being edited for accounts at the time, so the old name survives in
-  `backend/app/main.py` (the FastAPI `title=` and `logging.getLogger("verity")`, plus one error
-  sentence), `backend/app/config.py` (the `WORK_DIR` default `/tmp/verity`, which `auth_db_path`
-  builds on — the Dockerfile already sets `/tmp/darwinlens`), `render.yaml` (`name: verity`, which
-  `README.md` step 6 already calls `darwinlens`) and `.env.example` (the header line and the two
-  `/tmp/verity` comments). `backend/app/auth.py`'s docstrings mention both the old storage-key
-  prefix and `/tmp/verity`. None of it changes behaviour; all of it is visible to a reader. Do it
-  in one pass when the accounts work lands, and re-run `uv run pytest backend/tests .github/scripts`.
+- **One "Verity" is left in code.** The rename (`DECISIONS.md` 31) reached the backend,
+  `render.yaml` and `.env.example`; what remains is a docstring in `demo_data/test_demo_data.py`
+  and the v2 frontend under `frontend/src/`, which the v3 merge replaces wholesale. After the merge,
+  grep once more and fix the docstring. `eval/REPORT.md` still says Verity on purpose: it is a
+  generated measurement artifact, re-written by the next `make eval` rather than edited by hand.
 
 ## 4. Correctness (highest value next)
 
@@ -83,7 +81,8 @@ If the numbers move, the four places to update are `README.md` ("Results"), `WRI
   catches this — `verify.fan_out_risks` runs in `runner.run_tile` and adds a caveat — but a
   caveat under a wrong total is weaker than a refusal, and the guided path is the one where the
   analyst did not choose the join. The fix is to check the same fan-out condition in
-  `from_clause` and refuse with the sentence the picker already knows how to show.
+  `from_clause` and refuse with the sentence the picker already knows how to show. This reaches
+  agents too, through the `run_analysis` MCP tool.
 - **The challenge set is graded on the table only.** No case carries `expect.narration`, so a
   wrong sentence over a right table passes there; and a time-bucket answer is compared as a
   multiset without its labels, so right numbers on wrong months would pass. Both are `eval/`
@@ -93,21 +92,30 @@ If the numbers move, the four places to update are `README.md` ("Results"), `WRI
 
 ## 5. Open security and operations notes
 
-- **`TRUSTED_PROXY_HOPS` has to be verified on Render.** It defaults to `1`, meaning the nearest
-  proxy appended the client's address to `X-Forwarded-For`, and `limits.client_ip` counts from
-  the right. One hop too many and every visitor can pick their own identity by writing the
-  header; one too few and every visitor shares Render's router address and the per-IP limits
-  become one global limit. After the first deploy, check the header Render actually sends and
-  set the variable if it is not 1. This is the only limit setting that is wrong-by-default-if-guessed.
+- **`TRUSTED_PROXY_HOPS` has to be verified against Render's real header.** It defaults to `1`,
+  meaning the nearest proxy appended the client's address to `X-Forwarded-For`, and
+  `limits.client_ip` counts from the right. One hop too many and every visitor can pick their own
+  identity by writing the header; one too few and every visitor shares Render's router address and
+  the per-IP limits become one global limit. Now that the service is live, check the header it
+  actually sends and set the variable if it is not 1. This is the only limit setting that is
+  wrong-by-default-if-guessed. The per-user limits added with accounts reduce the blast radius but
+  do not replace it, because a guest account costs one POST.
+- **Accounts do not survive a redeploy.** `app.auth` is one SQLite file on the instance's disk
+  (`DECISIONS.md` 34), so every push to `main` signs everybody out and loses their sign-up. The
+  guest path is unaffected, which is why the demo instructions use it. Postgres is step one of the
+  scaling path in `docs/CAPACITY.md`.
+- **Tokens cannot be revoked.** They are stateless HMACs valid for 7 days; `POST /api/auth/logout`
+  is the browser forgetting one. The fix is a revocation table keyed by user id.
 - **The preview, catalog and insights routes are unmetered.** `GET /tables/{name}/preview`,
   `GET /catalog`, `GET /dashboard`, `GET /analyses` and `POST /analyses/run` spend no model
   tokens, which is why they are outside the question budget, but they are inside *no* limit
-  either. `POST /analyses/run` is a DuckDB query with a 10 s timeout, so a loop over it is free
-  CPU on a 0.1-CPU instance. The upload and session limits are the only thing in front of them
-  today. A per-IP window on `analyses/run` and `preview`, sized in seconds rather than hours, is
-  the small version; the proxy is the real one.
-- **No authentication at all.** Stated in the README as deliberate. The session id in the URL is
-  the only credential, and anyone with it can read that session until it expires.
+  either — confirmed again by the load test (`docs/CAPACITY.md`). `POST /analyses/run` is a DuckDB
+  query with a 10 s timeout, so a loop over it is free CPU on a 0.1-CPU instance. A per-IP window
+  on `analyses/run` and `preview`, sized in seconds rather than hours, is the small version; the
+  proxy is the real one. The five no-model MCP tools are on the same footing.
+- **`MAX_SESSIONS=12` is the measured ceiling**, and the thirteenth concurrent analyst evicts the
+  least recently used session, whose owner meets the app's human 404. `SESSIONS_PER_IP_PER_HOUR=5`
+  on Render is what stops one address emptying the store. Numbers in `docs/CAPACITY.md`.
 
 ## 6. Queued polish (small, visible, none of it blocking)
 
@@ -129,6 +137,9 @@ If the numbers move, the four places to update are `README.md` ("Results"), `WRI
 - **Stored history is capped** at 60 turns per project, 24 saved tiles and 200 rows per stored
   table, and a quota error drops the oldest half of the biggest project's turns. The
   `ponytail:` comment in `lib/projects.ts` names IndexedDB as the upgrade.
+- **The v2 storage-key migration is one-way and temporary.** `lib/projects.ts` moves
+  `verity.projects.v1` to `darwinlens.projects.v1.<user id>` once. Delete it after it has had a
+  release to run.
 
 ## 7. Catalog (known, measured, not guessed)
 
@@ -148,24 +159,30 @@ These come from pushing `test_files/` through ingest with no model in the loop. 
   N:M, and a one-row-per-employee sheet is 1:N to everything. Doing it properly means ranking
   candidate masters by key coverage and by whether their key is itself a foreign key. Nothing
   here is false, and the one dangerous link is on by default.
-- ~~The stores-to-staff link is not offered~~ (finding 14) — **fixed** this evening:
+- ~~The stores-to-staff link is not offered~~ (finding 14) — **fixed**:
   `relationships._is_manager_link` lets a `manager_id` meet an `employee_id` when the employee
   side is unique, as a *suggested* link only. `test_files/README.md` still lists it as open;
   that file is owned by whoever owns `test_files/` and has not been regenerated since.
 - **Span of control cannot be computed from these files** (finding 15) and now says so, which is
   the right answer: no file in that set records who reports to whom.
 
-## 8. The next feature, not today's work
+## 8. The next features, not today's work
 
-**An MCP endpoint over the same engine.** The pipeline already takes a session and a model
-client as arguments (`answer_question(session, req, llm, emit)`), so an MCP server is a second
-transport over it, not a second engine: `ask`, `overview` and `run_analysis` as tools, the same
-guard and the same catalog. It is the first thing named in `WRITEUP.md` as what comes next,
-because a company that already ships an HCM MCP server gets its agents answering with each
-customer's vetted metric definitions instead of a fresh guess per call.
+MCP has shipped (`docs/MCP.md`, `DECISIONS.md` 35), so it is no longer on this list. What replaces
+it, in the order `WRITEUP.md` names them:
+
+1. **Durable storage.** Postgres for accounts, Redis plus a DuckDB file per session for the rest.
+   This is the one that unlocks a second worker, and the measured order of the ceilings is in
+   `docs/CAPACITY.md`.
+2. **Per-customer metric dictionaries.** Today the glossary, the column synonyms and the PII
+   patterns are three Python files. As config, `describe_data` hands a calling agent exactly how
+   that customer defines attrition, and the conversation it forces is most of week one.
+3. **SSE on `/mcp`.** Every tool answers inside its own POST today, so a long `ask` is silent until
+   it returns. The browser already gets its steps streamed; an agent should too.
 
 ## Deliberately not planned
 
-Accounts, server-side storage of customer files, teams, sharing, scheduled reports. Reasons in
-`DECISIONS.md` 18. (Dark mode was on this list and came free with the Clarity token layer;
-`DECISIONS.md` 26.)
+Single sign-on, roles, teams, sharing, scheduled reports, and server-side storage of customer
+files. Reasons in `DECISIONS.md` 18 and 34; accounts answer "whose session is this?" and nothing
+more. Dark mode was built with the Clarity token layer and dropped again in v3, which is light only
+(`DECISIONS.md` 33).

@@ -90,3 +90,94 @@ Short ADRs: context → decision → alternatives → consequences. Newest at th
 **30. The final numbers were measured before the last two changes, and the re-run could not be bought.** *Context:* `eval/REPORT.md` was generated at 17:55 and 18:05 IST. Two later commits touch what the model is sent: `0b7c556` (18:56, the combined-view follow-ups) and `df2bef1` (21:29, the batched SQL-prompt rules). A re-run on the final code was started twice and finished neither time: Groq's daily free allowance was spent, and Google's Gemma endpoint was taking minutes per call. *Decision:* publish the numbers with the measurement time and the two commits attached to them, in every document that quotes them, rather than either deleting them or letting them read as if they came off the final commit. The re-run is scheduled for the morning and `docs/PENDING.md` owns it. *Alternatives:* re-run with the cross-check off and fewer questions to fit the remaining quota — rejected, a number measured a different way is not the same number and would have to be explained anyway; quietly restate the old figures — rejected, that is the exact failure mode this whole project argues against. *Consequences, and the lesson:* **a $0 constraint buys you engineering, not evaluation.** Failover, cooldowns, token pacing and a disk cache made the *app* reliable on free tiers; none of that buys the one thing an eval needs, which is a few hundred thousand tokens on demand at the end of the day. The design asked for three runs per question and the budget paid for one. If this were a customer engagement, the first line item would be a paid key for the eval loop — perhaps $15 — and it would be the cheapest thing in the plan.
 
 **31. The product is called DarwinLens, and the old name is gone from everything but history.** *Context:* the working name was "Verity". It is a common software name (an Apache project, several security and identity products) and it says nothing about who the app is for: an HR analyst looking at their own data. The submission also needed to be unambiguous about what it is — a candidate's own prototype, not a Darwinbox product. *Decision:* rename to **DarwinLens**, tagline "See your HR data clearly. Verify every answer." The rename covers every user-facing string, title, log name, document, package, image and file name: `pyproject.toml`/`uv.lock`, the Makefile, Dockerfile and Compose service, the GitHub workflows, the sample download (now `darwinlens-sample-hr-data.zip`), the error sentences in `ingest/readers.py` and `llm/client.py`, the eval report title, and the READMEs, write-up, demo script and design spec. The name never becomes "Darwinbox", and `README.md` carries, near the top: *"Independent prototype for the Darwinbox FDE assignment. Not affiliated with or endorsed by Darwinbox."* Identifiers that are not names stay put: the Python package is still `app`, environment variable **names** are unchanged (`WORK_DIR`, `AUTH_SECRET`, the `*_API_KEY` set), and the GitHub repository stays `darwin-ai`. Browser storage keys move from `verity.*` to `darwinlens.*` with a **one-time** migration, so a returning analyst keeps their projects, history and saved board instead of opening an empty app. `docs/PLAN.md` keeps its old title under a one-line note: it is a record of what was planned that morning, not live documentation. *Alternatives:* keep "Verity" — rejected, the clash and the vagueness both cost more later than an afternoon of renaming; rename the UI only and leave the backend — rejected, the first `docker compose` log line and the downloaded zip are as user-facing as the wordmark; a hard cut of the storage keys — rejected, it silently deletes work the analyst can see no reason for losing. *Consequences:* the rename touches almost every file, so it had to land in one pass while the surrounding work (accounts, the UI rebuild) was in flight; the migration code is one-way and will be deleted once it has had a release to run. `eval/REPORT.md` is a generated measurement artifact and still says Verity: it is re-written, with the new name, by the next `make eval` rather than edited by hand, because hand-editing a report is the exact thing entry 30 refuses to do.
+
+**32. The non-affiliation line is part of the product, not only the README.** *Context:* entry 31
+renamed Verity to DarwinLens and put *"Independent prototype for the Darwinbox FDE assignment. Not
+affiliated with or endorsed by Darwinbox."* near the top of `README.md`. A reader of the repository
+sees it there; a person handed the live URL never opens the repository. *Decision:* the same
+sentence is a constant in the product's own copy (`marketing/copy.ts`, `DISCLAIMER`) and is
+rendered in the landing page footer, where every visitor lands before anything else. The name is
+never "Darwinbox" and the company's logo appears nowhere. *Alternatives:* a line in the About
+dialog — rejected, nobody opens it; a banner on every screen — rejected, it would shout about a
+relationship that does not exist. *Consequences:* the sentence now exists in two files and a copy
+test reads the marketing file, so the two can drift; the README is the one that would go stale
+first, and it is also the one a panel reads.
+
+**33. The surface was rebuilt a second time, as "Canvas" (v3).** *Context:* entry 26's Clarity
+direction shipped and worked, and the owner rejected it on sight. The complaints were structural,
+not decorative: a signed-in analyst arrived in a workspace with no front door, so nothing ever
+stated what the product claimed before asking for files; a left nav rail and a permanent side panel
+spent a third of the screen on navigation on the one screen that should feel like a page, not an
+admin console; and a six-step coach-mark tour taught by telling, which is the weakest way to teach
+and the first thing anyone skips. *Decision:* rebuild as **Canvas**: a marketing landing page whose
+main action is **Try the live demo** (guest account plus sample company in one press), accounts
+behind it, a three-step onboarding that teaches by doing and ends with the app reading the
+analyst's real files back to them with real counts, one sticky top bar with pill tabs Ask ·
+Overview · Analyses · Saved, a Data drawer where the side panel was, a ⌘K command palette, a
+composer-first Ask, a bento Overview and a sentence builder for Analyses. The tour is deleted and
+replaced by one-line `Tip`s that appear once beside the thing they explain. *Alternatives:* keep
+Clarity and add a landing page in front of it — rejected, the rail and the tour were the objection,
+not the paint; ship v2 and spend the evening on the eval re-run — rejected by the owner, whose
+first impression is the one being graded. *Consequences:* a second evening on a surface that
+already worked, on top of entry 26's first one, and the eval re-run is what paid for both. Dark
+mode, which entry 26 got free from the token layer, is gone: v3 is light only, because a second
+theme is a second thing to get right on every new screen and nothing in the brief asks for it.
+
+**34. Accounts, on SQLite, with the ceiling stated rather than hidden.** *Context:* entry 18 kept
+projects in the browser and the server ephemeral, which is still right. But the server does hold
+uploaded HR rows in memory, and "whose session is this?" had no answer at all: anyone with a
+session id could read it. A demo also cannot start with a sign-up form. *Decision:* the smallest
+honest account system, in `backend/app/auth.py`. A guest is a real user created by one POST with no
+form, so **Try the live demo** stays a single press; signing up upgrades that same row in place, so
+the id survives and the browser's projects come with it. Passwords are `hashlib.scrypt` compared
+with `hmac.compare_digest`; tokens are `<id>.<expiry>.<HMAC-SHA256>` signed with `AUTH_SECRET` and
+good for 7 days; every `/api/sessions/…` route checks ownership and answers a session that is not
+yours exactly as it answers an expired one. *Alternatives:* a hosted identity provider — rejected,
+a dependency and an account on someone else's service for a prototype; no accounts and a longer
+session id — rejected, that is a bearer token with no expiry and no owner; Postgres now — rejected,
+a free managed database is another sign-up on the critical path of a deadline. *Consequences:* the
+users table is one SQLite file on the instance's disk, so **on the free host every redeploy or
+restart wipes every account**, and there is no email verification or password reset because there
+is no mail service. All three are stated in the README rather than discovered. Tokens are
+stateless, so sign-out is the browser forgetting one and a stolen token stays valid until it
+expires; the upgrade path for both is a revocation table keyed by user id, and Postgres is step one
+of the scaling path in `docs/CAPACITY.md`.
+
+**35. MCP as the request/response subset, deliberately without SSE.** *Context:* an MCP endpoint
+was P2 in `docs/DESIGN.md`, cut, and then named in the write-up as the first thing to build next.
+It is also the FDE-shaped half of this product: a company that already runs agents wants its
+assistant to answer with its own definition of gross pay, not another chat window. Because
+`answer_question(session, req, llm, emit)` already takes its session and its model client as
+arguments, the endpoint is a second transport, not a second engine. *Decision:* build the
+request/response half of MCP's Streamable HTTP transport in the standard library. `POST /mcp` takes
+one JSON-RPC 2.0 message or a batch and answers `application/json`; six tools (`load_sample_data`,
+`describe_data`, `get_overview`, `list_analyses`, `run_analysis`, `ask`), of which five call no
+model at all; the same bearer token as the browser, the same ownership check, the same question
+allowance for `ask`, and the same personal-data masking. `GET /mcp` is 405. *Alternatives:* SSE and
+server-initiated messages — rejected for now, progress notifications are a streaming design of
+their own and every tool here answers inside its own POST; an `Mcp-Session-Id` — rejected, state
+already lives in the DarwinLens `session_id` the caller passes as an argument, which lets a client
+reconnect or run several conversations over one token; OAuth — rejected, out of proportion for a
+prototype with a 7-day token. *Consequences:* no progress, no logging and no sampling from server
+to client, and a long `ask` is silent until it returns; that is the first MCP item in `WRITEUP.md`.
+A security review of the endpoint found four defects, all fixed with regression tests in
+`backend/tests/test_mcp.py` — the sharpest being `include_personal_data` accepting a stringified
+`"false"`, which `bool()` reads as true, so a caller trying to keep masking on would have turned it
+off. That argument is now the one place where a wrong type is refused outright rather than coerced.
+
+**36. Evaluation work stopped so the product could be finished.** *Context:* entry 30 published the
+17:55 and 18:05 numbers with their timestamp and scheduled a re-run for the morning. The morning
+also held a rejected UI, no accounts, no deployed URL, no MCP and no capacity measurement, and a
+re-run costs close to a full day's free allowance because the prompt change invalidates most of
+`eval/.llm_cache`. *Decision:* spend the remaining time on the product and the documents, and ship
+the existing numbers with the timestamp and the two commits attached, in every document that quotes
+them. No new eval work: no re-run, no new golden cases, no grader changes. *Alternatives:* a
+partial re-run with the cross-check off to fit the quota — rejected for the reason entry 30 gives,
+a number measured a different way is a different number; drop the numbers entirely — rejected,
+40/40 with the tuning admitted and 15/16 on a never-tuned set is the strongest evidence here, and
+deleting it to avoid a caveat is the failure mode this project argues against. *Consequences:* the
+headline accuracy figures describe the code at 18:00 on 20 September, not the final commit, and
+every place they appear says so. Nothing since then touched the guard, the executor, the
+verification rules or the grader, so the shape should hold — but "should hold" is not "measured",
+and that distinction is the point of the project. `docs/PENDING.md` owns the re-run as the first
+thing after the deadline.

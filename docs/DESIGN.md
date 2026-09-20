@@ -41,10 +41,10 @@ Limits accepted with A: no statistical tests, forecasting or free-form Python. T
 
 ## 4. Scope
 
-*Revised at the end of the build day (2026-09-20, 23:00 IST). The tiers below are what actually shipped, not what was planned at 13:00. Where the plan and the code disagree, the code wins.*
+*Revised 2026-09-21, after the deploy, accounts, the v3 "Canvas" rebuild and the MCP endpoint. The tiers below are what actually shipped, not what was planned at 13:00. Where the plan and the code disagree, the code wins.*
 
 **P0 — shipped, end to end**
-Multi-file upload (CSV, XLSX, multi-sheet) · cleaning + profiling · per-session locked-down DuckDB · plan→SQL generation · parser guard · execution with timeout and row cap · repair loop (max 2) · deterministic chart selection · grounded narration · "How I got this" panel · streamed pipeline steps · one-click sample HR data · Docker one-command run · README. *Still open:* the deployed URL — the blueprint and the keep-warm job are written and tested, the deploy itself needs Sahil (`docs/PENDING.md`).
+Multi-file upload (CSV, XLSX, multi-sheet) · cleaning + profiling · per-session locked-down DuckDB · plan→SQL generation · parser guard · execution with timeout and row cap · repair loop (max 2) · deterministic chart selection · grounded narration · "How I got this" panel · streamed pipeline steps · one-click sample HR data · Docker one-command run · README · **deployed and reachable at <https://darwinlens.onrender.com>**, with the keep-warm job written and waiting on its `APP_URL` variable (`docs/PENDING.md`).
 
 **P1 — the delta. All thirteen shipped.**
 1. Data Health card / ingestion receipt per file
@@ -59,7 +59,7 @@ Multi-file upload (CSV, XLSX, multi-sheet) · cleaning + profiling · per-sessio
 10. Golden eval (40 questions, dev/holdout split) + in-app Trust Report page
 11. Abuse limits: per-IP rate limit, global daily LLM budget
 12. A whole-app journey, local-first: projects, previous questions and a printable saved-answers board live in the browser; the server keeps no customer data (`docs/DESIGN_SYSTEM.md` §6–7)
-13. Learning the product: first-run tour, a "How DarwinLens works" explainer, "What's this?" on every trust signal
+13. Learning the product: an onboarding that teaches by doing, a "How DarwinLens works" explainer, "What's this?" on every trust signal. (The first-run tour shipped and was deleted in v3; see `DECISIONS.md` 33.)
 
 **P1.5 — not planned at 13:00, built because the day found the need**
 14. **The no-AI half** (`backend/app/insights/`): an automatic Overview of computed tiles, and guided analyses (ten published, nine runnable — the tenth is an open item in `docs/PENDING.md`). No model call anywhere in it; same guard, executor, formatter and chart rules as an answer. Reasons in `DECISIONS.md` 27.
@@ -70,11 +70,17 @@ Multi-file upload (CSV, XLSX, multi-sheet) · cleaning + profiling · per-sessio
 19. **A never-tuned challenge set** of sixteen questions, scored separately (`DECISIONS.md` 29).
 20. **The Clarity visual direction**, replacing Ledger (`DECISIONS.md` 26).
 
+**P1.75 — built on the final day, after the owner rejected the v2 surface**
+21. **The v3 "Canvas" rebuild** (`DECISIONS.md` 33): a landing page whose main action is "Try the live demo", one top bar with pill tabs instead of a nav rail, a Data drawer instead of a permanent side panel, a ⌘K command palette, a composer-first Ask, a bento Overview and a sentence builder for Analyses. The coach-mark tour is deleted and replaced by one-line tips. Light only; dark mode went with the rebuild.
+22. **Accounts** (`backend/app/auth.py`, `DECISIONS.md` 34): silent guest users so the demo is one press, sign-up that upgrades the same row, scrypt passwords, HMAC tokens valid 7 days, ownership checked on every session route. They answer "whose session is this?" and nothing more, and they do not survive a redeploy on the free host.
+23. **MCP over the same engine** (`backend/app/mcp_server.py`, `docs/MCP.md`, `DECISIONS.md` 35), which was P2 and the first thing the write-up named as next: `POST /mcp`, six tools, five of them with no model call, the same guard, limits and personal-data masking. Security-reviewed, four defects fixed with regression tests.
+24. **Measured capacity** (`scripts/loadtest.py`, `docs/CAPACITY.md`): what one small instance carries with no model in the loop, and which ceiling arrives first.
+
 **P2 — cut, and still cut**
-Export PNG · answer feedback that appends to eval candidates · "exclude duplicates" toggle · mini SVG schema diagram · **MCP endpoint over the same engine** (the strongest of these and the first thing named in `WRITEUP.md` as next). *Shipped after all:* dark mode, which came free with Clarity's token layer.
+Export PNG · answer feedback that appends to eval candidates · "exclude duplicates" toggle · mini SVG schema diagram · SSE on the MCP endpoint, so tool progress streams the way the browser's steps do (now the first MCP item in `WRITEUP.md`). *Shipped after all:* the MCP endpoint itself. *Shipped and then dropped:* dark mode, which came free with Clarity's token layer and went with it.
 
 **Deliberately out (stated in the write-up)**
-Auth and multi-tenancy · server-side storage of customer data (projects are saved in the browser instead) · teams, sharing and scheduled reports · warehouses other than DuckDB · fine-tuning · RAG/vector search over rows · two-row merged headers *as a feature* (a two-row header's key is now rescued, but the upper row is still discarded) · wide attendance-muster unpivot · a time/timestamp column type, so punch-to-punch durations cannot be computed · small-n salary suppression · files over 10 MB on the hosted demo (25 MB locally).
+Single sign-on, roles and multi-tenancy · server-side storage of customer data (projects are saved in the browser instead) · teams, sharing and scheduled reports · warehouses other than DuckDB · fine-tuning · RAG/vector search over rows · two-row merged headers *as a feature* (a two-row header's key is now rescued, but the upper row is still discarded) · wide attendance-muster unpivot · a time/timestamp column type, so punch-to-punch durations cannot be computed · small-n salary suppression · files over 10 MB on the hosted demo (25 MB locally).
 
 Rule: never leave a half-working feature visible. A feature that is not green by its gate is removed from the UI, not hidden behind a bug. It held: main stayed deployable all day, and what was not finished and tested was taken out rather than shipped half-working.
 

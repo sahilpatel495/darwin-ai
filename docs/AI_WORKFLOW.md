@@ -72,31 +72,55 @@ out, so the final evaluation could not be re-run on the final code (`DECISIONS.m
 long UI rebuild is exactly the kind of task that dies halfway and leaves a repository that does
 not compile. Three habits kept that from costing the day:
 
-- **Worktree isolation.** The Clarity rebuild ran in `.worktrees/ui` on its own branch, so `main`
-  stayed deployable the whole time and merged in one commit when it was green. `.worktrees/` is
+- **Worktree isolation.** The UI rebuilds ran in `.worktrees/ui` on their own branch, so `main`
+  stayed deployable the whole time and merged in one commit when green. `.worktrees/` is
   git-ignored. The rule the whole day ran on: **main is always deployable, and anything not
   finished and tested is removed rather than shipped half-working.**
-- **Detached processes.** Long jobs (the test suite, an eval pass, a 15 MB ingest) ran in the
-  background with their output to a file, so a stall was a file to read rather than a session to
-  restart.
+- **Detached processes.** Long jobs (the test suite, an eval pass, a 15 MB ingest, the load test)
+  ran in the background with their output to a file, so a stall was a file to read rather than a
+  session to restart.
 - **Contracts first, again.** The no-AI half started as `backend/app/insights/models.py` and its
   mirror in `frontend/src/types.ts`, committed before either side was written. The backend and
   the frontend were then built against it at the same time. That is the same discipline as
-  section 3, applied to a feature invented at 18:00 rather than planned at 13:00.
+  section 3, applied to a feature invented at 18:00 rather than planned at 13:00. The accounts
+  work and the MCP endpoint were run the same way: the auth contract in
+  `docs/DESIGN_SYSTEM.md` §9 and the tool table in `docs/MCP.md` existed before either side did.
+
+**Two lessons about running agents, learned the expensive way.**
+
+- **A failed report is not failed work.** In the v3 build, three builders came back as failures.
+  All three had finished: their files were on disk, their type check and their tests were green,
+  and what had actually broken was the last step, where an agent writes its report back to the
+  lead. The reflex — re-run the failed agent — would have overwritten completed, tested work with
+  a second attempt at it, and it nearly did. **A lead must read the journal and look at the disk
+  before re-running anything.** The cheap version of that rule: before re-dispatching, run the
+  build and the tests for the files that agent owned, and re-dispatch only if they are actually
+  missing or red. An agent's own account of itself is the least reliable artifact it produces,
+  which is the same reason its reviewer is told not to trust it (section 3).
+- **Never let an agent block on a long process.** One agent started the dev server in the
+  foreground and waited for it, which it will do until something kills it: no output, no progress,
+  no failure, just a slot gone for as long as nobody notices. Anything open-ended — a server, a
+  watcher, an eval pass, a load test — is started detached with its output going to a file, and
+  the agent polls that file. The rule is the same one as "detached processes" above, but it needs
+  saying as an instruction to the agent, not as a habit of the lead, because the agent is the one
+  holding the terminal.
 
 **What going past the brief's scope cost.** The brief says a smaller, well-thought-through app
-beats a sprawling one, and the day ended with a much bigger app than the design specified: two
-extra screens, a projects home, a saved board, a tour, and a visual direction that replaced a
-finished one. The bill was real — a whole evening on a surface that already worked, one
-half-finished tenth analysis that the documents now name as unfinished (`docs/PENDING.md` §3),
-and an evaluation that could not be re-run because the time went elsewhere. What was bought is
-also real: the no-AI half is the part that still works when the free tiers are empty, and it is
-the clearest demonstration of the thesis, because those numbers are computed with no model in
-the loop at all. The judgement is argued, not hidden, in `WRITEUP.md`.
+beats a sprawling one, and the day ended with a much bigger app than the design specified: extra
+screens, a projects home, a saved board, accounts, an MCP endpoint, and **two** visual directions
+that each replaced a finished one (`DECISIONS.md` 26 and 33). The bill was real — two evenings on
+a surface that already worked, one half-finished tenth analysis that the documents now name as
+unfinished (`docs/PENDING.md` §3), and an evaluation that was never re-run because the time went
+elsewhere (`DECISIONS.md` 36). What was bought is also real: the no-AI half is the part that still
+works when the free tiers are empty and the clearest demonstration of the thesis, and the MCP
+endpoint turns the whole thing from a web app into an engine a customer's agents can call. The
+judgement is argued, not hidden, in `WRITEUP.md`.
 
 ## 6. What I would tell another engineer
 
 - Agents are fast at filling in a well-specified module and poor at agreeing on interfaces. Spend the human time on contracts and test cases.
 - A reviewer with an adversarial brief finds more than a builder asked to "be careful".
+- Trust the disk over the report. An agent that says it failed may have finished; check the files and the tests before you re-run it.
+- Nothing an agent runs may block. Detach it, write its output to a file, and poll the file.
 - Verify claims about the outside world (rate limits, deprecations, pricing) the same day. Three of my starting assumptions were out of date.
 - Keep a number that cannot be argued with. Here it is the golden eval, computed independently of the app.

@@ -2,42 +2,59 @@
 
 *See your HR data clearly. Verify every answer.*
 
+Ask plain-English questions of the messy HR spreadsheets you already have, and open any answer to
+see the SQL, the data it touched and the exact prompt the model was sent.
+
 > Independent prototype for the Darwinbox FDE assignment. Not affiliated with or endorsed by
 > Darwinbox.
 
-DarwinLens is a web app for asking questions of messy spreadsheets: upload CSV or Excel files, ask
-in plain English, and get an answer with a chart, a confidence level with its reasons, and a panel
-showing the SQL, the data it touched and the exact prompts the model was sent. It was built as a
-take-home for a Forward Deployed Engineer role, with messy Indian HR exports as the worked example;
-nothing in the engine is specific to HR, and the sample data includes a sales file to show it.
+**Live demo: <https://darwinlens.onrender.com>** <!-- DEPLOY_URL -->
 
 _Screenshot: <!-- SCREENSHOT --> the lead replaces this line with the image._
 
-- Hosted demo: <!-- DEPLOY_URL --> _added by the lead after the first deploy_
-- One-page write-up: [`WRITEUP.md`](WRITEUP.md) · three-minute walkthrough: [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md)
+## Try it in 60 seconds
 
-## A tour in six screens
-
-- **Home** — your projects, saved in this browser. A project remembers its files, its questions
-  and its saved answers; the server keeps none of it. Plus a sample dataset you can inspect or
-  download before you load it.
-- **Ask** — the question path. A briefing of what was found in your files, starter questions
-  grouped by kind, then a visible thinking card while the query is written, checked and run,
-  then an answer card you can open all the way down to the prompt.
-- **Overview** — an automatic dashboard computed the moment the files land. **No model call**:
-  the tiles are built from the catalog by templates. On the sample data that is 14 tiles in
-  about 66 ms, and the same 14 every time.
-- **Analyses** — guided analyses: pick a measure and a group from two lists and the app writes
-  the query. No model call here either, so it works when every free tier is empty. Nine of the
-  ten in the picker run today; the tenth ("Compare two groups") cannot have its two groups
-  chosen yet and is listed as unfinished in [`docs/PENDING.md`](docs/PENDING.md).
-- **Saved** — a board of answers and tiles, reorderable, with a print stylesheet so it becomes a
-  PDF report.
-- **Trust** — the evaluation report, rendered from `eval/report.json`, with every failure listed.
+1. Open <https://darwinlens.onrender.com>. The free instance sleeps when idle; give it a minute.
+2. Press **Try the live demo** — a guest account and a sample company of 500 employees, no sign-up.
+3. Press a suggestion card, then **How I got this**, then **What the model saw**.
+4. Open the **Overview** tab: fourteen tiles, computed with no model in the loop.
+5. Open **Data** in the top bar to read what was cleaned up in each of your files.
 
 > **The one rule.** The model never computes a number and never sees a row. It turns the question
 > into SQL. DuckDB computes the result. Ordinary deterministic code checks the SQL before it runs
 > and the answer after. The screen shows the work.
+
+- One-page write-up: [`WRITEUP.md`](WRITEUP.md) · three-minute walkthrough: [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md)
+- The same engine as MCP tools: [`docs/MCP.md`](docs/MCP.md) · measured capacity: [`docs/CAPACITY.md`](docs/CAPACITY.md)
+
+It was built as a take-home for a Forward Deployed Engineer role, with messy Indian HR exports as
+the worked example. Nothing in the engine is specific to HR, and the sample data includes a sales
+file to show it.
+
+## The screens
+
+App chrome is one sticky top bar: the project switcher, pill tabs **Ask · Overview · Analyses ·
+Saved**, a **Data** button, a ⌘K command palette and the account menu. Light only.
+
+- **Landing** — the signed-out page. **Try the live demo** (a guest account and the sample company
+  in one press) sits beside **Create an account**.
+- **Onboarding** — three steps that teach by doing: who you are, bring your data, then a reading
+  sequence that ticks off what it found in your files with their real counts. There is no tour.
+- **Ask** — a composer with suggestion cards, a thinking card while the query is written, checked
+  and run, then an answer card with a switchable chart and **How I got this**.
+- **Overview** — an automatic dashboard computed the moment the files land. **No model call**:
+  the tiles are built from the catalog by templates. On the sample data that is 14 tiles in
+  about 66 ms, and the same 14 every time.
+- **Analyses** — a sentence builder: pick a measure and a group from pill selects and the app
+  writes the query. No model call here either, so it works when every free tier is empty. Nine of
+  the ten kinds in the picker run today; the tenth ("Compare two groups") cannot have its two
+  groups chosen yet and is listed as unfinished in [`docs/PENDING.md`](docs/PENDING.md).
+- **Saved** — a board of answers and tiles, reorderable, with a print stylesheet so it becomes a
+  PDF report.
+- **Data drawer** — files, the links found between them, and the glossary. Each file opens to its
+  ingestion receipt.
+- **Trust** (`#/trust`) — the evaluation report, rendered from `eval/report.json`, with every
+  failure listed. **How DarwinLens works** (`#/how`) is the plain-English explainer beside it.
 
 ## Architecture
 
@@ -110,7 +127,8 @@ so a customer can trust the answer on their own data.
 | Confidence with reasons | The analyst needs to know when to double-check. High, Medium or Low from listed signals: repairs, cross-check, empty values, join match, fan-out, unfiltered period, template fallback, vetted definition | `query/confidence.py` |
 | Honest refusal | No answer beats a wrong one. If the data cannot answer, it says so and names what is missing | `query/generator.py`, `catalog/glossary.py` |
 | A half that needs no model | Every free tier runs out, and an analyst should get value the second a file lands. An automatic overview and a set of guided analyses, computed by templates through the same guard and executor | `insights/` |
-| Failover, pacing and limits | A public URL on free quotas has to survive being used. Per-model cooldowns from the provider's own hints, token pacing, a bounded wait with a visible retry step, and per-IP caps | `llm/client.py`, `limits.py` |
+| Failover, pacing and limits | A public URL on free quotas has to survive being used. A failover pool with per-model cooldowns from the provider's own hints, token pacing, a bounded wait with a visible retry step, and per-IP and per-user caps | `llm/client.py`, `limits.py` |
+| The same engine as agent tools | A company that already runs agents does not want another chat window. Six MCP tools over one endpoint, the same guard, catalog, glossary, limits and personal-data masking; five of them call no model | `mcp_server.py`, [`docs/MCP.md`](docs/MCP.md) |
 | Measured correctness | The accuracy claim should be a number anyone can re-run. 40 golden questions with truth computed independently of the app, a holdout split, a never-tuned challenge set, and a Trust Report page in the app | `eval/` |
 
 ## Quick start
@@ -130,7 +148,7 @@ cp .env.example .env        # then open .env and paste your key after GROQ_API_K
 docker compose up --build   # or: make up
 ```
 
-Open <http://localhost:8000>, click **Try with sample HR data**, then a suggested question. The
+Open <http://localhost:8000>, click **Try the live demo**, then a suggestion card. The
 first build takes a few minutes. After changing `.env`, stop with Ctrl-C and run the last command
 again. The container runs as uid 1000 on a read-only filesystem with an in-memory `/tmp`.
 
@@ -159,6 +177,7 @@ stops both. To work on the UI with no backend and no key: `cd frontend && VITE_M
 | `make build` / `make up` | Builds the image / runs it with Docker Compose on :8000 |
 | `make smoke` | Builds the image and starts it locked down with `PORT` set as a host would; checks `/healthz`, that the UI is served, uid 1000, and that no `.env`, key file, `.git`, `node_modules` or `.playwright-mcp` is inside |
 | `make warm URL=...` | Wakes a deployed app and pre-answers the six starter questions |
+| `make loadtest` | Measures what one instance carries with no model in the loop; writes `docs/CAPACITY.md`'s numbers |
 
 ## Try it with messy files
 
@@ -191,10 +210,13 @@ git.
 4. If your repositories are not listed, click **Connect GitHub** and give Render access to this
    one. Click **Connect** next to the repository.
 5. Blueprint name: `darwinlens`. Branch: `main`. Leave the Blueprint path as `render.yaml`.
-6. Render lists one service, `darwinlens`, and asks for the four API keys marked `sync: false`. Paste
+6. Render lists one service, `darwinlens`, and asks for the four API keys marked `sync: false`
+   (`GROQ_API_KEY`, `NVIDIA_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`). Paste
    `GROQ_API_KEY`; fill in the others only if you have them. One key is enough: the app treats a
    missing or empty key as "skip this provider". Keys can be added or changed later under the
-   service's **Environment** tab.
+   service's **Environment** tab. You are not asked for `AUTH_SECRET`, which signs the sign-in
+   tokens: `generateValue: true` makes Render invent a long random value once and keep it across
+   deploys, so nobody, including you, ever types it.
 7. Click **Deploy Blueprint**. When the service shows **Live**, copy its URL from the top of the
    service page (`https://darwinlens.onrender.com`, or with a suffix if the name is taken) and open
    `<url>/healthz`: it replies `{"status":"ok"}`.
@@ -284,7 +306,7 @@ machine.
 Sizes: `MAX_UPLOAD_MB` (25), `QUERY_TIMEOUT_S` (10), `ROW_CAP` (5000), `DUCKDB_MEMORY_LIMIT`
 (512MB), `DUCKDB_THREADS` (2), `SESSION_TTL_S` (7200), `MAX_SESSIONS` (20).
 
-Per visitor, counted by IP because there are no accounts: `ASKS_PER_IP_PER_HOUR` (40),
+Per visitor, counted against both the address and the signed-in account: `ASKS_PER_IP_PER_HOUR` (40),
 `ASKS_PER_IP_PER_DAY` (200), `ASKS_PER_SESSION` (150), `SESSIONS_PER_IP_PER_HOUR` (5),
 `UPLOADS_PER_IP_PER_HOUR` (30), `MAX_CONCURRENT_ASKS` (6), `MAX_CONCURRENT_ASKS_PER_IP` (2). A
 question answered from the shared cache is refunded, because it cost no tokens. Globally:
@@ -299,66 +321,86 @@ reads the first entry the client itself can write, and every visitor can then be
 The Overview and Analyses routes spend no tokens and are outside the question budget — and
 currently inside no other limit either; see [`docs/PENDING.md`](docs/PENDING.md).
 
-## Tech stack
+## Security posture, in brief
 
-- **Backend:** Python 3.12, FastAPI, DuckDB 1.5, pandas 3, openpyxl, sqlglot, Pydantic 2, and the `openai` client pointed at OpenAI-compatible endpoints. Managed with uv.
-- **Frontend:** React 19, Vite, TypeScript, Tailwind 4, Recharts. No state library, no router, no component kit. Any font is self-hosted and served from the image — the app's own CSP blocks font CDNs.
-- **Packaging:** one two-stage Dockerfile (Node builds the UI, Python runs everything), Docker Compose, a Render Blueprint, GitHub Actions.
+| Threat | Control |
+|---|---|
+| SQL that destroys or leaks data | Allow-list parser guard, plus a DuckDB with file, network, extension and configuration access locked off at creation. DuckDB alone still permits `CREATE`/`INSERT`, which is why the guard is mandatory |
+| A runaway query | Timeout by interrupt, row cap, memory limit, two threads, one file read at a time on the host |
+| PII reaching a third-party model | One function builds every prompt; PII columns contribute no values; any value that looks like personal data is dropped whatever profiling decided; file and sheet names are not sent, including through a combined view's `source_file` column; result PII is tokenised before phrasing; a canary test checks every payload |
+| Instructions hidden in a cell or a header | Cell text reaches the SQL model only as short category values (at most 30 per column, 40 characters, 4 words) passed as data; the phrasing model has no tools; answers render as plain text; the number and claim checks catch tampering |
+| Invented numbers, or a true number under a false sentence | The model copies display strings; a grounding check enforces it; rankings are computed and each clause is checked; a template is the fallback |
+| Key abuse on a public URL | Per-IP hourly, daily, session, upload and concurrency limits (keyed on the proxy-appended `X-Forwarded-For` entry, counted from the right), a global daily call budget, an upload cap. Provider error text is never logged or shown, because it can echo keys |
+| A compromised container | uid 1000 that owns nothing under `/app`; Compose adds a read-only filesystem, no Linux capabilities and no privilege escalation. `.dockerignore` is an allow-list, so `.env` and `.git` never enter an image |
+| Reading somebody else's uploaded data | Every `/api/sessions/…` route needs a bearer token and checks that the session belongs to that user; a session that is not yours answers with the same sentence an expired one does, so a guessed id tells the caller nothing. `/mcp` is refused the same way |
+| Browser-side | CSP `default-src 'self'`, `frame-ancestors 'none'`, `nosniff`, `no-referrer`, HSTS. The session id is 128 random bits in the URL path, kept in `sessionStorage`, not a cookie |
 
-## Project layout
+Not included, on purpose: single sign-on, roles and multi-tenancy. Accounts here answer "whose
+session is this?" and nothing more (see below). Put DarwinLens behind the customer's SSO proxy
+before giving it real data on a shared network.
 
-```
-backend/app/
-  contracts.py        every type shared between modules and with the UI (mirrored in frontend/src/types.ts)
-  config.py           settings from environment variables, provider chains
-  main.py             HTTP routes, streaming, upload cap, rate limit, security headers, serves the built UI
-  limits.py           per-IP windows, the concurrency gate, the one-ingest-at-a-time slot
-  sessions.py         one locked-down DuckDB per browser session; LRU and TTL store
-  sample_files.py     list, download or zip the sample data before loading it
-  ingest/             read files as text, find headers and footers, infer types, write the receipt
-  profile/            column statistics, PII detection (pii.py), column roles (roles.py)
-  catalog/            relationships, union views, HR glossary (glossary.py), suggested questions
-  catalog/prompt_context.py   the only code allowed to describe data to a model
-  llm/                provider pool with failover and cooldowns, disk cache for eval, daily budget; FakeLLM for tests
-  query/              prompts, generator, guard, executor, verify, presentation, narrator, confidence, pipeline
-  insights/           the no-model half: dashboard templates, guided analyses, SQL builder, computed facts
-backend/tests/        unit tests by area, plus adversarial uploads, API and pipeline tests
-frontend/src/         App and hash router, components (home, shell, thread, answer, charts, overview,
-                      tiles, analyses, board, sidebar, education, ui primitives), Trust Report page
-demo_data/            synthetic messy HR files, the generator, the clean answer key, starter questions
-test_files/           a second, harder synthetic company with an independent answer key (EXPECTED.md)
-eval/                 golden questions, the never-tuned challenge set, independent ground truth, runner, report
-e2e/                  two Playwright journeys: the question path, and the half with no AI
-docs/                 DESIGN.md (what and why), DESIGN_SYSTEM.md (Clarity), PLAN.md, AI_WORKFLOW.md, PENDING.md
-.github/              CI, keep-warm ping, packaging checks, the warm-up script
-```
+## Accounts, and what they honestly are
 
-## Testing
+Accounts exist so uploaded HR rows have an owner and the question allowance has somebody to charge.
+They are not a user-management feature, and `backend/app/auth.py` says so at the top.
 
-```bash
-make test                               # everything below; needs no model, no key and no Docker
-uv run pytest backend/tests -o addopts="" -q     # the backend suite on its own
-cd frontend && pnpm test                # the frontend unit tests on their own
-make smoke                              # builds and runs the real image
-```
+- **A guest is a real user.** One `POST /api/auth/guest`, no form, which is what makes **Try the
+  live demo** a single press. Signing up later upgrades that same row in place, so the id survives
+  and with it the projects the browser stored under it.
+- **Passwords** are `hashlib.scrypt` (n=2^14, r=8, p=1, 16-byte per-user salt, 32-byte key)
+  compared with `hmac.compare_digest`. Standard library, no dependency.
+- **Tokens** are `<user id>.<expiry>.<HMAC-SHA256>` signed with `AUTH_SECRET`, valid for 7 days.
+  They are stateless, so signing out is the browser forgetting its token and a stolen token stays
+  valid until it expires. The upgrade path is a revocation table keyed by user id.
+- **The honest ceiling.** Users live in one SQLite file on the instance's disk
+  (`settings.auth_db_path`). On the free host **every redeploy or restart wipes it**, so accounts
+  do not survive a deploy; the demo path does, because it makes a fresh guest. There is no email
+  verification and no password reset, because there is no mail service to send either.
+- **Projects and history are still local-first**, kept in the browser under
+  `darwinlens.projects.v1.<user id>`. The server keeps no record of a project.
 
-Measured on 2026-09-21 at 00:10 IST:
+Moving the users table to Postgres is the first step of the scaling path below, because it is the
+one piece of state that has to outlive the instance.
 
-- **Backend: 1514 passed, 1 skipped** (`uv run pytest backend/tests -o addopts="" -q`, 18 s).
-- **Frontend: 197 passed** (`pnpm test`, `node --test` over `src/**/*.test.mjs`, 0.6 s).
+## MCP: the same engine as tools
 
-Both commands are in the block above, so the figures are checkable rather than quoted.
+`POST /mcp` puts this engine behind the [Model Context Protocol](https://modelcontextprotocol.io),
+so a company's own agents call it instead of a person typing into the web app — and get an answer
+computed with *that customer's* vetted definition of attrition, with the SQL attached. Six tools:
+`load_sample_data`, `describe_data`, `get_overview`, `list_analyses`, `run_analysis` and `ask`.
+Five of them call no model at all and cost nothing; `ask` is charged to the same question allowance
+as the browser, so an agent and a tab draw on one budget. Personal data is masked in returned rows
+unless the caller passes a real JSON `true`.
 
-What they cover:
+It is the request/response half of Streamable HTTP, in the standard library: one JSON-RPC message
+or a batch per POST, the same bearer token, no SSE, no `Mcp-Session-Id`, no OAuth. A security
+review of it found four defects, all fixed with regression tests in `backend/tests/test_mcp.py` —
+including a stringified `"false"` for `include_personal_data` that would have turned masking off,
+because `bool("false")` is true.
 
-- **Unit tests** by area: header and footer detection, currency and date parsing, spelling folding, PII detectors, role detection, relationship and union detection, the guard against a corpus of hostile queries, executor timeout and row cap, fan-out and period detection, result comparison, chart rules, number grounding, claim checking, confidence, provider failover and cooldowns, the rate limiter's windows and gate, and the insights templates.
-- **Guarantee tests:** planted PII never appears in any prompt payload; a file name never reaches a prompt, including through a combined view; an instruction hidden in a cell has no effect; no number appears in an answer that is not in the result.
-- **Adversarial files:** empty, header-only, 300 columns, unicode headers, a 20 MB file, PNG bytes with a `.csv` name.
-- **Frontend unit tests** are plain `node --test` over pure modules: the hash router, project storage and its quota behaviour, chart data shaping, Indian number formatting, the step list, the answer flow, board ordering, tile layout, the analysis form's sentence, file wording.
-- **Packaging checks** (`.github/scripts/test_packaging.py`): every setting in `config.py` is in `.env.example`, every setting may be left empty, `.env.example` holds no secret, Render variable names are real settings, the build context is an allow-list.
-- **End to end:** two Playwright journeys in `e2e/` — sample data → a suggested question → the chart → the SQL behind it, and the no-AI half (Overview computes itself, an analysis runs on demand). The first needs the app on a running host with an API key, so neither is part of `make test` or CI: `cd e2e && pnpm install && pnpm exec playwright install chromium && BASE_URL=http://localhost:8000 pnpm test`.
-- Tests never call a real model. They use `app.llm.fake.FakeLLM`.
-- **CI** (`.github/workflows/ci.yml`) runs three jobs on every push and pull request: backend tests and packaging checks, frontend type check, unit tests and build, and `make smoke`. None needs a secret.
+Walkthrough with curl, the tool table and what it deliberately does not do:
+[`docs/MCP.md`](docs/MCP.md). Point it at `https://darwinlens.onrender.com/mcp`, or at
+`http://localhost:8000/mcp`.
+
+## Capacity, measured
+
+[`docs/CAPACITY.md`](docs/CAPACITY.md) measures the half with no model in it, with
+`scripts/loadtest.py` (`make loadtest`) against a server started with no provider key in its
+environment, so the no-model claim is enforced by the set-up rather than asserted. Every figure
+there comes from one run and nothing is estimated.
+
+The headline: **`MAX_SESSIONS` is what saturates first, at the thirteenth concurrent analyst.** Not
+CPU — `GET /dashboard`, the most expensive no-model route, held at 52.9, 55.1 and 54.0 ms p50
+across rounds of 5, 15 and 30 analysts, and every guided analysis stayed between 2.6 and 5.0 ms.
+Not memory either: 246.6 MB peak against the 512 MB the free instance has, from a 157.1 MB idle
+floor. Two things bend before the ceiling: ingest is serial by design, so loading data queues for
+everybody and shows up as 429s with a retry sentence; and `POST /api/sessions` slows five-fold,
+14.9 → 77.5 ms p50, which is still under a tenth of a second. Reading one 14.78 MB CSV costs
+203 MB while it is being read, 13.7× its own size, which is the whole argument for the
+one-ingest-at-a-time gate.
+
+The latencies are from an M3 Pro and the free instance is 0.1 CPU, so read them as a floor. The
+memory numbers transfer.
 
 ## Evaluation
 
@@ -385,12 +427,13 @@ under `eval/.llm_cache` and `--only-failed` re-asks only what failed last time.
 > **Read this first.** These numbers were measured at **17:55 and 18:05 IST on 20 September 2026**
 > with `openai/gpt-oss-120b`, which is **before** two later changes to what the model is sent: the
 > combined-view follow-ups (commit `0b7c556`, 18:56) and the batched SQL-prompt rules (commit
-> `df2bef1`, 21:29). They are therefore not measured on the final commit. A re-run on the final
-> code was started twice tonight and could not finish, because Groq's daily free allowance was
-> spent and Google's Gemma endpoint was taking minutes per call; it is scheduled for the morning
-> (`docs/PENDING.md`). Nothing since 18:05 touched the guard, the executor, the verification rules
-> or the grader, so the shape of these results should hold — but "should hold" is not "measured",
-> and the distinction is the point of the whole project.
+> `df2bef1`, 21:29). They are therefore not measured on the final commit. A re-run was started
+> twice and could not finish, because Groq's daily free allowance was spent and Google's Gemma
+> endpoint was taking minutes per call; it was then dropped on purpose so the remaining time went
+> to the product (`DECISIONS.md` 36, `docs/PENDING.md` §2). **No re-run has happened.** Nothing
+> since 18:05 touched the guard, the executor, the verification rules or the grader, so the shape
+> of these results should hold — but "should hold" is not "measured", and the distinction is the
+> point of the whole project.
 
 One run per question. SQL written by `openai/gpt-oss-120b` on Groq, phrasing by
 `openai/gpt-oss-20b`, cross-check by `qwen/qwen3.8-27b`; no chain failed over and no question
@@ -426,29 +469,81 @@ confidence badge noticed.
 
 Every number above, and the full failure table, is in [`eval/REPORT.md`](eval/REPORT.md).
 
-## Security posture, in brief
+## Testing
 
-| Threat | Control |
-|---|---|
-| SQL that destroys or leaks data | Allow-list parser guard, plus a DuckDB with file, network, extension and configuration access locked off at creation. DuckDB alone still permits `CREATE`/`INSERT`, which is why the guard is mandatory |
-| A runaway query | Timeout by interrupt, row cap, memory limit, two threads, one file read at a time on the host |
-| PII reaching a third-party model | One function builds every prompt; PII columns contribute no values; any value that looks like personal data is dropped whatever profiling decided; file and sheet names are not sent, including through a combined view's `source_file` column; result PII is tokenised before phrasing; a canary test checks every payload |
-| Instructions hidden in a cell or a header | Cell text reaches the SQL model only as short category values (at most 30 per column, 40 characters, 4 words) passed as data; the phrasing model has no tools; answers render as plain text; the number and claim checks catch tampering |
-| Invented numbers, or a true number under a false sentence | The model copies display strings; a grounding check enforces it; rankings are computed and each clause is checked; a template is the fallback |
-| Key abuse on a public URL | Per-IP hourly, daily, session, upload and concurrency limits (keyed on the proxy-appended `X-Forwarded-For` entry, counted from the right), a global daily call budget, an upload cap. Provider error text is never logged or shown, because it can echo keys |
-| A compromised container | uid 1000 that owns nothing under `/app`; Compose adds a read-only filesystem, no Linux capabilities and no privilege escalation. `.dockerignore` is an allow-list, so `.env` and `.git` never enter an image |
-| Browser-side | CSP `default-src 'self'`, `frame-ancestors 'none'`, `nosniff`, `no-referrer`, HSTS. The session id is 128 random bits in the URL path, kept in `sessionStorage`, not a cookie |
+```bash
+make test                               # everything below; needs no model, no key and no Docker
+uv run pytest backend/tests -o addopts="" -q     # the backend suite on its own
+cd frontend && pnpm test                # the frontend unit tests on their own
+make smoke                              # builds and runs the real image
+```
 
-Not included, on purpose: login and multi-tenancy. The session id is the only credential. Put
-DarwinLens behind the customer's single sign-on proxy before giving it real data on a shared network.
+Measured on 2026-09-21:
+
+- **Backend: 1651 passed, 1 skipped** of 1652 collected (`uv run pytest backend/tests
+  .github/scripts -o addopts="" -q`), which includes the packaging checks.
+- **Frontend: 233 passed** (`pnpm test`, `node --test` over 23 `src/**/*.test.mjs` files).
+
+Both commands are in the block above, so the figures are checkable rather than quoted.
+
+What they cover:
+
+- **Unit tests** by area: header and footer detection, currency and date parsing, spelling folding, PII detectors, role detection, relationship and union detection, the guard against a corpus of hostile queries, executor timeout and row cap, fan-out and period detection, result comparison, chart rules, number grounding, claim checking, confidence, provider failover and cooldowns, the rate limiter's windows and gate, and the insights templates.
+- **Guarantee tests:** planted PII never appears in any prompt payload; a file name never reaches a prompt, including through a combined view; an instruction hidden in a cell has no effect; no number appears in an answer that is not in the result.
+- **Adversarial files:** empty, header-only, 300 columns, unicode headers, a 20 MB file, PNG bytes with a `.csv` name.
+- **Frontend unit tests** are plain `node --test` over pure modules: the hash router, project storage and its quota behaviour, chart data shaping, Indian number formatting, the step list, the answer flow, board ordering, tile layout, the analysis form's sentence, file wording.
+- **Packaging checks** (`.github/scripts/test_packaging.py`): every setting in `config.py` is in `.env.example`, every setting may be left empty, `.env.example` holds no secret, Render variable names are real settings, the build context is an allow-list.
+- **End to end:** two Playwright journeys in `e2e/` — sample data → a suggested question → the chart → the SQL behind it, and the no-AI half (Overview computes itself, an analysis runs on demand). The first needs the app on a running host with an API key, so neither is part of `make test` or CI: `cd e2e && pnpm install && pnpm exec playwright install chromium && BASE_URL=http://localhost:8000 pnpm test`.
+- Tests never call a real model. They use `app.llm.fake.FakeLLM`.
+- **CI** (`.github/workflows/ci.yml`) runs three jobs on every push and pull request: backend tests and packaging checks, frontend type check, unit tests and build, and `make smoke`. None needs a secret.
+
+## Tech stack
+
+- **Backend:** Python 3.12, FastAPI, DuckDB 1.5, pandas 3, openpyxl, sqlglot, Pydantic 2, and the `openai` client pointed at OpenAI-compatible endpoints. Managed with uv.
+- **Frontend:** React 19, Vite, TypeScript, Tailwind 4, Recharts. No state library, no router, no component kit. Any font is self-hosted and served from the image — the app's own CSP blocks font CDNs.
+- **Packaging:** one two-stage Dockerfile (Node builds the UI, Python runs everything), Docker Compose, a Render Blueprint, GitHub Actions.
+
+## Project layout
+
+```
+backend/app/
+  contracts.py        every type shared between modules and with the UI (mirrored in frontend/src/types.ts)
+  config.py           settings from environment variables, provider chains
+  main.py             HTTP routes, streaming, upload cap, rate limit, security headers, serves the built UI
+  auth.py             accounts: guests, sign-up, scrypt passwords, HMAC tokens, SQLite store
+  mcp_server.py       POST /mcp: six tools over the same engine, same limits, same masking
+  limits.py           per-IP and per-user windows, the concurrency gate, the one-ingest-at-a-time slot
+  sessions.py         one locked-down DuckDB per browser session; LRU and TTL store
+  sample_files.py     list, download or zip the sample data before loading it
+  ingest/             read files as text, find headers and footers, infer types, write the receipt
+  profile/            column statistics, PII detection (pii.py), column roles (roles.py)
+  catalog/            relationships, union views, HR glossary (glossary.py), suggested questions
+  catalog/prompt_context.py   the only code allowed to describe data to a model
+  llm/                provider pool with failover and cooldowns, disk cache for eval, daily budget; FakeLLM for tests
+  query/              prompts, generator, guard, executor, verify, presentation, narrator, confidence, pipeline
+  insights/           the no-model half: dashboard templates, guided analyses, SQL builder, computed facts
+backend/tests/        unit tests by area, plus adversarial uploads, API, MCP and pipeline tests
+frontend/src/         App and hash router, lib (route, session, projects), components (marketing,
+                      auth, onboarding, shell, thread, answer, charts, overview, tiles, analyses,
+                      board, home, sidebar, ui primitives), pages (HowItWorks, TrustReport)
+demo_data/            synthetic messy HR files, the generator, the clean answer key, starter questions
+test_files/           a second, harder synthetic company with an independent answer key (EXPECTED.md)
+eval/                 golden questions, the never-tuned challenge set, independent ground truth, runner, report
+e2e/                  two Playwright journeys: the question path, and the half with no AI
+scripts/loadtest.py   the no-model load test behind docs/CAPACITY.md; stdlib only, never calls a model
+docs/                 DESIGN.md (what and why), DESIGN_SYSTEM.md (Canvas), MCP.md, CAPACITY.md,
+                      PLAN.md, AI_WORKFLOW.md, PENDING.md
+.github/              CI, keep-warm ping, packaging checks, the warm-up script
+```
 
 ## Deliberate cuts and known limits
 
 A smaller app that works beats a larger one that half works. Left out on purpose:
 
-- Login, multi-tenancy, and keeping data across restarts. Projects live in the browser instead
-  (`localStorage`), capped at 60 questions and 24 saved tiles per project, 200 stored rows per
-  table; the server keeps no record of a project
+- Single sign-on, roles, teams and sharing. Accounts do one job, above
+- Keeping data across restarts. Projects live in the browser instead (`localStorage`), capped at
+  60 questions and 24 saved tiles per project, 200 stored rows per table; the server keeps no
+  record of a project
 - Databases other than DuckDB
 - Statistical tests, forecasting and free-form Python: those questions get a refusal, because running model-written code is how similar tools got remote-code-execution CVEs
 - Fine-tuning, and vector search over rows (rows never go to a model, by design)
@@ -456,12 +551,12 @@ A smaller app that works beats a larger one that half works. Left out on purpose
 - Wide one-column-per-day attendance sheets, old `.xls` files (the upload says to save as `.xlsx`)
 - Suppressing small-group salary averages
 - Files over 10 MB on the hosted demo (25 MB locally, configurable)
-- An MCP endpoint over the engine: first on the list of what comes next (see `WRITEUP.md`)
+- SSE on `/mcp`, so tool progress streams the way the browser's steps do. Named in `WRITEUP.md`
 
 Known limits, measured rather than guessed:
 
 - **One worker.** A restart or redeploy drops every session, the answer cache and the daily budget count.
-- **No authentication.** Anyone with a session id can read that session until it expires.
+- **Accounts do not survive a redeploy** on the free host: the SQLite file lives on the instance's disk. No email verification, no password reset.
 - **The tenth guided analysis is unfinished.** `compare` ("Compare two groups") appears in the picker, but the backend publishes its two group choices as empty lists for the UI to fill and the UI does not, so choosing it and pressing Run returns the engine's refusal every time. Named in `docs/PENDING.md` with the two ways to close it: drop it from the catalog, or fill the choices from the column's own values.
 - **A guided cross-file sum can still double-count** on a 1:N link (summing a measure from the "one" side). The chat path catches this with a caveat; the guided path should refuse it instead.
 - **A calculation whose window is wider than the period the question names** is the one open correctness failure (`ch-06` above). Nothing deterministic sees it today.
@@ -497,24 +592,25 @@ and packages.
 
 **Scaling path.** Today it is one process with one worker, on purpose: sessions, the answer cache,
 the Overview cache, the rate limiter and the daily budget counter live in its memory. Each is
-marked with a `# ponytail:` comment naming its ceiling. To run more than one worker, in this order:
+marked with a `# ponytail:` comment naming its ceiling. The order the ceilings actually arrive in
+is measured in [`docs/CAPACITY.md`](docs/CAPACITY.md):
 
-1. Session state (catalog, history) to Redis or object storage, and a DuckDB **file per session** on a volume instead of `:memory:`. The lock-down settings are unchanged.
-2. The rate limiter to the proxy or Redis. The daily budget counter goes with it.
-3. The shared answer cache and the Overview cache to Redis, keyed as they are now (data fingerprint, links, glossary, question / session and catalog version).
-4. Model calls behind a queue with per-provider concurrency, so a burst waits instead of hitting rate limits and failing over.
+1. Accounts to Postgres. The users table is the one piece of state that must outlive the instance, and on the free host a redeploy wipes the SQLite file.
+2. Session state (catalog, history) to Redis or object storage, and a DuckDB **file per session** on a volume instead of `:memory:`. The lock-down settings are unchanged. This is what lifts the twelve-session ceiling.
+3. The rate limiter to the proxy or Redis. The daily budget counter goes with it.
+4. The shared answer cache and the Overview cache to Redis, keyed as they are now (data fingerprint, links, glossary, question / session and catalog version).
+5. Model calls behind a queue with per-provider concurrency and per-tenant budgets, so a burst waits instead of hitting rate limits and failing over.
 
 None of this changes the pipeline: `answer_question` takes a session and a model client as
-arguments.
+arguments. More than one worker is useless until step 2 lands.
 
-**The natural next step is MCP.** For a company that already ships an HCM MCP server, the useful
-thing here is not the web app — it is the engine underneath it, exposed as tools. Because
-`answer_question(session, req, llm, emit)` takes its session and its model client as arguments, an
-MCP server is a second transport over the same code rather than a second implementation: `ask`,
-`overview` and `run_analysis` as tools, over the same guard, the same catalog and the same vetted
-glossary. The customer's agents then answer "what was attrition last quarter?" with *that
-customer's* signed-off definition and a SQL trail anyone can check, instead of a fresh guess per
-call. That is the FDE-shaped version of this project, and it is the first thing on the list.
+**Their agents, not our web app.** For a company that already ships an HCM MCP server, the useful
+thing here is the engine underneath the app, exposed as tools — which is what `POST /mcp` now is,
+a second transport over the same code rather than a second implementation. Pin the surface per
+customer: if their agent should only ever read, drop `ask` from `_TOOL_FUNCTIONS` in
+`backend/app/mcp_server.py` and the remaining five never call a model. Then make the glossary their
+metric dictionary, because `describe_data` hands it to the calling agent and that is what stops a
+fresh guess per call. [`docs/MCP.md`](docs/MCP.md) has the four-step version.
 
 ## More reading
 
@@ -523,5 +619,7 @@ call. That is the FDE-shaped version of this project, and it is the first thing 
 - [`DECISIONS.md`](DECISIONS.md): short decision records, newest at the bottom
 - [`docs/PENDING.md`](docs/PENDING.md): what is left, and what is knowingly unfinished
 - [`docs/AI_WORKFLOW.md`](docs/AI_WORKFLOW.md): how a team of AI agents was directed to build this, and what stayed human
-- [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md): the "Clarity" visual direction and the journey
+- [`docs/MCP.md`](docs/MCP.md): the six tools, a curl walkthrough, and what the MCP endpoint deliberately does not do
+- [`docs/CAPACITY.md`](docs/CAPACITY.md): what one small instance carries with no model, measured
+- [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md): the "Canvas" visual direction and the journey
 - [`demo_data/README.md`](demo_data/README.md) and [`test_files/README.md`](test_files/README.md): the sample files and every defect injected into them. All of it is synthetic.
