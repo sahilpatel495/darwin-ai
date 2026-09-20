@@ -1,4 +1,6 @@
-# Verity
+# DarwinLens
+
+> The product was called Verity until 2026-09-21. Use **DarwinLens** in every user-facing string, title and document. Never use "Darwinbox" or its logo in the product name; the README and the landing footer carry: "Independent prototype for the Darwinbox FDE assignment. Not affiliated with or endorsed by Darwinbox." Browser storage keys move from `verity.*` to `darwinlens.*` with a one-time migration.
 
 Plain-English questions over messy spreadsheets, with answers you can verify. Take-home for a Forward Deployed Engineer role; the author must be able to explain every module.
 

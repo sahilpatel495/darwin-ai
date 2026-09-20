@@ -1,6 +1,8 @@
-# Verity — UX and design system v3 ("Canvas")
+# DarwinLens — UX and design system v3 ("Canvas")
 
 The contract for everyone touching the frontend. Read all of it before writing UI.
+
+> **Name.** The product is **DarwinLens** (it was called Verity until 2026-09-21). Tagline: "See your HR data clearly. Verify every answer." Every wordmark, title and sentence says DarwinLens; if you meet "Verity" in a file you own, change it. Browser storage keys you own use the `darwinlens.` prefix and migrate the old `verity.` key once. The landing footer carries: "Independent prototype for the Darwinbox FDE assignment. Not affiliated with or endorsed by Darwinbox."
 
 > **Why v3.** v1 ("Ledger": warm paper, serif) looked like another product's interface. v2 ("Clarity") fixed that and still read as a 2010 admin panel: small system type, dense grey chrome, a left rail plus a left data panel, a composer nobody noticed with a paragraph of tips under it, a coach-mark tour that annoyed people, low-contrast dark mode. v3 adopts the owner's supplied token language (a stark white canvas, big confident geometric type, pills everywhere, 24 to 32px radii, hairlines instead of shadows, a black pill for general calls to action with cobalt reserved for the core action) and rebuilds the flow around it. The behaviour, storage and data contracts from earlier passes stay; the skin, the information architecture and the first five minutes change completely.
 
@@ -75,9 +77,9 @@ Durations `150–250ms` ease-out for surface changes, `300ms` ease-in-out for ac
 
 ## 6. Information architecture
 
-Hash routes: `#/` landing (signed-out) or home (signed-in) · `#/signin` · `#/signup` · `#/welcome` onboarding · `#/home` projects · `#/p/<id>` ask · `#/p/<id>/overview` · `#/p/<id>/analyses` · `#/p/<id>/board` saved · `#/how` how Verity works · `#/trust` · `#/settings` · `#/ui`.
+Hash routes: `#/` landing (signed-out) or home (signed-in) · `#/signin` · `#/signup` · `#/welcome` onboarding · `#/home` projects · `#/p/<id>` ask · `#/p/<id>/overview` · `#/p/<id>/analyses` · `#/p/<id>/board` saved · `#/how` how DarwinLens works · `#/trust` · `#/settings` · `#/ui`.
 
-**App chrome = one sticky top bar, 64px, canvas, hairline-soft bottom border. No left rail, no permanent side panel.** Left: wordmark, then the project switcher (name + chevron menu: recent projects, all projects, new project). Centre: `PillTabs` Ask · Overview · Analyses · Saved. Right: a search pill "Search or ask…" with `⌘K` (opens the command palette: jump to a page or project, re-ask a recent question, start an analysis), a **Data** button with a count badge (opens the Data drawer), the avatar menu (Profile and usage, How Verity works, Trust report, Sign out / Create account for guests). Phones: wordmark + Data + avatar on top, a bottom tab bar for the four tabs.
+**App chrome = one sticky top bar, 64px, canvas, hairline-soft bottom border. No left rail, no permanent side panel.** Left: wordmark, then the project switcher (name + chevron menu: recent projects, all projects, new project). Centre: `PillTabs` Ask · Overview · Analyses · Saved. Right: a search pill "Search or ask…" with `⌘K` (opens the command palette: jump to a page or project, re-ask a recent question, start an analysis), a **Data** button with a count badge (opens the Data drawer), the avatar menu (Profile and usage, How DarwinLens works, Trust report, Sign out / Create account for guests). Phones: wordmark + Data + avatar on top, a bottom tab bar for the four tabs.
 
 **The Data drawer** holds what used to be the left panel: pill tabs Files · Links · Glossary; files as rows that open to the Data Health receipt (itemised lines, counts right-aligned), Preview rows, links as sentences with Keep / Remove, the glossary editor, Add files.
 
@@ -100,7 +102,7 @@ There is no coach-mark tour. After onboarding, education is `Tip`s (once each: t
 **Home (`#/home`).** Greeting, a "New project" black pill, projects as `xxl` cards (name, file chips, counts, last opened, a tiny sparkline of activity), the sample company card with "See what's inside" and "Download all".
 **Saved.** A printable report: title, date, saved answers and tiles as full-width cards, reorder, remove, "Print or save as PDF".
 **Settings (`#/settings`).** Profile (name, role), usage (`UsageMeter`: questions left this hour and today, from `getMe()`), "Delete my data" (projects in this browser and the server session), Sign out; for guests, a card inviting them to create an account to keep their place.
-**How Verity works (`#/how`)** and **Trust (`#/trust`)** are full pages in the marketing language, reachable signed-in or out.
+**How DarwinLens works (`#/how`)** and **Trust (`#/trust`)** are full pages in the marketing language, reachable signed-in or out.
 **States.** Every empty state has a glyph, one sentence and one action. Every error says what happened, then what to do. A backend that does not know a route answers with a JSON 404 whose next step is "Restart the server, then reload the page": show that sentence, never "could not be computed".
 
 ## 9. Auth contract (backend `app/auth.py`; types in `types.ts`; calls in `api.ts`)
