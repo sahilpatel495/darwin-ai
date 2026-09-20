@@ -35,14 +35,16 @@ KEYLESS_PROVIDERS = frozenset({"ollama", "custom"})
 
 DEFAULT_CHAINS: dict[str, str] = {
     # Free-tier limits are per model, so a long chain over different models is the budget.
-    # Entries whose provider has no API key are skipped. Order = preference.
-    "sql": "groq:openai/gpt-oss-120b,nvidia:deepseek-ai/deepseek-v4-flash-0731,"
-    "groq:qwen/qwen3.8-27b,gemini:gemma-4-31b-it,openrouter:qwen/qwen3.8-27b:free,"
+    # Entries whose provider has no API key are skipped. Order = preference, fastest first:
+    # NVIDIA's first call of the day wakes the model up and can take over a minute against the
+    # client's 30 s timeout, so it sits after Gemini rather than second.
+    "sql": "groq:openai/gpt-oss-120b,groq:qwen/qwen3.8-27b,gemini:gemma-4-31b-it,"
+    "nvidia:deepseek-ai/deepseek-v4-flash-0731,openrouter:qwen/qwen3.8-27b:free,"
     "openrouter:z-ai/glm-5.2:free,openrouter:nvidia/nemotron-3-super-120b-a12b:free,"
     "groq:openai/gpt-oss-20b",  # last resort: smaller, but an answer beats an error
     # A different model family from whichever model answered, so agreement means something.
-    "crosscheck": "groq:qwen/qwen3.8-27b,nvidia:deepseek-ai/deepseek-v4-flash-0731,"
-    "groq:openai/gpt-oss-120b,openrouter:z-ai/glm-5.2:free,gemini:gemma-4-31b-it",
+    "crosscheck": "groq:qwen/qwen3.8-27b,gemini:gemma-4-31b-it,groq:openai/gpt-oss-120b,"
+    "nvidia:deepseek-ai/deepseek-v4-flash-0731,openrouter:z-ai/glm-5.2:free",
     "narrate": "groq:openai/gpt-oss-20b,gemini:gemma-4-31b-it,groq:qwen/qwen3.8-27b,"
     "openrouter:google/gemma-4-31b-it:free",
 }
@@ -90,7 +92,9 @@ class Settings:
     asks_per_ip_per_hour: int = int(_env("ASKS_PER_IP_PER_HOUR", "40"))
     asks_per_ip_per_day: int = int(_env("ASKS_PER_IP_PER_DAY", "200"))
     asks_per_session: int = int(_env("ASKS_PER_SESSION", "150"))
-    sessions_per_ip_per_hour: int = int(_env("SESSIONS_PER_IP_PER_HOUR", "20"))
+    # Well under max_sessions: sessions are an LRU, so an address allowed as many new ones as
+    # there are slots can evict every other visitor's data within the hour on its own.
+    sessions_per_ip_per_hour: int = int(_env("SESSIONS_PER_IP_PER_HOUR", "5"))
     uploads_per_ip_per_hour: int = int(_env("UPLOADS_PER_IP_PER_HOUR", "30"))
     max_concurrent_asks: int = int(_env("MAX_CONCURRENT_ASKS", "6"))
     max_concurrent_asks_per_ip: int = int(_env("MAX_CONCURRENT_ASKS_PER_IP", "2"))

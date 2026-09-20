@@ -57,9 +57,12 @@ REPLY_TOKENS = 600  # room kept for the answer when sizing a request against an 
 # Structured output, from strictest to none. Not every provider supports every rung.
 _FORMATS = ("json_schema", "json_object", "none")
 _FORMAT_COMPLAINT = re.compile(r"response.?format|json.?schema|json.?object", re.IGNORECASE)
-# A reply that opens with an unclosed <think> was cut off mid-reasoning: all of it is dropped.
-# Only at the very start, so a stray "<think>" inside a JSON string cannot eat the answer.
-_THINK = re.compile(r"<think>.*?</think>|\A<think>.*", re.DOTALL)
+# Reasoning preambles, closed or not. The tag is the model's habit, not the provider's: Qwen
+# writes <think>, Gemma writes <thought>, so both are stripped whoever is serving them.
+# An unclosed tag at the very start is a reply cut off mid-reasoning; it is dropped up to the
+# first "{", so a model that got as far as its JSON still answers. Anchored at the start, so a
+# stray "<think>" inside a JSON string cannot eat the answer.
+_THINK = re.compile(r"<(think|thought)>.*?</\1>|\A<(?:think|thought)>[^{]*", re.DOTALL)
 
 
 class LLMResult(BaseModel):
@@ -104,6 +107,7 @@ class _Health:
     reason: str = ""  # why it is cooling: a fixed phrase, for the log only
     tokens_left: int | None = None  # last x-ratelimit-remaining-tokens; None = never told
     tokens_reset_at: float = 0.0  # when that allowance refills
+    reserved: int = 0  # estimated tokens of the calls in flight right now
 
 
 # Process-wide for the same reason as the budget below: a rate limit belongs to the API key,
@@ -166,6 +170,15 @@ def _response_format(fmt: str, json_schema: dict | None) -> dict:
     return {}
 
 
+# The one reason that means "a person must fix this", so it is never counted as congestion.
+# It lives next to _plain_reason, which is the only place that writes it, so the two cannot drift.
+_KEY_REJECTED = "rejected the API key"
+
+
+def _key_rejected(reason: str) -> bool:
+    return reason.startswith(_KEY_REJECTED)
+
+
 def _plain_reason(exc: openai.APIError) -> str:
     """A fixed phrase per failure type. Never the provider's own text (see module docstring)."""
     if isinstance(exc, openai.APITimeoutError):
@@ -176,7 +189,7 @@ def _plain_reason(exc: openai.APIError) -> str:
     if status == 429:
         return "is rate limited (429)"
     if status in (401, 403):
-        return f"rejected the API key ({status})"
+        return f"{_KEY_REJECTED} ({status})"
     if status == 404:
         return "does not offer this model any more (404)"
     if isinstance(status, int) and status >= 500:
@@ -313,14 +326,16 @@ class PoolClient:
     timeout or 5xx, an hour for a rejected key or a retired model) and is skipped without a
     network call until it passes. A request the provider refuses outright (a 400) says
     nothing about its health, so it costs no cooldown. An entry whose remaining token
-    allowance cannot fit the request is skipped like a cooling one. Role "sql" will nap
-    until the soonest entry is free, within
-    settings.llm_max_wait_s; "crosscheck" and "narrate" never wait, because the pipeline
+    allowance cannot fit the request, calls in flight included, is skipped like a cooling
+    one. A rejected key is a misconfiguration rather than congestion, so those entries are
+    left out of every wait and estimate. Role "sql" will nap until the soonest entry is free,
+    within settings.llm_max_wait_s; "crosscheck" and "narrate" never wait, because the pipeline
     already degrades gracefully without them.
 
     temperature 0. json_schema: try strict json_schema, fall back to json_object on a 400,
-    and always tolerate prose around the JSON. Reasoning output is requested hidden and any
-    <think>...</think> block is stripped. When settings.llm_cache_dir is set, responses are
+    and always tolerate prose around the JSON. Reasoning output is requested hidden and a
+    <think> or <thought> preamble is stripped if one arrives anyway. When
+    settings.llm_cache_dir is set, responses are
     cached on disk keyed by sha256(model + messages + schema). Counts calls against
     settings.llm_calls_per_day. `clock` and `sleep` are injectable so tests run instantly."""
 
@@ -396,7 +411,7 @@ class PoolClient:
                 if self._blocked_for(pm, need)[0] > 0:
                     continue  # cooling: skipped without a network call
                 try:
-                    return self._ask(pm, messages, json_schema)
+                    return self._ask(pm, messages, json_schema, need)
                 except _ProviderFailed as failed:
                     self._note_failure(pm, failed)
                     if failed.cool_s == 0:
@@ -408,8 +423,8 @@ class PoolClient:
                 )
             # Nobody answered. Only the user's own question is worth holding the request
             # open for, and only for llm_max_wait_s in total however the naps are split.
-            wait = min(self._blocked_for(pm, need)[0] for pm in providers)
-            out_of_patience = waited + wait > config.settings.llm_max_wait_s
+            wait = self._soonest_free(providers, need)
+            out_of_patience = wait is None or waited + wait > config.settings.llm_max_wait_s
             if role != "sql" or walk == MAX_WAITS or out_of_patience:
                 break
             if wait > 0:  # 0 = an entry came free while the others were being tried
@@ -417,6 +432,16 @@ class PoolClient:
                 self._announce(on_wait, wait)
                 self._sleep(wait)
         raise self._gave_up(role, providers, need)
+
+    def _soonest_free(self, providers: list[ProviderModel], need: int) -> float | None:
+        """Seconds until the first entry that is merely busy can be tried again, or None when
+        every entry is parked for a rejected key. A bad key is a misconfiguration, not
+        congestion: no wait frees it, so it must never set a wait or a countdown."""
+        busy = [
+            seconds for seconds, why in (self._blocked_for(pm, need) for pm in providers)
+            if not _key_rejected(why)
+        ]
+        return min(busy) if busy else None
 
     def _blocked_for(self, pm: ProviderModel, need: int) -> tuple[float, str]:
         """(seconds until this entry may be tried, why). (0.0, "") means go ahead."""
@@ -427,9 +452,11 @@ class PoolClient:
                 return 0.0, ""
             if health.cooling_until > now:
                 return health.cooling_until - now, health.reason
-            # Token pacing: do not spend a request that is certain to be refused. Once the
-            # reset time has passed the remembered number means nothing, so it is ignored.
-            starved = health.tokens_left is not None and health.tokens_left < need
+            # Token pacing: do not spend a request that is certain to be refused. Calls in
+            # flight have not been counted by the provider yet, so their estimate is held
+            # against the allowance too, or questions asked at once all pass this same check.
+            # Once the reset time has passed the remembered number means nothing: it is ignored.
+            starved = health.tokens_left is not None and health.tokens_left - health.reserved < need
             if starved and health.tokens_reset_at > now:
                 return health.tokens_reset_at - now, "has too few tokens left this minute"
         return 0.0, ""
@@ -489,13 +516,18 @@ class PoolClient:
         log.info("No model could take this %s call: %s", role, "; ".join(
             f"{pm.provider} ({pm.model}) {why or 'is free again'}, {seconds:.0f} s to go"
             for pm, seconds, why in states))
+        soonest = self._soonest_free(providers, need)
+        if soonest is None:  # every entry (if any) is parked for a key no wait will fix
+            return LLMUnavailable(
+                "No AI model accepted its API key. "
+                "Check the keys in the .env file and restart the app."
+            )
         # PARKED_S is the longest cooldown the pool ever sets, so anything above it means the
         # clock behind _health moved: a non-monotonic clock, or two PoolClients sharing the
         # process-wide table with different injected clocks. Never promise the user a number
         # the pool itself could not have produced.
         # ponytail: a clamp, not a cure. Give _health its own clock if that ever really bites.
-        soonest = min(min(seconds, PARKED_S) for _, seconds, _ in states)
-        n = max(MIN_RETRY_HINT_S, math.ceil(soonest))
+        n = max(MIN_RETRY_HINT_S, math.ceil(min(soonest, PARKED_S)))
         return LLMUnavailable(
             f"All the free AI models are busy right now. Try again in about {n} seconds.",
             retry_after_s=n,
@@ -506,9 +538,22 @@ class PoolClient:
             self._clients[pm] = self._client_factory(pm)
         return self._clients[pm]
 
-    def _ask(self, pm: ProviderModel, messages: Messages, json_schema: dict | None) -> LLMResult:
+    def _reserve(self, pm: ProviderModel, tokens: int) -> None:
+        """Hold (or, with a negative number, give back) an estimate against an entry's
+        allowance for as long as its call is in flight. See _blocked_for."""
+        with _health_lock:
+            _health.setdefault((pm.provider, pm.model), _Health()).reserved += tokens
+
+    def _ask(
+        self, pm: ProviderModel, messages: Messages, json_schema: dict | None, need: int
+    ) -> LLMResult:
         started = self._clock()
-        text = _THINK.sub("", self._raw_reply(pm, messages, json_schema).strip()).strip()
+        self._reserve(pm, need)
+        try:
+            reply = self._raw_reply(pm, messages, json_schema)
+        finally:  # settled however it ends: the provider has now counted it, or never will
+            self._reserve(pm, -need)
+        text = _THINK.sub("", reply.strip()).strip()
         if not text:
             raise _ProviderFailed("returned an empty reply")
         result = LLMResult(

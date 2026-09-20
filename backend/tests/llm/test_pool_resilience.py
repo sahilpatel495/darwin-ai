@@ -157,6 +157,50 @@ def test_a_rejected_key_parks_the_entry_for_an_hour_and_warns_once_without_the_k
     assert client.complete(role="sql", messages=MESSAGES).content == "a is back"
 
 
+def rejected_key(key: str = GROQ_KEY):
+    return status_error(openai.AuthenticationError, 401, f"Incorrect API key provided: {key}")
+
+
+def test_a_chain_whose_keys_are_all_rejected_asks_for_a_human_instead_of_a_countdown(clock):
+    """A rejected key parks the entry for an hour, which is right. Telling the user the models
+    are busy and counting an hour down in the UI is not: nothing frees up, a person has to fix
+    the .env file. So parked keys are left out of the estimate and out of the bounded wait."""
+    a, b = FakeOpenAI(rejected_key()), FakeOpenAI(
+        status_error(openai.PermissionDeniedError, 403, "this key may not use this model")
+    )
+    with pytest.raises(LLMUnavailable) as raised:
+        pool(clock, a=a, b=b).complete(role="sql", messages=MESSAGES)
+
+    assert str(raised.value) == (
+        "No AI model accepted its API key. Check the keys in the .env file and restart the app."
+    )
+    assert raised.value.retry_after_s is None  # waiting cannot fix a misconfiguration
+    assert clock.naps == [] and GROQ_KEY not in str(raised.value)
+
+
+def test_a_rejected_key_is_left_out_of_the_estimate_while_another_model_is_only_busy(clock):
+    """The estimate is what the UI counts down, so it may only ever come from an entry that
+    waiting will actually free: here the parked key is the sooner of the two and still ignored."""
+    a = FakeOpenAI(rejected_key())
+    b = FakeOpenAI(*[rate_limited({"retry-after": "120"})] * 2)
+    client = pool(clock, a=a, b=b)
+    with pytest.raises(LLMUnavailable):
+        client.complete(role="narrate", messages=MESSAGES)
+
+    clock.now += 3550  # the parked hour has 50 s left; the rate limit expired and is hit again
+    with pytest.raises(LLMUnavailable) as raised:
+        client.complete(role="narrate", messages=MESSAGES)
+
+    assert raised.value.retry_after_s == 120  # the rate limit, not the 50 s left of the park
+    assert "busy" in str(raised.value) and len(a.requests) == 1
+
+
+def test_sql_still_waits_for_a_busy_model_when_another_entrys_key_was_rejected(clock):
+    a, b = FakeOpenAI(rejected_key()), FakeOpenAI(rate_limited({"retry-after": "8"}), "b is back")
+    assert pool(clock, a=a, b=b).complete(role="sql", messages=MESSAGES).content == "b is back"
+    assert clock.naps == [8.0] and len(a.requests) == 1  # the parked key is never re-probed
+
+
 def too_long():
     return status_error(openai.BadRequestError, 400, "context length exceeded")
 
@@ -239,6 +283,48 @@ def test_an_entry_that_reports_zero_tokens_left_is_skipped_until_its_allowance_r
     assert len(a.requests) == 1 and clock.naps == []
 
     clock.now += 12
+    assert client.complete(role="sql", messages=MESSAGES).content == "a2"
+
+
+class Reentrant(FakeOpenAI):
+    """A provider that lets another question run while this one is still in flight, which is
+    what two browser tabs do without needing two threads to prove it."""
+
+    during = None
+
+    def _create(self, **kwargs):
+        if self.during is not None:
+            self.during, running = None, self.during
+            running()
+        return super()._create(**kwargs)
+
+
+def test_a_call_in_flight_holds_its_tokens_so_two_questions_cannot_spend_them_twice(clock):
+    """Pacing only knew what the last reply said was left, so N questions asked at once all
+    passed the same check and N-1 of them bought a 429."""
+    left = {"x-ratelimit-remaining-tokens": "1000", "x-ratelimit-reset-tokens": "30s"}
+    a, b = Reentrant("a1", "a2", headers=left), FakeOpenAI("b1")
+    client = pool(clock, a=a, b=b)
+    assert client.complete(role="sql", messages=MESSAGES).content == "a1"  # 1000 tokens left
+
+    second: list[str] = []
+    a.during = lambda: second.append(client.complete(role="sql", messages=MESSAGES).provider)
+    assert client.complete(role="sql", messages=MESSAGES).content == "a2"
+
+    assert second == ["nvidia"]  # ~600 are committed to the call in flight: 400 cannot fit
+    assert len(a.requests) == 2
+    assert client_module._health[("groq", "model-a")].reserved == 0  # settled, however it ends
+
+
+def test_a_reservation_is_given_back_when_the_call_fails(clock):
+    left = {"x-ratelimit-remaining-tokens": "1000", "x-ratelimit-reset-tokens": "30s"}
+    a = FakeOpenAI("a1", rate_limited({"retry-after": "1"}), "a2", headers=left)
+    client = pool(clock, a=a, b=FakeOpenAI("b1"))
+    client.complete(role="sql", messages=MESSAGES)  # groq: 1000 tokens left
+    assert client.complete(role="sql", messages=MESSAGES).provider == "nvidia"  # groq 429s
+
+    assert client_module._health[("groq", "model-a")].reserved == 0
+    clock.now += 1  # a reservation left behind would starve the entry out of its own allowance
     assert client.complete(role="sql", messages=MESSAGES).content == "a2"
 
 
@@ -484,8 +570,10 @@ def test_threads_hitting_the_pool_together_do_not_corrupt_its_state(clock):
     assert answers == ["nvidia"] * (threads * calls_each)
     assert 1 <= len(a.requests) <= threads  # at most one probe each before the cooldown landed
     health = client_module._health
-    assert set(health) == {("groq", "model-a")}  # model-b sent no headers and never failed
     assert health[("groq", "model-a")].cooling_until == clock.now + 20
+    # Every entry that was asked holds a token reservation while its call is in flight; all of
+    # them settled, so nothing is left committed against either allowance.
+    assert [h.reserved for h in health.values()] == [0, 0]
 
 
 def test_the_disk_cache_still_hits_with_the_key_format_unchanged(clock, monkeypatch, tmp_path):

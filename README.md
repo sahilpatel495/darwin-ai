@@ -156,7 +156,9 @@ A variable left empty counts as unset. A test fails if `config.py` reads a varia
 Verity talks to any OpenAI-compatible endpoint and runs on free tiers, so reliability comes from
 **chains**: an ordered, comma-separated list of `provider:model`. Providers with no key are
 skipped. If a provider is rate-limited, down, slow (30 s) or rejects the request, the next entry is
-tried; if all fail and one said "retry in under 10 seconds", that one is retried once. The answer
+tried; if all fail and one said "retry in under 10 seconds", that one is retried once. A key a
+provider rejects parks that entry for an hour and is never counted as congestion: when no entry
+has a working key the answer says to check the keys, with nothing to count down. The answer
 records which provider and model wrote it. Temperature is 0.
 
 | Job | Variable | Default first choice |
@@ -165,7 +167,9 @@ records which provider and model wrote it. Temperature is 0.
 | Write SQL independently for the cross-check | `LLM_CROSSCHECK_CHAIN` | `groq:qwen/qwen3.8-27b` |
 | Phrase the answer from computed numbers | `LLM_NARRATE_CHAIN` | `groq:openai/gpt-oss-20b` |
 
-The full default chains are in `.env.example` (a test keeps them equal to `config.py`). Keep the
+The full default chains are in `.env.example` (a test keeps them equal to `config.py`). Order them
+fastest first: NVIDIA's first call of the day wakes the model up and can outlast the 30 s timeout,
+so it sits after Gemini in every chain rather than second. Keep the
 cross-check on a different model family from the SQL model, or agreement means little.
 `CROSSCHECK=off` halves model usage and removes the "Cross-checked" badge. Groq's free limits are
 per model, so a chain that alternates models spreads the quota.

@@ -177,13 +177,26 @@ def test_a_reply_whose_content_is_not_text_counts_as_empty_and_fails_over():
     assert result.provider == "nvidia"
 
 
-def test_think_blocks_are_stripped():
-    a = FakeOpenAI("\n<think>\nlet me reason {not json}\n</think>\nThe answer is here.")
+@pytest.mark.parametrize("tag", ["think", "thought"])
+def test_a_reasoning_preamble_is_stripped_whatever_the_provider_calls_it(tag):
+    """Qwen opens <think>, Gemini's Gemma opens <thought>. Neither is the answer, and the tag
+    is the model's choice, not the provider's, so both are stripped for every entry."""
+    a = FakeOpenAI(f"\n<{tag}>\nlet me reason {{not json}}\n</{tag}>\nThe answer is here.")
     assert pool(a=a).complete(role="sql", messages=MESSAGES).content == "The answer is here."
 
 
-def test_a_think_tag_inside_the_json_answer_does_not_eat_the_answer():
-    reply = '{"a": 1, "note": "the question asked what <think> means"}'
+@pytest.mark.parametrize("tag", ["think", "thought"])
+def test_an_unclosed_reasoning_preamble_before_the_json_keeps_the_json(tag):
+    """A model that runs out of reasoning budget never closes the tag. The answer is right
+    there after it, so the preamble goes and the outermost JSON object stays."""
+    reply = f'<{tag}>The user wants a count, so I will group by\n{{"a": {{"b": 1}}}}\nDone.'
+    result = pool(a=FakeOpenAI(reply)).complete(role="sql", messages=MESSAGES, json_schema=SCHEMA)
+    assert result.content == '{"a": {"b": 1}}'
+
+
+@pytest.mark.parametrize("tag", ["think", "thought"])
+def test_a_think_tag_inside_the_json_answer_does_not_eat_the_answer(tag):
+    reply = f'{{"a": 1, "note": "the question asked what <{tag}> means"}}'
     result = pool(a=FakeOpenAI(reply)).complete(role="sql", messages=MESSAGES, json_schema=SCHEMA)
     assert result.content == reply
 
@@ -199,7 +212,9 @@ def test_prose_is_left_alone_when_no_schema_was_requested():
     assert pool(a=FakeOpenAI(reply)).complete(role="sql", messages=MESSAGES).content == reply
 
 
-@pytest.mark.parametrize("empty", [None, "", "<think>only thinking, cut off"])
+@pytest.mark.parametrize(
+    "empty", [None, "", "<think>only thinking, cut off", "<thought>only thinking, cut off"]
+)
 def test_an_empty_reply_counts_as_a_failure_and_fails_over(empty):
     result = pool(a=FakeOpenAI(empty), b=FakeOpenAI("real")).complete(role="sql", messages=MESSAGES)
     assert result.provider == "nvidia"

@@ -47,6 +47,26 @@ def test_a_key_that_is_set_is_used_as_it_is(monkeypatch, gateway):
     assert config.chain("sql")[0].api_key == "gateway-token"
 
 
+def test_the_default_chains_try_the_fast_providers_before_the_slow_one():
+    """NVIDIA's first call of the day can take over a minute to wake the model up, against the
+    client's 30 s timeout, so a second-place NVIDIA entry mostly spends 30 s to time out. It
+    sits after Gemini everywhere. The first SQL entry is pinned: the eval cache is keyed on it."""
+    chains = {role: spec.split(",") for role, spec in config.DEFAULT_CHAINS.items()}
+
+    assert chains["sql"][0] == "groq:openai/gpt-oss-120b"
+    for role, entries in chains.items():
+        assert len(set(entries)) == len(entries), f"{role} names the same entry twice"
+        slow = [i for i, e in enumerate(entries) if e.startswith("nvidia:")]
+        fast = [i for i, e in enumerate(entries) if e.startswith("gemini:")]
+        assert all(i > min(fast, default=-1) for i in slow), role
+
+
+def test_one_visitor_cannot_evict_every_other_visitors_session():
+    """sessions_per_ip_per_hour used to equal max_sessions, so one address could fill the whole
+    LRU on its own within the hour and every other visitor's data went with it."""
+    assert config.settings.sessions_per_ip_per_hour * 2 <= config.settings.max_sessions
+
+
 def test_a_custom_entry_without_a_base_url_is_still_skipped(monkeypatch):
     """The placeholder key must not make `custom:` resolve to nowhere: LLM_BASE_URL is what
     says the operator meant it."""
