@@ -6,6 +6,7 @@
   "clarification": null,
   "missing": "A table of customers with a start date and an end (churn) date.",
   "retry_after_s": null,
+  "insights": [],
   "chart": null,
   "table": null,
   "work": {

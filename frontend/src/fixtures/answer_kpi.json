@@ -6,6 +6,7 @@
   "clarification": null,
   "missing": null,
   "retry_after_s": null,
+  "insights": [],
   "chart": {
     "type": "kpi",
     "x": null,

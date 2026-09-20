@@ -23,6 +23,7 @@
   },
   "missing": null,
   "retry_after_s": null,
+  "insights": [],
   "chart": null,
   "table": null,
   "work": {

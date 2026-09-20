@@ -171,7 +171,8 @@ class Clarification(BaseModel):
 class ChartSpec(BaseModel):
     """Data, never code. Chosen by rules in app.query.charts, rendered by the frontend."""
 
-    type: Literal["kpi", "bar", "line", "grouped_bar", "scatter", "table"]
+    type: Literal["kpi", "bar", "line", "area", "grouped_bar", "stacked_bar", "donut",
+                  "histogram", "heatmap", "scatter", "table"]
     x: str | None = None
     y: list[str] = Field(default_factory=list)
     series: str | None = None
@@ -246,6 +247,7 @@ class Answer(BaseModel):
     clarification: Clarification | None = None
     missing: str | None = None  # refusal: what data would be needed
     retry_after_s: int | None = None  # error: the models are busy; the UI counts this down
+    insights: list[str] = Field(default_factory=list)  # computed facts about the result, never model-written
     chart: ChartSpec | None = None
     table: ResultTable | None = None
     work: Work = Field(default_factory=Work)

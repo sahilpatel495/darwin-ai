@@ -172,5 +172,100 @@ def main() -> None:
     print(f"wrote {len(files) + 1} fixtures to {OUT}")
 
 
+# --------------------------------------------------------------------------
+# The no-AI half: automatic overview and guided analyses
+# --------------------------------------------------------------------------
+from app.insights.models import (  # noqa: E402
+    AnalysisCatalog, AnalysisInput, AnalysisKind, AnalysisOption, ColumnChoice, Dashboard,
+    DashboardSection, InsightTile,
+)
+
+
+def _table(columns, rows, display=None) -> ResultTable:
+    display = display or [[str(v) for v in r] for r in rows]
+    return ResultTable(columns=columns, rows=rows, display=display, row_count=len(rows))
+
+
+def tiles() -> list[InsightTile]:
+    months = [f"2025-{m:02d}-01" for m in range(1, 13)]
+    pay = [4.38, 4.41, 4.45, 4.49, 4.52, 4.57, 4.6, 4.64, 4.69, 4.72, 4.76, 4.73]
+    return [
+        InsightTile(id="kpi-headcount", title="Active employees", kind="kpi", statement="430 people are active today.",
+                    insights=["70 have left since 2015", "14% of everyone ever hired"],
+                    chart=ChartSpec(type="kpi", y=["active_employees"], title="Active employees"),
+                    table=_table(["active_employees"], [[430]], [["430"]]), sql="SELECT count(*) AS active_employees FROM employees WHERE exit_date IS NULL",
+                    tables_used=["employees"], ask="How has headcount changed year by year?"),
+        InsightTile(id="kpi-pay", title="Gross pay, 2025", kind="kpi", statement="Total gross pay in 2025 was ₹54.67 Cr.",
+                    insights=["₹4.56 Cr a month on average"], chart=ChartSpec(type="kpi", y=["total_gross"], title="Gross pay, 2025", value_format="currency_inr"),
+                    table=_table(["total_gross"], [[546657000.0]], [["₹54.67 Cr"]]), sql="SELECT sum(gross) AS total_gross FROM salary_register", tables_used=["salary_register"]),
+        InsightTile(id="trend-pay", title="Gross pay by month", kind="trend", statement="Gross pay rose from ₹4.38 Cr in Jan 2025 to ₹4.73 Cr in Dec 2025; the highest month was Nov 2025 at ₹4.76 Cr.",
+                    insights=["Up 8.0% over the year", "Highest: Nov 2025"], chart=ChartSpec(type="area", x="pay_month", y=["total_gross"], title="Gross pay by month", value_format="currency_inr"),
+                    table=_table(["pay_month", "total_gross"], [[m, v * 1e7] for m, v in zip(months, pay)], [[m[:7], f"₹{v:.2f} Cr"] for m, v in zip(months, pay)]),
+                    sql="SELECT date_trunc('month', pay_month) AS pay_month, sum(gross) AS total_gross FROM salary_register GROUP BY 1 ORDER BY 1", tables_used=["salary_register"],
+                    ask="Why did gross pay dip in December 2025?"),
+        InsightTile(id="break-dept", title="Employees by department", kind="breakdown", statement="Engineering is the largest department with 168 people; Finance is the smallest with 32.",
+                    insights=["Top 2 departments hold 58% of people", "Largest is 5.3× the smallest"], chart=ChartSpec(type="bar", x="department", y=["employees"], title="Employees by department"),
+                    table=_table(["department", "employees"], [["Engineering", 168], ["Sales", 121], ["Support", 84], ["Operations", 55], ["HR", 40], ["Finance", 32]]),
+                    sql="SELECT department, count(*) AS employees FROM employees GROUP BY 1 ORDER BY 2 DESC", tables_used=["employees"]),
+        InsightTile(id="share-gender", title="Gender mix", kind="share", statement="Women make up 41% of employees.",
+                    chart=ChartSpec(type="donut", x="gender", y=["employees"], title="Gender mix"),
+                    table=_table(["gender", "employees"], [["Male", 282], ["Female", 205], ["Not stated", 13]]), sql="SELECT gender, count(*) AS employees FROM employees GROUP BY 1", tables_used=["employees"]),
+        InsightTile(id="dist-ctc", title="How annual CTC is spread", kind="distribution", statement="Half of employees earn between ₹6.2 L and ₹16.8 L; the median is ₹10.4 L.",
+                    insights=["Median ₹10.4 L", "Top 10% earn above ₹28.0 L"], chart=ChartSpec(type="histogram", x="ctc_band", y=["employees"], title="How annual CTC is spread"),
+                    table=_table(["ctc_band", "employees"], [["Under ₹5 L", 74], ["₹5–10 L", 161], ["₹10–15 L", 118], ["₹15–25 L", 92], ["₹25–40 L", 41], ["Over ₹40 L", 14]]),
+                    sql="SELECT ... width_bucket ...", tables_used=["employees"]),
+        InsightTile(id="stack-loc", title="Departments across locations", kind="comparison", statement="Bengaluru holds the most people in every department except Sales, where Mumbai leads.",
+                    chart=ChartSpec(type="stacked_bar", x="location", y=["employees"], series="department", title="Departments across locations"),
+                    table=_table(["location", "department", "employees"], [[loc, d, n] for loc, row in {"Bengaluru": (62, 28, 22), "Mumbai": (30, 41, 16), "Hyderabad": (34, 20, 19), "Pune": (26, 18, 15), "Gurugram": (16, 14, 12)}.items() for d, n in zip(("Engineering", "Sales", "Support"), row)]),
+                    sql="SELECT location, department, count(*) AS employees FROM employees GROUP BY 1, 2", tables_used=["employees"]),
+        InsightTile(id="heat-rating", title="Ratings by grade", kind="relationship", statement="Rating 3 is the most common in every grade; grade L5 has the highest share of 5s.",
+                    chart=ChartSpec(type="heatmap", x="grade", y=["employees"], series="rating", title="Ratings by grade"),
+                    table=_table(["grade", "rating", "employees"], [[g, r, max(1, (7 - abs(r - 3) * 3) * (6 - i))] for i, g in enumerate(("L1", "L2", "L3", "L4", "L5")) for r in range(1, 6)]),
+                    sql="SELECT e.grade, p.rating, count(*) ...", tables_used=["employees", "performance_reviews"]),
+        InsightTile(id="quality", title="What to check in your data", kind="quality", statement="1 of 7 tables needs a look: 3 amounts in the salary register could not be read.",
+                    insights=["6 duplicate rows removed", "4 personal-data columns hidden from the AI", "93% of employees have pay records"]),
+    ]
+
+
+def dashboard() -> Dashboard:
+    t = {x.id: x for x in tiles()}
+    return Dashboard(session_id="fixture", catalog_version=1, generated_ms=84, sections=[
+        DashboardSection(title="People", description="Who works here today.", tiles=[t["kpi-headcount"], t["break-dept"], t["share-gender"], t["stack-loc"]]),
+        DashboardSection(title="Pay", description="What was paid, and how it is spread.", tiles=[t["kpi-pay"], t["trend-pay"], t["dist-ctc"]]),
+        DashboardSection(title="Performance", tiles=[t["heat-rating"]]),
+        DashboardSection(title="Data quality", tiles=[t["quality"]]),
+    ])
+
+
+def analyses() -> AnalysisCatalog:
+    m, c, d = ["measure"], ["category"], ["date"]
+    agg = AnalysisOption(key="aggregate", label="How to combine", choices=["sum", "average", "count", "median", "min", "max"])
+    kinds = [
+        AnalysisKind(key="breakdown", name="Break down", description="Split one number by a group.", example="Average CTC by department", inputs=[AnalysisInput(key="measure", label="What to measure", accepts=m), AnalysisInput(key="by", label="Split by", accepts=c)], options=[agg]),
+        AnalysisKind(key="trend", name="Trend over time", description="See how a number moves month by month.", example="Gross pay by month", inputs=[AnalysisInput(key="measure", label="What to measure", accepts=m), AnalysisInput(key="date", label="Over which date", accepts=d), AnalysisInput(key="by", label="Separate lines for", accepts=c, optional=True)], options=[agg, AnalysisOption(key="grain", label="Every", choices=["month", "quarter", "year", "week"])]),
+        AnalysisKind(key="top_n", name="Top and bottom", description="Find the highest and lowest groups.", example="Top 5 locations by headcount", inputs=[AnalysisInput(key="measure", label="What to measure", accepts=m), AnalysisInput(key="by", label="Rank what", accepts=c)], options=[agg, AnalysisOption(key="top_n", label="How many", choices=["5", "10", "20"])]),
+        AnalysisKind(key="distribution", name="Distribution", description="See how values are spread, with the median and the tails.", example="How CTC is spread", inputs=[AnalysisInput(key="measure", label="Which number", accepts=m)]),
+        AnalysisKind(key="share", name="Share of total", description="What part of the whole each group makes up.", example="Share of gross pay by department", inputs=[AnalysisInput(key="measure", label="What to measure", accepts=m), AnalysisInput(key="by", label="Split by", accepts=c)], options=[agg]),
+        AnalysisKind(key="pivot", name="Two-way table", description="Cross one group with another.", example="Headcount by department and location", inputs=[AnalysisInput(key="measure", label="What to measure", accepts=m), AnalysisInput(key="by", label="Rows", accepts=c), AnalysisInput(key="across", label="Columns", accepts=c)], options=[agg]),
+        AnalysisKind(key="correlation", name="Do two numbers move together?", description="Compare two measures row by row.", example="CTC against rating", inputs=[AnalysisInput(key="measure", label="First number", accepts=m), AnalysisInput(key="measure_b", label="Second number", accepts=m)]),
+        AnalysisKind(key="change", name="Change between periods", description="Compare one period with the one before.", example="Gross pay, this month vs last", inputs=[AnalysisInput(key="measure", label="What to measure", accepts=m), AnalysisInput(key="date", label="Over which date", accepts=d), AnalysisInput(key="by", label="Split by", accepts=c, optional=True)], options=[agg, AnalysisOption(key="grain", label="Compare by", choices=["month", "quarter", "year"])]),
+        AnalysisKind(key="outliers", name="Unusual values", description="List the rows far outside the usual range.", example="Unusually high deductions", inputs=[AnalysisInput(key="measure", label="Which number", accepts=m)]),
+    ]
+    cat = make_session().catalog
+    kind_of = {"currency": "measure", "integer": "measure", "decimal": "measure", "percent": "measure", "date": "date"}
+    columns = [ColumnChoice(ref=f"{t.name}.{c.name}", label=c.label, table_label=t.source_file, kind=kind_of.get(c.type, "category"))
+               for t in cat.tables if not t.is_view for c in t.columns if not c.pii and not c.is_identifier]
+    return AnalysisCatalog(kinds=kinds, columns=columns)
+
+
+def write_insight_fixtures() -> None:
+    OUT.mkdir(parents=True, exist_ok=True)
+    (OUT / "dashboard.json").write_text(dashboard().model_dump_json(indent=2), encoding="utf-8")
+    (OUT / "analyses.json").write_text(analyses().model_dump_json(indent=2), encoding="utf-8")
+    (OUT / "tile.json").write_text(tiles()[3].model_dump_json(indent=2), encoding="utf-8")
+    print("wrote 3 insight fixtures")
+
+
 if __name__ == "__main__":
     main()
+    write_insight_fixtures()
