@@ -1,0 +1,58 @@
+// The exact values behind every answer. Cells show the backend's display strings, so the table,
+// the answer text and the chart tooltips all quote the same figure.
+import type { ResultTable } from '../../types'
+import { humanize } from '../../lib/format'
+
+// ponytail: the server caps a result at 5,000 rows; drawing them all stalls a phone. Show the
+// first 200 and say so. Add paging or CSV export (P2) if analysts need to read further.
+const MAX_RENDERED_ROWS = 200
+
+/** A column is right-aligned when every value it holds is a number (empty cells aside). */
+function numericColumns(table: ResultTable): boolean[] {
+  return table.columns.map((_, c) => {
+    const cells = table.rows.map((row) => row[c]).filter((cell) => cell !== null)
+    return cells.length > 0 && cells.every((cell) => typeof cell === 'number')
+  })
+}
+
+export default function DataTable({ table, caption }: { table: ResultTable; caption: string }) {
+  if (table.rows.length === 0) return <p className="text-sm text-ink-soft">The query ran and returned no rows.</p>
+  const numeric = numericColumns(table)
+  const shown = table.rows.slice(0, MAX_RENDERED_ROWS)
+  const cut = shown.length < table.rows.length || table.truncated
+  return (
+    <div>
+      {/* ~12 rows tall, then it scrolls inside the card; wide results scroll sideways on a phone. */}
+      <div className="max-h-[26.5rem] overflow-auto rounded-lg border border-line" tabIndex={0} role="region" aria-label={`${caption}, table`}>
+        <table className="w-full border-collapse text-sm">
+          <caption className="sr-only">{caption}</caption>
+          <thead>
+            <tr>
+              {table.columns.map((name, c) => (
+                <th key={c} scope="col" className={`sticky top-0 border-b border-line bg-sunken px-3 py-2 font-medium whitespace-nowrap text-ink-soft ${numeric[c] ? 'text-right' : 'text-left'}`}>
+                  {humanize(name)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((row, r) => (
+              <tr key={r} className="border-b border-line last:border-b-0">
+                {row.map((cell, c) => (
+                  <td key={c} className={`max-w-xs truncate px-3 py-1.5 text-ink ${numeric[c] ? 'text-right tabular-nums' : 'text-left'}`} title={table.display[r]?.[c]}>
+                    {table.display[r]?.[c] ?? String(cell ?? '—')}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {cut && (
+        <p className="mt-2 text-xs text-ink-soft">
+          Showing the first {shown.length.toLocaleString('en-IN')} rows. The full result is longer. Add a filter or a grouping to your question to narrow it down.
+        </p>
+      )}
+    </div>
+  )
+}
