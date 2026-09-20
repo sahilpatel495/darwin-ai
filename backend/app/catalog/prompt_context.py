@@ -61,8 +61,11 @@ def _column_line(col: ColumnProfile) -> str:
     # Identifier values are row-level data and useless as filter literals, so never listed.
     if col.values and len(col.values) <= MAX_VALUES and not col.is_identifier:
         safe = [v for v in col.values if _is_safe_value(v)]  # dropped, never truncated
-        hidden = " (some values hidden)" if len(safe) < len(col.values) else ""
-        parts.append("values: " + json.dumps(safe, ensure_ascii=False) + hidden)
+        if safe:
+            hidden = " (some values hidden)" if len(safe) < len(col.values) else ""
+            parts.append("values: " + json.dumps(safe, ensure_ascii=False) + hidden)
+        else:  # an empty list would read as an empty column; say what it is instead
+            parts.append("free text, values hidden")
     elif col.min is not None and col.max is not None and col.type != "text":
         parts.append(f"range: {col.min}..{col.max}")
     if col.null_fraction >= 0.01:

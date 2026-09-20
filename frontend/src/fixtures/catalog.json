@@ -552,8 +552,8 @@
           "min": null,
           "max": null,
           "values": [
-            "attendance_q1.csv",
-            "attendance_q2.csv"
+            "attendance_q1",
+            "attendance_q2"
           ]
         }
       ],

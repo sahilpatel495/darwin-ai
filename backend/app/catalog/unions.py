@@ -81,7 +81,10 @@ def _compatible_parts(members: list[TableProfile]) -> list[list[TableProfile]]:
 
     ponytail: first fit, in upload order, so a different order could stack a different pair
     when more than one split is possible. Real exports differ from each other, not from an
-    order; rank the parts by size if that ever stops being true.
+    order; rank the parts by size if that ever stops being true. It also re-resolves the
+    whole part per candidate, which is cubic in the group size; a session holds at most 30
+    tables, so the worst case is still milliseconds. Carry the resolved map per part if that
+    limit ever rises.
     """
     parts: list[list[TableProfile]] = []
     for member in members:

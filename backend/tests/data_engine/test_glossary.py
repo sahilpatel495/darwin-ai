@@ -126,14 +126,46 @@ def test_a_metric_with_missing_roles_is_returned_without_a_hint(catalog):
     assert resolved.bindings == {"join_date": "employees.date_of_joining"}
 
 
-def test_a_role_column_with_no_values_at_all_is_a_missing_role_not_a_zero(catalog):
-    """The Active sheet of a staff workbook keeps its empty LWD column, so a session holding
-    only that sheet has an exit_date column with nothing in it. Bound, the attrition pattern
-    runs and answers 0%: nobody left. Unbound, the app refuses and names what is missing."""
-    exit_date = next(c for t in catalog.tables for c in t.columns if c.role == "exit_date")
-    exit_date.distinct_count, exit_date.null_fraction = 0, 1.0
-    (resolved,) = match_metrics("What is the attrition rate for FY25?", catalog)
-    assert resolved.missing_roles == ["exit_date"] and resolved.sql_hint == ""
+@pytest.mark.parametrize(("role", "question", "metric"), [
+    ("exit_date", "What is the attrition rate for FY25?", "attrition_rate"),
+    ("gender", "gender ratio", "gender_ratio"),
+])
+def test_a_role_column_with_no_values_at_all_is_a_missing_role_not_a_zero(catalog, role, question, metric):
+    """A header with nothing under it is kept as an empty column, so a role column can hold
+    no values at all. Bound, the pattern runs and answers over nothing — attrition comes back
+    0%, "nobody left" — which is a refusal turned into a number. Unbound, the metric reports
+    the role as missing and the app says which data it has not got.
+
+    Reachable today wherever the role allows text: a "Manager Id" or "Final Rating" column
+    that is entirely blank is typed text, takes its role from the header, and used to satisfy
+    span of control and rating distribution. An empty *date* column is typed text and so
+    loses its role on type already; this guard is what makes that a rule instead of luck."""
+    column = next(c for t in catalog.tables for c in t.columns if c.role == role)
+    column.distinct_count, column.null_fraction, column.values = 0, 1.0, None
+    (resolved,) = match_metrics(question, catalog)
+    assert resolved.metric.key == metric
+    assert role in resolved.missing_roles and resolved.sql_hint == ""
+
+
+def test_roles_spread_over_two_tables_are_a_missing_role_not_a_hint_that_cannot_run(catalog):
+    """Every pattern has one {role@table}, so one FROM. Taking the other role from a second
+    table wrote `count(DISTINCT staff.emp_no) ... FROM stores`, which DuckDB refuses. The
+    honest answer is that this data cannot compute the metric.
+
+    Real case: stores.Manager EmpNo is the only manager_id in the messy file set, and the
+    employee ids live in the staff master."""
+    employees = next(t for t in catalog.tables if t.name == "employees")
+    stores = TableProfile(name="stores", source_file="stores.csv", row_count=25,
+                          columns=[ColumnProfile(name="manager_emp_no", label="Manager EmpNo", type="text",
+                                                 role="manager_id", distinct_count=25)],
+                          health=DataHealth(rows=25, columns=1))
+    catalog.tables.append(stores)
+    assert any(c.role == "employee_id" for c in employees.columns)
+
+    (resolved,) = match_metrics("span of control", catalog)
+    assert resolved.missing_roles == ["manager_id"] and resolved.sql_hint == ""
+    assert list(resolved.bindings) == ["employee_id"]  # never stores.manager_emp_no
+    assert "stores" not in "".join(resolved.bindings.values())
 
 
 def test_the_empty_column_is_ignored_for_ambiguity_chips_too(catalog):

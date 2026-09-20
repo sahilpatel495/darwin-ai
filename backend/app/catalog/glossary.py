@@ -194,9 +194,17 @@ def _column_with_role(table: TableProfile, role: str) -> ColumnProfile | None:
 
 
 def _resolve(metric: Metric, catalog: Catalog) -> ResolvedMetric:
-    """Bind each role the metric needs to one real column. Every role is taken from the same
-    table when possible: the one covering the most required roles, a union view winning a tie
-    because it holds the whole dataset rather than one quarter of it."""
+    """Bind each role the metric needs to one real column of ONE table: the table covering
+    the most required roles, a union view winning a tie because it holds the whole dataset
+    rather than one quarter of it.
+
+    One table, not the best column wherever it lives, because every pattern has a single
+    {role@table} and therefore a single FROM. Reaching into a second table for the roles the
+    first one lacks wrote `count(DISTINCT staff_master_all.emp_no) ... FROM stores`, which
+    DuckDB refuses to bind — and the model was handed it as the vetted definition. A role
+    the chosen table does not have is reported missing, which is the truth: these files
+    cannot compute that metric, and the app should say so rather than half-write it.
+    """
     in_pattern = [role for role, _ in _PLACEHOLDER.findall(metric.sql_pattern)]
     needed = list(dict.fromkeys([*metric.required_roles, *in_pattern]))
     ranked = sorted(catalog.tables, key=lambda t: (
@@ -205,11 +213,10 @@ def _resolve(metric: Metric, catalog: Catalog) -> ResolvedMetric:
         not t.is_view))
 
     bindings: dict[str, str] = {}
-    for role in needed:
-        for table in ranked:
+    for table in ranked[:1]:  # empty catalog: nothing binds and every role is missing
+        for role in needed:
             if column := _column_with_role(table, role):
                 bindings[role] = f"{table.name}.{column.name}"
-                break
     missing = [role for role in needed if role not in bindings]
 
     def fill(match: re.Match[str]) -> str:

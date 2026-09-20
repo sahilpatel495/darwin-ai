@@ -124,10 +124,12 @@ any mess is added. If Verity disagrees with a number in it, Verity is wrong.
 
 Found by pushing every one of these files through `app.ingest.ingest_file` and
 `SessionStore().create().add_files(...)` with no model in the loop, and re-run the same way
-after the fixes below. The rest of this file still describes the behaviour *before* them:
+after each round of fixes below (last run: all nine files plus the four refusals, 2026-09-20,
+after findings 6-10). The rest of this file still describes the behaviour *before* them:
 the `Active` receipt line in the table above, the link table under "How the files relate"
-(fifteen links now, not sixteen, and no `payroll -> Separated` row) and step 4 of the test
-script are out of date and are not this section's to rewrite.
+(**eleven** links now, not sixteen, all of them active: no `payroll -> Separated` row and no
+`-> stores.Manager EmpNo` rows) and step 4 of the test script are out of date and are not
+this section's to rewrite.
 
 ### Fixed on 2026-09-20
 
@@ -151,7 +153,8 @@ script are out of date and are not this section's to rewrite.
    and 'sales' were read as 'Sales' (6 rows)." Department now reports 5 distinct values, and
    a plain `WHERE department = 'Sales'` returns all 164 active people (#14) and all 195 (#3).
    Nothing that differs by more than case and space is ever folded, and identifier and PII
-   columns are left alone entirely.
+   columns are left alone entirely. (The whitespace half of that rule was too loose and was
+   tightened the same day: see finding 8.)
 4. **The two-row header keeps its key.** A blank header cell takes the text from the row
    directly above it when that row names at least two columns and the text is short enough
    to be a column name, so `EmpNo` is named `EmpNo` rather than `column_1`, gets the
@@ -164,40 +167,91 @@ script are out of date and are not this section's to rewrite.
    being filtered out of existence, so ingest skips it with the same warning a header-only
    sheet gets: "The sheet “Notes” has no data rows, so it was skipped." A workbook whose
    sheets are *all* empty is still refused with "is empty".
+6. **No file or sheet name reaches the model any more** (this was finding 10). A combined
+   view's `source_file` column now holds the member **table** names, which are normalised
+   identifiers the prompt prints anyway: `staff_master_all.source_file` is
+   `["staff_master_active", "staff_master_separated"]` and `sales_all.source_file` is
+   `["sales_feb", "sales_jan", "sales_mar"]`, where both used to be the uploaded file names
+   (and, for two sheets of one workbook, `"staff_master.xlsx / Active"`). The parts are still
+   tellable apart, so "how did February compare with January?" over `sales_all` still works,
+   and the promise in `catalog/prompt_context.py` is whole again: a name the uploader chose
+   never reaches a prompt. `demo_data`'s `attendance_all` changed the same way — it is the
+   only intended change to the bundled sample data. Pinned by a test in
+   `backend/tests/test_prompt_context.py` that uploads two files whose *names* carry a
+   marker and asserts the marker is absent from `build_schema_context`.
+7. **"Manager EmpNo" is a manager id.** `stores.manager_emp_no` now gets the `manager_id`
+   role (the normaliser turns `Manager EmpNo` into `manager_emp_no`, which was simply not in
+   the dictionary), so the model is told what that column is instead of seeing an unlabelled
+   code. It cost the links panel something and flushed out a glossary bug: findings 14 and 15.
+8. **Spellings only fold on case and whitespace runs.** "Pre Sales" and "PreSales" are two
+   labels and no longer become one; folding now compares values after trimming, collapsing
+   runs of inner whitespace to one space, and case-folding, where it used to delete every
+   space. Nothing in these files changes (`Department` still reports 5 distinct values and
+   still says "Department: 'SALES' and 'sales' were read as 'Sales' (6 rows)"), but a real
+   `PreSales` team would have been renamed. Counting also stops at the 51st distinct
+   spelling now, so `attendance_punches_2025`'s 187,202 and 189,382 distinct punch times are
+   no longer counted in full only to be discarded.
+9. **A role column with no values does not stand for its role.** `match_metrics` ignores a
+   column whose `distinct_count` is 0, so a blank `Manager Id` or `Final Rating` column no
+   longer satisfies `span of control` or `rating distribution` and then answers over nothing;
+   the metric reports the role as missing and the app says which data it has not got. In
+   *these* files the empty `LWD` and `Exit Reason` columns on the `Active` sheet were already
+   saved by the type rule (an all-blank column is typed text, and `exit_date` needs a date),
+   so no number here moves — this makes that a rule rather than luck.
+10. **Combined views are no longer all-or-nothing.** A group of same-named files is split
+    into parts that also agree on every column type, and each part of two or more becomes a
+    view. Three monthly files where one typed a column differently used to produce *no* view
+    at all, which is how a half-year question quietly answers from one month. Nothing in
+    these files changes (`sales_jan/feb/mar` agree, so `sales_all` is still one view of
+    1,800 rows), and a file nothing stacks onto stays a table of its own.
 
 ### Still wrong
 
-6. **Punch times stay text.** `2025-01-02 09:14:23` is not a date and there is no time or
-   timestamp type, so `Punch In` and `Punch Out` are text: the time between two swipes cannot
-   be computed in SQL. Only the pre-computed `Hours Worked` column can answer hours
-   questions. Fixing it means a new `ColumnType`, which is a change to `contracts.py` and to
-   every module that maps types to DuckDB, formatting and charts.
-7. **An email inside free text is not flagged.** One `Remarks` cell contains an address; PII
-   detection needs 60% of sampled values to match, so the column is plain text. Nothing leaks
-   into a prompt (a text column with more than 30 distinct values never has its values
-   listed, and the prompt builder drops anything that looks like personal data anyway), but a
-   preview will show it. Lowering the threshold would flag ordinary comment columns as PII.
-8. `stores.Manager EmpNo` gets no semantic role ("manager_emp_no" is not one of the known
-   manager-id headers) and its link to the staff master stays *suggested* at 0.06 / 1.00.
-   The fix is one synonym in `app/profile/roles.py`, which is another engineer's file.
-9. **Every table keyed on EmpNo is linked to every other one.** Fifteen links where a person
-   would draw eight. The combined views took the sixteen down to eleven; rescuing the
-   appraisal sheet's key in finding 4 then added four (three of them active, including
-   `appraisal -> payroll` and `appraisal -> attendance`, both 1:N). The detector drops a
-   direct link between two fact
-   tables only when it is N:M; a table with one row per employee (exit interviews, the
-   appraisal sheet) is 1:N to everything and survives. The obvious generalisation was tried
-   and reverted: by cardinality alone, a one-row-per-employee sheet covering 80% of the staff
-   is indistinguishable from a master table, and the rule then throws away the *payroll* link
-   to the real staff master. Doing it properly means ranking candidate masters by key
-   coverage and by whether their key is itself a foreign key. Nothing here is false, and the
-   dangerous link of the sixteen (finding 2) is now on by default.
-10. **A combined view's `source_file` values are file and sheet names, and they reach the
-    model.** `staff_master_all.source_file` is listed to the model as
-    `["staff_master.xlsx / Active", "staff_master.xlsx / Separated"]`, because without those
-    literals the model cannot answer "how did February compare with January?" over
-    `sales_all`. It contradicts the promise in `catalog/prompt_context.py` that a file name,
-    which is text the uploader chose, never reaches a prompt: two same-schema files with
-    hostile names would put those names in front of the model. This predates the changes
-    above (`demo_data`'s `attendance_all` does the same) and the choice between the two
-    promises is not one ingestion can make on its own.
+11. **Punch times stay text.** `2025-01-02 09:14:23` is not a date and there is no time or
+    timestamp type, so `Punch In` and `Punch Out` are text: the time between two swipes
+    cannot be computed in SQL. Only the pre-computed `Hours Worked` column can answer hours
+    questions. Fixing it means a new `ColumnType`, which is a change to `contracts.py` and to
+    every module that maps types to DuckDB, formatting and charts.
+12. **An email inside free text is not flagged.** One `Remarks` cell contains an address; PII
+    detection needs 60% of sampled values to match, so the column is plain text, and a
+    preview will show it. Nothing leaks into a prompt, but not for the reason given here
+    before: `Remarks` has only 12 distinct values over 56 rows, so it *is* a candidate for
+    value listing, and every one of the twelve is then dropped by the prompt builder — they
+    are all longer than 40 characters or more than 4 words. The model is shown
+    `remarks text | values: [] (some values hidden)`, which is safe but says nothing, and an
+    empty list reads like an empty column. Lowering the PII threshold would flag ordinary
+    comment columns; suppressing the `values:` part when nothing survives is a one-line
+    change in `prompt_context.py` that was out of scope for this round.
+13. **Every table keyed on EmpNo is linked to every other one.** Eleven links where a person
+    would draw eight, and all eleven are active. The combined views took the original sixteen
+    down to eleven; rescuing the appraisal sheet's key in finding 4 then added four (three of
+    them active, including `appraisal -> payroll` and `appraisal -> attendance`, both 1:N);
+    finding 7 then removed the four suggested `-> stores.Manager EmpNo` rows. The detector
+    drops a direct link between two fact tables only when it is N:M; a table with one row per
+    employee (exit interviews, the appraisal sheet) is 1:N to everything and survives. The
+    obvious generalisation was tried and reverted: by cardinality alone, a one-row-per-employee
+    sheet covering 80% of the staff is indistinguishable from a master table, and the rule
+    then throws away the *payroll* link to the real staff master. Doing it properly means
+    ranking candidate masters by key coverage and by whether their key is itself a foreign
+    key. Nothing here is false, and the dangerous link of the sixteen (finding 2) is on by
+    default.
+14. **The stores-to-staff link is now not offered at all** — a new cost of finding 7, and the
+    one thing that got worse this round. `relationships._is_candidate` refuses to pair two
+    columns whose roles differ ("an employee id is not a manager id, however well the values
+    overlap"), so naming `stores.manager_emp_no` a `manager_id` removed the four suggested
+    rows it used to have, including the genuine
+    `staff_master_all.emp_no -> stores.Manager EmpNo` at 0.06 / 1.00. It was off by default
+    before, so no answer changes, but a tester can no longer switch it on from the links
+    panel; the model can still write the join itself, because both columns are in the prompt.
+    The fix is in `app/catalog/relationships.py`, which nobody owned this round: `manager_id`
+    on one side and `employee_id` on the other is the one role pair that *should* be allowed
+    to meet, because a manager id is an employee id in the master table.
+15. **Span of control cannot be computed from these files, and now says so.** The only
+    `manager_id` here is `stores.Manager EmpNo`, which names the 25 store managers, not a
+    reporting line for 420 people. `glossary._resolve` used to take each role from whichever
+    table had it, so it bound `manager_id` to `stores` and `employee_id` to
+    `staff_master_all` and handed the model
+    `count(DISTINCT staff_master_all.emp_no) ... FROM stores`, which DuckDB refuses to bind.
+    Every role now comes from one table — a pattern has one `{role@table}` and so one `FROM` —
+    and the metric reports `manager_id` missing instead. An honest refusal, but the underlying
+    gap is real: no file here records who reports to whom.
