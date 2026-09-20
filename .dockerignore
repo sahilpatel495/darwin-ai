@@ -27,3 +27,4 @@ frontend/dist
 **/*.pem
 **/*.key
 **/.git
+.worktrees

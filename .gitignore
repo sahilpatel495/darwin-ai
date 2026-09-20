@@ -25,3 +25,6 @@ test-results/
 # browser automation artefacts
 .playwright-mcp/
 eval/.llm_cache/
+
+# isolated checkouts for long-running agent work
+.worktrees/
