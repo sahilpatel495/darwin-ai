@@ -53,11 +53,11 @@ export default function SampleFilesDialog({ open, onClose, onLoad, busy }: Sampl
       footer={
         <>
           {listing.state === 'ready' && (
-            <a href={SAMPLE_ZIP_URL} download className="mr-auto type-small">
+            <a href={SAMPLE_ZIP_URL} download className="mr-auto self-center text-body-sm">
               Download all (zip)
             </a>
           )}
-          <Button onClick={onClose}>Close</Button>
+          <Button variant="ghost" onClick={onClose}>Close</Button>
           <Button
             variant="primary"
             disabled={busy}
@@ -66,7 +66,7 @@ export default function SampleFilesDialog({ open, onClose, onLoad, busy }: Sampl
               onLoad()
             }}
           >
-            Load this data
+            Open the sample company
           </Button>
         </>
       }
@@ -80,8 +80,8 @@ export default function SampleFilesDialog({ open, onClose, onLoad, busy }: Sampl
       )}
 
       {listing.state === 'unavailable' && (
-        <p className="type-body text-ink-2">
-          This server does not hand out the sample files on their own. Choose Load this data to open them in a project, where every file lists what was
+        <p className="text-body-md text-slate">
+          This server does not hand out the sample files on their own. Choose Open the sample company to open them in a project, where every file lists what was
           read and what was cleaned.
         </p>
       )}
@@ -91,12 +91,12 @@ export default function SampleFilesDialog({ open, onClose, onLoad, busy }: Sampl
           {listing.files.map((file) => (
             <ListRow as="li" key={file.name} className="items-baseline justify-between gap-4">
               <span className="min-w-0 flex-1">
-                <a href={sampleFileUrl(file.name)} download className="type-body font-medium">
+                <a href={sampleFileUrl(file.name)} download className="text-body-md font-bold">
                   {file.name}
                 </a>
-                {file.description && <span className="block type-small text-ink-2">{file.description}</span>}
+                {file.description && <span className="block text-body-sm text-slate">{file.description}</span>}
               </span>
-              <span className="tnum shrink-0 type-small text-ink-2">{fileSize(file.size)}</span>
+              <span className="tnum shrink-0 text-body-sm text-steel">{fileSize(file.size)}</span>
             </ListRow>
           ))}
         </ul>

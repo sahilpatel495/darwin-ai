@@ -23,7 +23,7 @@ test('a negative number stays a number, so the column still sums in Excel', () =
 test('the file name is the question, slugified, with a fallback when nothing survives', () => {
   assert.equal(csvFileName('What was total gross pay, by dept?'), 'what-was-total-gross-pay-by-dept.csv')
   assert.equal(csvFileName('../../etc/passwd'), 'etc-passwd.csv')
-  assert.equal(csvFileName('वेतन?'), 'verity-result.csv')
+  assert.equal(csvFileName('वेतन?'), 'darwinlens-result.csv')
   assert.ok(csvFileName('a'.repeat(59) + ' b '.repeat(50)).length <= 64)
   assert.ok(!csvFileName('x'.repeat(59) + ' y').includes('-.csv'), 'no dash left dangling where the name was cut')
 })

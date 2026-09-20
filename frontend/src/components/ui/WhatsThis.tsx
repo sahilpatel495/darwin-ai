@@ -23,8 +23,8 @@ export default function WhatsThis({ title, body, align = 'left', className }: Wh
       title={title}
       align={align}
       className={cx(
-        'inline-flex size-[18px] items-center justify-center rounded-pill bg-fill align-middle',
-        'text-[11px] leading-none font-bold text-ink-2 hover:bg-fill-hover hover:text-ink',
+        'inline-flex size-[18px] items-center justify-center rounded-full bg-surface-soft align-middle',
+        'text-[11px] leading-none font-bold text-slate hover:bg-surface-soft-hover hover:text-ink',
         className,
       )}
     >

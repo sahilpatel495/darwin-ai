@@ -139,7 +139,7 @@ test('stacked bar: one bar per location, one segment per department', () => {
 })
 
 test('grouped bar: more series than there are colours falls back to the table with a reason', () => {
-  const rows = ['a', 'b', 'c', 'd', 'e', 'f'].map((s) => ['Engineering', s, 1])
+  const rows = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((s) => ['Engineering', s, 1])
   const data = buildChartData(spec({ type: 'grouped_bar', x: 'd', series: 's', y: ['n'] }), table(['d', 's', 'n'], rows))
   assert.equal(data.kind, 'table')
   assert.match(data.reason, /table/)

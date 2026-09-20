@@ -1,8 +1,8 @@
 // The exact values behind every answer. Cells show the backend's display strings, so the table,
 // the answer text and the chart tooltips all quote the same figure.
 //
-// A sticky header on `surface-2`, a hairline under every row, figures right-aligned with tabular
-// numerals so a column of rupees lines up.
+// A sticky header on the soft surface, a hairline under every row, figures right-aligned with
+// tabular numerals so a column of rupees lines up (§8).
 import type { ResultTable } from '../../types'
 import { humanize } from '../../lib/format'
 
@@ -28,15 +28,15 @@ interface DataTableProps {
 }
 
 export default function DataTable({ table, caption, cutNote }: DataTableProps) {
-  if (table.rows.length === 0) return <p className="type-body text-ink-2">The query ran and returned no rows.</p>
+  if (table.rows.length === 0) return <p className="text-body-md text-slate">The query ran and returned no rows.</p>
   const numeric = numericColumns(table)
   const shown = table.rows.slice(0, MAX_RENDERED_ROWS)
   const cut = shown.length < table.rows.length || table.truncated
   return (
     <div>
       {/* ~12 rows tall, then it scrolls in place; wide results scroll sideways on a phone. */}
-      <div className="max-h-[26.5rem] overflow-auto rounded-card border border-line-soft" tabIndex={0} role="region" aria-label={`${caption}, table`}>
-        <table className="w-full border-collapse type-small">
+      <div className="max-h-[26.5rem] overflow-auto rounded-xxl border border-hairline-soft" tabIndex={0} role="region" aria-label={`${caption}, table`}>
+        <table className="w-full border-collapse text-body-sm">
           <caption className="sr-only">{caption}</caption>
           <thead>
             <tr>
@@ -44,7 +44,7 @@ export default function DataTable({ table, caption, cutNote }: DataTableProps) {
                 <th
                   key={c}
                   scope="col"
-                  className={`sticky top-0 z-10 border-b border-line bg-surface-2 px-3 py-2 font-semibold whitespace-nowrap text-ink ${numeric[c] ? 'text-right' : 'text-left'}`}
+                  className={`sticky top-0 z-10 border-b border-hairline bg-surface-soft px-4 py-2.5 font-bold whitespace-nowrap text-ink-deep ${numeric[c] ? 'text-right' : 'text-left'}`}
                 >
                   {humanize(name)}
                 </th>
@@ -53,9 +53,9 @@ export default function DataTable({ table, caption, cutNote }: DataTableProps) {
           </thead>
           <tbody>
             {shown.map((row, r) => (
-              <tr key={r} className="border-b border-line-soft last:border-b-0 hover:bg-surface-2">
+              <tr key={r} className="border-b border-hairline-soft last:border-b-0 hover:bg-surface-soft">
                 {row.map((cell, c) => (
-                  <td key={c} className={`max-w-xs truncate px-3 py-1.5 text-ink ${numeric[c] ? 'text-right tnum' : 'text-left'}`} title={table.display[r]?.[c]}>
+                  <td key={c} className={`max-w-xs truncate px-4 py-2 text-ink ${numeric[c] ? 'text-right tnum' : 'text-left'}`} title={table.display[r]?.[c]}>
                     {table.display[r]?.[c] ?? String(cell ?? '—')}
                   </td>
                 ))}
@@ -65,7 +65,7 @@ export default function DataTable({ table, caption, cutNote }: DataTableProps) {
         </table>
       </div>
       {cut && (
-        <p className="mt-3 type-small text-ink-2">
+        <p className="mt-3 text-body-sm text-slate">
           {cutNote ?? `Showing the first ${shown.length.toLocaleString('en-IN')} rows. The full result is longer. Add a filter or a grouping to your question to narrow it down.`}
         </p>
       )}

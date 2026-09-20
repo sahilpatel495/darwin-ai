@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Metric } from '../../types'
-import { Button } from '../ui'
+import { Button, Input, Textarea, cx } from '../ui'
 import Expander from './Expander'
 import { metricProblem, parseSynonyms } from './wording'
 
@@ -14,13 +14,9 @@ interface GlossaryProps {
   glossary: Metric[]
   /** Files are not loaded: the definitions still read, but the server cannot be told about a change. */
   readOnly: boolean
-  /** Resolves true when saved. The sidebar reports failures, so this only drives the "Saved" note. */
+  /** Resolves true when saved. The drawer reports failures, so this only drives the "Saved" note. */
   onSave: (glossary: Metric[]) => Promise<boolean>
 }
-
-const FIELD =
-  'mt-1 block w-full rounded-input border border-line bg-surface-2 px-2.5 py-2 type-small text-ink placeholder:text-ink-3 disabled:opacity-60'
-const LABEL = 'block type-small font-semibold text-ink-2'
 
 function MetricEditor({ metric, glossary, readOnly, onSave }: GlossaryProps & { metric: Metric }) {
   const [definition, setDefinition] = useState(metric.definition)
@@ -41,61 +37,59 @@ function MetricEditor({ metric, glossary, readOnly, onSave }: GlossaryProps & { 
 
   return (
     <Expander
-      className="border-b border-line-soft last:border-b-0"
+      chevronAtEnd
+      className="border-b border-hairline-soft last:border-b-0"
+      summaryClassName="px-3 py-4"
       label={
         <>
-          <span className="block type-body font-semibold text-ink">{metric.name}</span>
-          <span className="block truncate type-small text-ink-2">{metric.definition}</span>
+          <span className="block text-subtitle-lg text-ink-deep">{metric.name}</span>
+          <span className="mt-0.5 block truncate text-body-sm text-slate">{metric.definition}</span>
         </>
       }
     >
-      <form onSubmit={save} className="space-y-3 pr-2 pb-4 pl-8">
-        <label className={LABEL}>
-          Definition
-          {/* Length caps keep an edited glossary from crowding out the rest of the model's instructions.
-              field-sizing: the box grows to fit, so nobody scrolls a four-line box inside a scrolling sidebar. */}
-          <textarea
-            required
-            rows={4}
-            maxLength={600}
-            disabled={readOnly}
-            value={definition}
-            onChange={(e) => {
-              setDefinition(e.target.value)
-              setState('idle')
-            }}
-            className={`${FIELD} [field-sizing:content]`}
-          />
-        </label>
-        <label className={LABEL}>
-          Other names for it, separated by commas
-          <input
-            type="text"
-            maxLength={200}
-            disabled={readOnly}
-            value={synonyms}
-            onChange={(e) => {
-              setSynonyms(e.target.value)
-              setState('idle')
-            }}
-            className={FIELD}
-          />
-        </label>
+      <form onSubmit={save} className="space-y-4 px-3 pb-5">
+        {/* Length caps keep an edited glossary from crowding out the rest of the model's instructions. */}
+        <Textarea
+          label="Definition"
+          required
+          rows={4}
+          maxLength={600}
+          disabled={readOnly}
+          value={definition}
+          onChange={(e) => {
+            setDefinition(e.target.value)
+            setState('idle')
+          }}
+        />
+        <Input
+          label="Other names for it, separated by commas"
+          type="text"
+          maxLength={200}
+          disabled={readOnly}
+          value={synonyms}
+          onChange={(e) => {
+            setSynonyms(e.target.value)
+            setState('idle')
+          }}
+        />
         {metric.required_roles.length > 0 && (
-          <p className="type-small text-ink-2">Needs these kinds of column: {metric.required_roles.map((role) => role.replaceAll('_', ' ')).join(', ')}.</p>
+          <p className="text-body-sm text-steel">Needs these kinds of column: {metric.required_roles.map((role) => role.replaceAll('_', ' ')).join(', ')}.</p>
         )}
-        {/* Folded by default: a SQL template with {placeholders} is for the engineer, and it sat
-            between the analyst and the Save button. */}
-        <details>
-          <summary className="w-fit cursor-pointer type-small font-semibold text-blue-ink">How it is calculated</summary>
-          <pre className="mt-1.5 rounded-input bg-surface-2 p-2.5 type-code break-words whitespace-pre-wrap text-ink">{metric.sql_pattern}</pre>
-        </details>
+        {/* Folded: a SQL template with {placeholders} is for the engineer, and open it sat between
+            the analyst and the Save button. */}
+        <Expander
+          chevronAtEnd
+          summaryClassName="px-0 py-2 hover:bg-transparent"
+          label={<span className="text-body-sm font-bold text-charcoal">How it is calculated</span>}
+        >
+          <pre className="mt-1 rounded-xl bg-surface-soft p-4 text-code break-words whitespace-pre-wrap text-ink">{metric.sql_pattern}</pre>
+        </Expander>
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" variant="primary" size="sm" loading={state === 'saving'} disabled={readOnly || !changed || problem !== null}>
             Save definition
           </Button>
           {/* One live region per entry, always in the DOM: a span added at save time is announced late or not at all. */}
-          <span role="status" className={`min-w-0 type-small font-medium break-words ${problem ? 'text-amber-ink' : 'text-green-ink'}`}>
+          <span role="status" className={cx('min-w-0 text-body-sm font-bold break-words', problem ? 'text-attention' : 'text-success')}>
             {problem ?? (state === 'saved' && 'Saved')}
           </span>
         </div>
@@ -105,13 +99,13 @@ function MetricEditor({ metric, glossary, readOnly, onSave }: GlossaryProps & { 
 }
 
 export default function Glossary({ glossary, readOnly, onSave }: GlossaryProps) {
-  if (glossary.length === 0) return <p className="type-body text-ink-2">No metric definitions are loaded for these files.</p>
+  if (glossary.length === 0) return <p className="measure text-body-md text-slate">No metric definitions are loaded for these files.</p>
   return (
     <div>
-      <p className="measure type-small text-ink-2">
-        “Attrition” can be computed three ways. These are the definitions Verity uses. Change them to match your company.
+      <p className="measure text-body-sm text-slate">
+        “Attrition” can be counted three ways, so DarwinLens answers with the definitions below — change them to match your company.
       </p>
-      <div className="-mx-2 mt-2">
+      <div className="-mx-3 mt-3">
         {glossary.map((metric) => (
           <MetricEditor key={metric.key} metric={metric} glossary={glossary} readOnly={readOnly} onSave={onSave} />
         ))}

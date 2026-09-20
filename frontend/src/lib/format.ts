@@ -92,7 +92,7 @@ export const formatShare = (fraction: number): string => (Number.isFinite(fracti
 export const formatDuration = (ms: number): string => (!Number.isFinite(ms) ? EMPTY : ms < 1000 ? `${Math.round(ms)} ms` : `${grouped(ms / 1000, 1, 1)} s`)
 
 /** SQL aliases and category keys are snake_case ("avg_ctc", "hr_metrics"); people read
- *  "Avg CTC" and "HR metrics". The short list covers the HR abbreviations Verity's own glossary
+ *  "Avg CTC" and "HR metrics". The short list covers the HR abbreviations DarwinLens's own glossary
  *  and eval categories use; anything else is simply sentence-cased. */
 export function humanize(columnName: string): string {
   const words = columnName

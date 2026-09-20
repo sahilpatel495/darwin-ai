@@ -28,7 +28,7 @@ before(async () => {
   vite = await createServer({
     root: new URL('../../..', import.meta.url).pathname,
     configFile: false, // no Tailwind or proxy needed to draw markup
-    cacheDir: `${tmpdir()}/verity-render-test`, // never touch the dev server's cache
+    cacheDir: `${tmpdir()}/darwinlens-render-test`, // never touch the dev server's cache
     appType: 'custom',
     logLevel: 'error',
     server: { middlewareMode: true, ws: false, hmr: false, watch: null },
@@ -53,10 +53,14 @@ const statement = (answer, props = {}, context = {}) =>
   renderToStaticMarkup(
     h(
       AnswerContext.Provider,
-      { value: { tables: catalog.tables, glossary: [], newAnswerId: null, tourAnswerId: null, canAsk: true, ...context } },
+      { value: { tables: catalog.tables, glossary: [], newAnswerId: null, canAsk: true, ...context } },
       h(AnswerStatement, { answer, mode: 'thread', onAsk: noop, onToggleSaved: noop, ...props }),
     ),
   )
+const SUGGESTIONS = [
+  { kind: 'Pay', glyph: 'rupee', question: 'What is the total gross pay by department?' },
+  { kind: 'People', glyph: 'people', question: 'How many people are in each location?' },
+]
 const thread = (props = {}) =>
   renderToStaticMarkup(
     h(Thread, {
@@ -67,12 +71,13 @@ const thread = (props = {}) =>
       savedAnswerIds: [],
       onToggleSaved: noop,
       onSessionExpired: noop,
-      emptyState: h('p', null, 'Here is what I found in your files'),
+      heroGreetingName: 'Sahil',
+      suggestions: SUGGESTIONS,
       ...props,
     }),
   )
 const result = (chart, table, props = {}) =>
-  renderToStaticMarkup(h(ResultView, { chart, table, data: chart ? buildChartData(chart, table) : null, question: 'q', allowSwitch: true, ...props }))
+  renderToStaticMarkup(h(ResultView, { chart, table, data: chart ? buildChartData(chart, table) : null, allowSwitch: true, ...props }))
 const working = (props) => renderToStaticMarkup(h(Working, { steps: [], running: false, ...props }))
 const step = (stage, status, detail = '') => ({ stage, status, detail })
 const tile = (id) => dashboard.sections.flatMap((section) => section.tiles).find((t) => t.id === id)
@@ -180,7 +185,8 @@ test('only a newly arrived answer pops its checks, and never on the board', () =
 test('a single value is the hero figure, with its supporting counts beside it', () => {
   const html = statement(kpi)
   assert.match(words(html), /28\.6% Attrition rate, 2025 Exits 2 Avg headcount 7/)
-  assert.match(html, /type-hero/, 'the hero figure')
+  // v3: the hero figure is the `heading-lg` role (36/1.28, tabular numerals) — docs §3.
+  assert.match(html, /text-heading-lg/, 'the hero figure')
   assert.doesNotMatch(words(html), /Download CSV/, 'one number needs no spreadsheet')
 })
 
@@ -201,20 +207,26 @@ test('the board is the statement without the controls', () => {
   assert.match(words(html), /Keep in mind/)
 })
 
-test('the answer can be copied, saved and taken apart; the board can do none of those', () => {
-  const html = words(statement(bar))
-  assert.match(html, /Save to board/)
-  assert.match(html, /Copy answer/)
-  assert.match(html, /How I got this/)
-  assert.doesNotMatch(words(statement(bar, { mode: 'board' })), /Copy answer/)
+test('the answer can be saved, copied, downloaded, expanded and taken apart', () => {
+  // v3 (§8): one compact toolbar of icon buttons, each named for the tooltip and the screen
+  // reader — and "How I got this" alone keeps its words, because it is the invitation to check.
+  const html = statement(bar)
+  for (const label of ['Save to board', 'Copy answer', 'Download CSV', 'Open the chart larger']) {
+    assert.match(html, new RegExp(`aria-label="${label}"`), label)
+  }
+  assert.match(words(html), /How I got this/)
+  assert.doesNotMatch(statement(bar, { mode: 'board' }), /aria-label="Copy answer"/)
+  // One number is not a spreadsheet, and there is nothing to expand.
+  assert.doesNotMatch(statement(kpi), /aria-label="Download CSV"|aria-label="Open the chart larger"/)
 })
 
-test('the result offers the shapes that fit it, and always the table and the file', () => {
+test('the result offers the shapes that fit it, and always the table', () => {
   const html = result(bar.chart, bar.table)
   assert.match(words(html), /Bar Donut Table/, 'a breakdown by department is also a share')
-  assert.match(words(html), /Download CSV/)
-  assert.match(html, /aria-label="Open the chart larger"/)
-  assert.match(html, /role="radiogroup" aria-label="Show the result as"/)
+  // v3: the chart-type switcher is PillTabs, so it is a tablist — docs §8. Downloading and
+  // expanding belong to the card's toolbar now, not to the picture.
+  assert.match(html, /role="tablist" aria-label="Show the result as"/)
+  assert.doesNotMatch(html, /Download CSV/)
   // A trend is a line, an area or a bar — never a donut.
   assert.match(words(result(tile('trend-pay').chart, tile('trend-pay').table)), /Line Area Bar Table/)
   assert.match(words(result(tile('stack-loc').chart, tile('stack-loc').table)), /Grouped Stacked Heatmap Table/)
@@ -254,14 +266,15 @@ test('every shape the backend can ask for draws, and says what it is', () => {
 test('a tile draws the chart alone: no switch, no download, no dialog', () => {
   const html = result(tile('share-gender').chart, tile('share-gender').table, { allowSwitch: false, data: null })
   assert.doesNotMatch(html, /<button/)
-  assert.doesNotMatch(html, /radiogroup/)
+  assert.doesNotMatch(html, /tablist/)
   // Both props optional, and a tile with no result at all draws nothing rather than crashing.
   assert.equal(renderToStaticMarkup(h(ResultView, { chart: null, table: null })), '')
 })
 
-test('the table view offers the rows as a CSV; an empty result offers nothing to download', () => {
-  assert.match(words(result(null, tableOf([['HR', 1], ['Sales', 2]]))), /Download CSV/)
-  assert.ok(!result(null, tableOf([])).includes('Download CSV'))
+test('a table answer offers its rows as a CSV; an empty result offers nothing to download', () => {
+  const rows = { ...bar, chart: null, table: tableOf([['HR', 1], ['Sales', 2]]) }
+  assert.match(statement(rows), /aria-label="Download CSV"/)
+  assert.doesNotMatch(statement({ ...rows, table: tableOf([]) }), /aria-label="Download CSV"/)
   assert.ok(!result(bar.chart, bar.table, { allowSwitch: false }).includes('Download CSV'), 'the board prints one view')
 })
 
@@ -287,11 +300,6 @@ test('How I got this carries the privacy line and the model messages word for wo
   for (const payload of bar.work.payloads) for (const message of payload.messages) assert.ok(html.includes(escaped(message.content)))
   assert.match(html, /Copy SQL/)
   assert.match(html, /data-section="payloads"/, 'the privacy line has somewhere to jump to')
-})
-
-test('the first answer in a thread is the one the tour points at', () => {
-  assert.match(statement(bar, {}, { tourAnswerId: bar.id }), /data-tour="working"/)
-  assert.doesNotMatch(statement(bar, {}, { tourAnswerId: 'another' }), /data-tour="working"/)
 })
 
 test('table: one row needs no footnote; 5,000 rows draw 200 and say so; an empty cell is a dash', () => {
@@ -346,13 +354,19 @@ test('working: once answered it folds to one line, and a failed step is named as
   assert.equal(working({ steps: [], running: false }), '', 'a turn with no timeline shows nothing at all')
 })
 
-test('thread: an empty thread is the briefing, a labelled composer and how to word a question', () => {
+test('thread: an empty thread is a greeting, the hero composer and four questions worth asking', () => {
   const html = thread()
-  assert.match(words(html), /Here is what I found in your files/)
-  assert.match(html, /<label for="verity-question"/)
+  // §8: the greeting, the composer, the suggestion cards. No briefing, and no paragraph of tips —
+  // the three writing tips are behind the "?" and are not in the page until it is opened.
+  assert.match(words(html), /What do you want to know, Sahil\?/)
+  assert.match(html, /<label for="darwinlens-question"/)
   assert.match(html, /<button type="submit" disabled=""/, 'nothing to ask yet')
-  assert.match(html, /data-tour="composer"/)
-  assert.match(words(html), /Name the measure: “gross pay”, not “pay”\./)
+  // The kind and the question are two inline spans in one card, so they join here.
+  assert.match(words(html), /PayWhat is the total gross pay by department\?/, 'a card: its kind, then the question')
+  assert.match(words(html), /More ideas/, 'and the rest are one press away')
+  assert.doesNotMatch(words(html), /Name the measure/)
+  assert.match(html, /aria-label="How to word a question"/, 'the tips are one press away')
+  assert.match(words(html), /Data: 4 files/, 'and the files behind the answers are named')
   // Screen-reader-only text is absolutely positioned. If the scroller is not `relative`, that text is laid
   // out against the page, the page grows as tall as the conversation, and the header scrolls away.
   assert.match(html, /class="relative [^"]*overflow-y-auto/)
@@ -363,14 +377,14 @@ test('thread: with no files loaded the history still reads and the composer is c
   assert.match(words(html), /Your files are no longer loaded\./)
   assert.ok(words(html).includes(bar.text), 'the answer is still readable')
   assert.match(html, /<textarea[^>]*disabled=""/)
-  assert.doesNotMatch(words(html), /Name the period/, 'no advice about a question that cannot be asked')
+  assert.match(words(html), /Files not loaded/, 'the composer says why it is closed')
 })
 
 test('thread: a saved answer says Saved, and a clarifying question cannot be saved at all', () => {
   const turn = (answer) => [{ id: answer.id, question: answer.question, answer, askedAt: '2025-01-01T00:00:00Z' }]
-  assert.match(words(thread({ turns: turn(bar), savedAnswerIds: [bar.id] })), /Saved/)
-  assert.match(words(thread({ turns: turn(bar) })), /Save to board/)
-  assert.doesNotMatch(words(thread({ turns: turn({ ...clarify, id: 'c1' }) })), /Save to board/)
+  assert.match(thread({ turns: turn(bar), savedAnswerIds: [bar.id] }), /aria-label="Saved to board"/)
+  assert.match(thread({ turns: turn(bar) }), /aria-label="Save to board"/)
+  assert.doesNotMatch(thread({ turns: turn({ ...clarify, id: 'c1' }) }), /aria-label="Save(d)? to board"/)
 })
 
 test('trust report: the fixture reads as sentences and shows why a question failed', () => {

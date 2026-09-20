@@ -1,9 +1,10 @@
 // Draws the chart the backend's rules chose. The model never picks or styles a chart: the spec
 // is plain data, and chartData.ts has already turned anything that does not fit into a table.
 //
-// Clarity styling (§12): series colours in token order, no frame around the plot, a hairline
-// grid, one tooltip card everywhere, the legend as chips, every number through lib/format so the
-// axis, the tooltip and the table under them read the same. The draw happens once, on mount.
+// Canvas styling (§8): the §2 chart colours in token order, no frame around the plot, a hairline
+// grid, caption-size axis text in tabular numerals, one tooltip card everywhere, the legend as
+// chips, and every number through lib/format so the axis, the tooltip and the table under them
+// read the same. The draw happens once, on mount.
 import { useState } from 'react'
 import {
   Area,
@@ -32,22 +33,23 @@ import type { ChartData, Point, ScatterPoint, SeriesKind } from './chartData'
 type Plotted = Exclude<ChartData, { kind: 'table' | 'kpi' }>
 type Series = Extract<ChartData, { kind: SeriesKind }>
 
-// Written out in full so Tailwind sees each token in the source and keeps it in the CSS.
-// Seven, in the §2 order; the seventh is the grey a donut's "Other" slice takes.
+// The six §2 chart colours, in order, written out in full: a chart reads them through var(),
+// which Tailwind's class scanner cannot see.
 const SERIES_COLORS = [
-  'var(--color-series-1)',
-  'var(--color-series-2)',
-  'var(--color-series-3)',
-  'var(--color-series-4)',
-  'var(--color-series-5)',
-  'var(--color-series-6)',
-  'var(--color-series-7)',
+  'var(--color-chart-1)',
+  'var(--color-chart-2)',
+  'var(--color-chart-3)',
+  'var(--color-chart-4)',
+  'var(--color-chart-5)',
+  'var(--color-chart-6)',
 ]
-const OTHER_COLOR = 'var(--color-series-7)'
+// A donut's "Other" slice is the one grey on the wheel: it is a remainder, not a category.
+const OTHER_COLOR = 'var(--color-stone)'
 
-const TICK = { fill: 'var(--color-ink-2)', fontSize: 12 }
-const GRID = 'var(--color-line-soft)'
-const AXIS = { stroke: 'var(--color-line)' }
+// Caption size (§3), in the caption ink; the grid is a hairline and the baseline one step darker.
+const TICK = { fill: 'var(--color-steel)', fontSize: 12 }
+const GRID = 'var(--color-hairline-soft)'
+const AXIS = { stroke: 'var(--color-hairline)' }
 const shorten = (label: string): string => (label.length > 20 ? `${label.slice(0, 19)}…` : label) // full name is in the tooltip and table
 
 /** The largest number the value axis has to show, so every tick on it can share one unit. */
@@ -76,14 +78,14 @@ interface TipRow {
 
 function TipCard({ title, rows, format }: { title: string; rows: TipRow[]; format: ChartSpec['value_format'] }) {
   return (
-    <div className="rounded-card bg-surface px-3 py-2 type-micro text-ink shadow-3">
-      <p className="font-semibold">{title}</p>
-      <ul className="mt-1 space-y-0.5">
+    <div className="rounded-xl border border-hairline-soft bg-canvas px-3.5 py-2.5 text-caption text-ink shadow-level-2">
+      <p className="font-bold text-ink-deep">{title}</p>
+      <ul className="mt-1.5 space-y-1">
         {rows.map((row, i) => (
           <li key={i} className="flex items-center gap-2">
-            <span aria-hidden className="size-2 shrink-0 rounded-pill" style={{ background: row.color }} />
-            <span className="text-ink-2">{row.name}</span>
-            <span className="ml-auto pl-3 tnum font-semibold">{formatValue(row.value, format)}</span>
+            <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: row.color }} />
+            <span className="text-slate">{row.name}</span>
+            <span className="ml-auto pl-3 tnum font-bold text-ink-deep">{formatValue(row.value, format)}</span>
           </li>
         ))}
       </ul>
@@ -108,8 +110,8 @@ function Legend({ names, colors }: { names: string[]; colors: string[] }) {
   return (
     <ul className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5">
       {names.map((name, i) => (
-        <li key={i} className="inline-flex items-center gap-1.5 rounded-pill bg-fill px-2.5 py-1 type-micro text-ink-2">
-          <span aria-hidden className="size-2 shrink-0 rounded-pill" style={{ background: colors[i] }} />
+        <li key={i} className="inline-flex items-center gap-1.5 rounded-full bg-surface-soft px-3 py-1 text-caption text-slate">
+          <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: colors[i] }} />
           {name}
         </li>
       ))}
@@ -160,11 +162,11 @@ export default function ResultChart({ chart, data, height }: Props) {
         )}
       </div>
       {omitted > 0 && (
-        <p className="mt-3 type-small text-ink-2">
+        <p className="mt-3 text-body-sm text-slate">
           The first {count} of {count + omitted} rows are drawn. The table has all of them.
         </p>
       )}
-      {chart.note && <p className="mt-2 type-small text-ink-2">{chart.note}</p>}
+      {chart.note && <p className="mt-2 text-body-sm text-slate">{chart.note}</p>}
     </figure>
   )
 }
@@ -224,7 +226,7 @@ function BarPlot({ chart, data, height }: { chart: ChartSpec; data: Series; heig
               <YAxis width={64} tick={TICK} tickLine={false} axisLine={false} tickFormatter={valueTick} />
             </>
           )}
-          <Tooltip cursor={{ fill: 'var(--color-surface-2)' }} content={pointTooltip(data, format)} isAnimationActive={false} />
+          <Tooltip cursor={{ fill: 'var(--color-surface-soft)' }} content={pointTooltip(data, format)} isAnimationActive={false} />
           {data.series.map((_, i) => (
             <Bar
               key={i}
@@ -274,7 +276,7 @@ function LinePlot({ chart, data, height }: { chart: ChartSpec; data: Series; hei
           <CartesianGrid vertical={false} stroke={GRID} />
           <XAxis dataKey="x" tick={TICK} tickLine={false} axisLine={AXIS} minTickGap={24} padding={{ left: 12, right: 12 }} />
           <YAxis width={64} tick={TICK} tickLine={false} axisLine={false} domain={['auto', 'auto']} tickFormatter={axisTicks(format, axisMax(data))} />
-          <Tooltip cursor={{ stroke: 'var(--color-line)' }} content={pointTooltip(data, format)} isAnimationActive={false} />
+          <Tooltip cursor={{ stroke: 'var(--color-hairline)' }} content={pointTooltip(data, format)} isAnimationActive={false} />
           {data.series.map((_, i) =>
             area ? (
               <Area
@@ -286,7 +288,7 @@ function LinePlot({ chart, data, height }: { chart: ChartSpec; data: Series; hei
                 strokeWidth={2}
                 fill={`url(#fill-${i})`}
                 dot={false}
-                activeDot={{ r: 5, strokeWidth: 2, stroke: 'var(--color-surface)' }}
+                activeDot={{ r: 5, strokeWidth: 2, stroke: 'var(--color-canvas)' }}
                 isAnimationActive={draw}
                 animationDuration={400}
               />
@@ -299,7 +301,7 @@ function LinePlot({ chart, data, height }: { chart: ChartSpec; data: Series; hei
                 stroke={SERIES_COLORS[i]}
                 strokeWidth={2}
                 dot={data.points.length <= 24 ? { r: 3, strokeWidth: 0, fill: SERIES_COLORS[i] } : false}
-                activeDot={{ r: 5, strokeWidth: 2, stroke: 'var(--color-surface)' }}
+                activeDot={{ r: 5, strokeWidth: 2, stroke: 'var(--color-canvas)' }}
                 isAnimationActive={draw}
                 animationDuration={400}
               />
@@ -329,7 +331,7 @@ function DonutPlot({ chart, data, height }: { chart: ChartSpec; data: Extract<Ch
               content={({ active, payload }) => {
                 const slice = payload?.[0]?.payload as { name: string; value: number } | undefined
                 if (!active || !slice) return null
-                return <TipCard title={slice.name} rows={[{ name: share(slice.value), value: slice.value, color: 'var(--color-series-1)' }]} format={format} />
+                return <TipCard title={slice.name} rows={[{ name: share(slice.value), value: slice.value, color: 'var(--color-chart-1)' }]} format={format} />
               }}
             />
             <Pie
@@ -340,7 +342,7 @@ function DonutPlot({ chart, data, height }: { chart: ChartSpec; data: Extract<Ch
               outerRadius="92%"
               // 2px of surface between slices, rather than a stroke drawn around each one.
               paddingAngle={1}
-              stroke="var(--color-surface)"
+              stroke="var(--color-canvas)"
               strokeWidth={2}
               isAnimationActive={draw}
               animationDuration={400}
@@ -353,16 +355,16 @@ function DonutPlot({ chart, data, height }: { chart: ChartSpec; data: Extract<Ch
         </ResponsiveContainer>
         {/* The total, in the hole. Pointer-events off so it never steals a slice's hover. */}
         <div aria-hidden className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <p className="type-section tnum text-ink">{formatValue(data.total, format)}</p>
-          <p className="type-micro text-ink-2">Total</p>
+          <p className="text-heading-sm tnum text-ink-deep">{formatValue(data.total, format)}</p>
+          <p className="text-caption text-steel">Total</p>
         </div>
       </div>
       <ul className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5">
         {data.slices.map((slice, i) => (
-          <li key={slice.name} className="inline-flex items-center gap-1.5 rounded-pill bg-fill px-2.5 py-1 type-micro text-ink-2">
-            <span aria-hidden className="size-2 shrink-0 rounded-pill" style={{ background: colour(i) }} />
+          <li key={slice.name} className="inline-flex items-center gap-1.5 rounded-full bg-surface-soft px-3 py-1 text-caption text-slate">
+            <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: colour(i) }} />
             {slice.name === 'Other' ? `Other (${data.otherCount})` : slice.name}
-            <span className="tnum font-semibold text-ink">{share(slice.value)}</span>
+            <span className="tnum font-bold text-ink-deep">{share(slice.value)}</span>
           </li>
         ))}
       </ul>
@@ -377,13 +379,15 @@ function HeatmapPlot({ chart, data }: { chart: ChartSpec; data: Extract<ChartDat
   const format = chart.value_format
   // Values fit inside a cell while the grid is short; past that they are on hover and in the table.
   const inCell = data.cols.length <= 8
-  // blue-soft → blue, the §2 sequential scale: one hue, light to dark. It stops at half strength
-  // on purpose — the value is written inside the cell in ink, and a cell any deeper than this
-  // drops that text under 4.5:1 in dark mode, where the same scale runs the other way.
-  const shade = (strength: number) => `color-mix(in srgb, var(--color-blue) ${Math.round(12 + strength * 38)}%, var(--color-blue-soft))`
+  // heat-low → heat-high, the §2 sequential scale: one hue, light to dark. It stops at half
+  // strength on purpose — the value is written inside the cell in ink, and a cell any deeper than
+  // this drops that text under 4.5:1.
+  const shade = (strength: number) => `color-mix(in srgb, var(--color-heat-high) ${Math.round(12 + strength * 38)}%, var(--color-heat-low))`
   const cell = (value: number | null) =>
     value === null
-      ? { background: 'var(--color-surface-2)', color: 'var(--color-ink-3)' }
+      // A cell with no value still says so, in words the reader can actually make out: steel,
+      // not the disabled grey, because "there is nothing here" is information.
+      ? { background: 'var(--color-surface-soft)', color: 'var(--color-steel)' }
       : { background: shade(Math.abs(value) / data.max), color: 'var(--color-ink)' }
   return (
     <div className="overflow-x-auto">
@@ -391,13 +395,13 @@ function HeatmapPlot({ chart, data }: { chart: ChartSpec; data: Extract<ChartDat
         <div className="grid gap-1" style={{ gridTemplateColumns: `auto repeat(${data.cols.length}, minmax(48px, 1fr))` }}>
           <span />
           {data.cols.map((col) => (
-            <span key={col} className="truncate pb-1 text-center type-micro text-ink-2" title={col}>
+            <span key={col} className="truncate pb-1 text-center text-caption text-steel" title={col}>
               {col}
             </span>
           ))}
           {data.rows.map((row, r) => (
             <div key={row} className="contents">
-              <span className="self-center pr-2 text-right type-micro text-ink-2">{row}</span>
+              <span className="self-center pr-2 text-right text-caption text-steel">{row}</span>
               {data.cols.map((col, c) => {
                 const value = data.cells[r][c]
                 return (
@@ -405,7 +409,7 @@ function HeatmapPlot({ chart, data }: { chart: ChartSpec; data: Extract<ChartDat
                     key={col}
                     title={`${row}, ${col}: ${formatValue(value, format)}`}
                     style={cell(value)}
-                    className="flex h-9 items-center justify-center rounded-input type-micro tnum"
+                    className="flex h-9 items-center justify-center rounded-lg text-caption tnum"
                   >
                     {inCell ? formatValue(value, format) : ''}
                   </span>
@@ -414,10 +418,10 @@ function HeatmapPlot({ chart, data }: { chart: ChartSpec; data: Extract<ChartDat
             </div>
           ))}
         </div>
-        <div className="mt-3 flex items-center gap-2 type-micro text-ink-2">
+        <div className="mt-3 flex items-center gap-2 text-caption text-steel">
           <span>0</span>
           {/* The same two ends the cells use, so the legend is not a prettier scale than the grid. */}
-          <span aria-hidden className="h-2 w-28 rounded-pill" style={{ background: `linear-gradient(90deg, ${shade(0)}, ${shade(1)})` }} />
+          <span aria-hidden className="h-2 w-28 rounded-full" style={{ background: `linear-gradient(90deg, ${shade(0)}, ${shade(1)})` }} />
           <span className="tnum">{formatValue(data.max, format)}</span>
           <span>{humanize(chart.y[0] ?? '')}</span>
         </div>
@@ -437,22 +441,22 @@ function ScatterPlot({ data, height }: { data: Extract<ChartData, { kind: 'scatt
     <ResponsiveContainer width="100%" height={height ?? 300}>
       <ScatterChart margin={{ top: 8, right: 16, bottom: 20, left: 8 }}>
         <CartesianGrid stroke={GRID} />
-        <XAxis {...axis} dataKey="x" name={xLabel} axisLine={AXIS} label={{ value: xLabel, position: 'insideBottom', offset: -12, fontSize: 12, fill: 'var(--color-ink-2)' }} />
-        <YAxis {...axis} dataKey="y" name={yLabel} width={64} axisLine={false} label={{ value: yLabel, angle: -90, position: 'insideLeft', fontSize: 12, fill: 'var(--color-ink-2)' }} />
+        <XAxis {...axis} dataKey="x" name={xLabel} axisLine={AXIS} label={{ value: xLabel, position: 'insideBottom', offset: -12, fontSize: 12, fill: 'var(--color-steel)' }} />
+        <YAxis {...axis} dataKey="y" name={yLabel} width={64} axisLine={false} label={{ value: yLabel, angle: -90, position: 'insideLeft', fontSize: 12, fill: 'var(--color-steel)' }} />
         <Tooltip
-          cursor={{ stroke: 'var(--color-line)' }}
+          cursor={{ stroke: 'var(--color-hairline)' }}
           isAnimationActive={false}
           content={({ active, payload }) => {
             const point = payload?.[0]?.payload as ScatterPoint | undefined
             if (!active || !point) return null
             return (
-              <div className="rounded-card bg-surface px-3 py-2 type-micro text-ink shadow-3">
-                {point.label && <p className="font-semibold">{point.label}</p>}
-                <p className="text-ink-2">
-                  {xLabel}: <span className="tnum text-ink">{point.xDisplay}</span>
+              <div className="rounded-xl border border-hairline-soft bg-canvas px-3.5 py-2.5 text-caption text-ink shadow-level-2">
+                {point.label && <p className="font-bold text-ink-deep">{point.label}</p>}
+                <p className="text-slate">
+                  {xLabel}: <span className="tnum text-ink-deep">{point.xDisplay}</span>
                 </p>
-                <p className="text-ink-2">
-                  {yLabel}: <span className="tnum text-ink">{point.yDisplay}</span>
+                <p className="text-slate">
+                  {yLabel}: <span className="tnum text-ink-deep">{point.yDisplay}</span>
                 </p>
               </div>
             )
@@ -463,7 +467,7 @@ function ScatterPlot({ data, height }: { data: Extract<ChartData, { kind: 'scatt
           fill={SERIES_COLORS[0]}
           fillOpacity={0.75}
           // A 2px surface ring, so two dots that overlap stay two dots.
-          stroke="var(--color-surface)"
+          stroke="var(--color-canvas)"
           strokeWidth={2}
           isAnimationActive={draw}
           animationDuration={400}

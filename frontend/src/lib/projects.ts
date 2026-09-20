@@ -10,13 +10,17 @@
 import { useCallback, useState } from 'react'
 import type { Answer, Catalog, InsightTile, Metric, ResultTable } from '../types'
 
-const KEY = 'verity.projects.v1'
+/** One shelf of projects per person (§10), so signing in as somebody else shows their work and
+ *  not yours. A guest is a person too: their id is what they keep when they sign up. */
+const PREFIX = 'darwinlens.projects.v1'
+/** Everything stored before there were accounts, and before the rename. Moved across once. */
+const LEGACY_KEY = 'verity.projects.v1'
 const MAX_TURNS = 60
 const MAX_TABLE_ROWS = 200
 /** A board of 24 tiles already prints to about eight pages. Past that it is a document, not a board. */
 const MAX_SAVED_TILES = 24
 /** Fired after every write, so the shell can re-read a record another screen has just changed. */
-const CHANGED = 'verity:projects-changed'
+const CHANGED = 'darwinlens:projects-changed'
 
 export interface Turn {
   id: string
@@ -44,7 +48,8 @@ export interface ProjectRecord {
   savedAnswerIds: string[]
   /** Tiles kept from Overview and Analyses (§15). Order is the board's order, newest last. */
   savedTiles: InsightTile[]
-  tourDone?: boolean
+  /** Hints already dismissed (§10). Replaces the tour, which is gone. */
+  tipsSeen: string[]
 }
 
 // --- Pure helpers (tested in projects.test.mjs) ------------------------------------------------
@@ -141,12 +146,67 @@ export function lastOpened(iso: string, now = new Date()): string {
 
 const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
 
+/**
+ * Questions asked per day over the last `days` days, oldest first — the shape behind the sparkline
+ * on a project card (§8). A flat line is the truth about a project nobody has opened, so it is not
+ * hidden: the card says "no questions yet" beside it.
+ */
+export function activity(turns: readonly Turn[], days = 14, now = new Date()): number[] {
+  const today = startOfDay(now)
+  const counts = new Array<number>(days).fill(0)
+  for (const turn of turns) {
+    const asked = new Date(turn.askedAt).getTime()
+    if (Number.isNaN(asked)) continue
+    const ago = Math.round((today - startOfDay(new Date(asked))) / 86_400_000)
+    if (ago >= 0 && ago < days) counts[days - 1 - ago] += 1
+  }
+  return counts
+}
+
+/** A hint dismissed, on the record where the next visit will find it (§10). Pure. */
+export function withTipSeen(project: ProjectRecord, tipId: string): ProjectRecord {
+  const seen = project.tipsSeen ?? []
+  return seen.includes(tipId) ? project : { ...project, tipsSeen: [...seen, tipId] }
+}
+
 /** The files the analyst actually gave us. Combined views are ours, not theirs, so they are left out. */
 export function fileNamesFrom(catalog: Catalog): string[] {
   return [...new Set(catalog.tables.filter((table) => !table.is_view).map((table) => table.source_file))]
 }
 
 // --- Storage ------------------------------------------------------------------------------------
+
+/** Whose shelf we are reading. Null until the shell knows, and for a server with no accounts. */
+let userId: string | null = null
+const key = () => `${PREFIX}.${userId ?? 'local'}`
+
+/**
+ * Point every read and write at this person's shelf. Called by the shell as soon as it knows who
+ * is here, and again whenever that changes.
+ *
+ * The first person to arrive inherits whatever this browser stored before there were accounts:
+ * their projects are the ones that were on the screen a moment ago, and nobody else can claim
+ * them. It happens once, because the old key is removed as it is read.
+ *
+ * It announces nothing on purpose: the shell calls this while it renders, before any screen has
+ * read the shelf, and an event fired there would be a setState in the middle of a render. The
+ * screens are keyed by the reader instead, so a different person is a different mount.
+ */
+export function scopeProjectsTo(nextUserId: string | null): void {
+  if (nextUserId === userId) return
+  userId = nextUserId
+  try {
+    if (localStorage.getItem(key()) === null) {
+      const inherited = localStorage.getItem(LEGACY_KEY)
+      if (inherited !== null) {
+        localStorage.setItem(key(), inherited)
+        localStorage.removeItem(LEGACY_KEY)
+      }
+    }
+  } catch {
+    /* storage unavailable: there is nothing to inherit and nowhere to put it */
+  }
+}
 
 /** Anything that is not a list of things with an id and a turns array is not ours. */
 function isRecord(value: unknown): value is ProjectRecord {
@@ -156,11 +216,13 @@ function isRecord(value: unknown): value is ProjectRecord {
 
 function readAll(): ProjectRecord[] {
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = localStorage.getItem(key())
     const parsed: unknown = raw ? JSON.parse(raw) : []
-    // savedTiles arrived after the first release: a record stored before it has none, and every
-    // screen is allowed to read the field without checking.
-    return Array.isArray(parsed) ? parsed.filter(isRecord).map((record) => ({ ...record, savedTiles: record.savedTiles ?? [] })) : []
+    // savedTiles and tipsSeen arrived after the records that are already on disk: a record stored
+    // before them has neither, and every screen is allowed to read both without checking.
+    return Array.isArray(parsed)
+      ? parsed.filter(isRecord).map((record) => ({ ...record, savedTiles: record.savedTiles ?? [], tipsSeen: record.tipsSeen ?? [] }))
+      : []
   } catch {
     return [] // storage unavailable, or someone else's data under our key
   }
@@ -179,7 +241,7 @@ export function onProjectsChanged(listener: () => void): () => void {
 
 function writeAll(list: ProjectRecord[]): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(list))
+    localStorage.setItem(key(), JSON.stringify(list))
     return
   } catch {
     /* quota exceeded, or storage unavailable */
@@ -191,7 +253,7 @@ function writeAll(list: ProjectRecord[]): void {
   const smaller = shrink(list)
   if (!smaller) return
   try {
-    localStorage.setItem(KEY, JSON.stringify(smaller))
+    localStorage.setItem(key(), JSON.stringify(smaller))
   } catch {
     /* one retry is enough: the app works without history */
   }
@@ -202,13 +264,9 @@ export function listProjects(): ProjectRecord[] {
   return readAll().sort((a, b) => b.lastOpenedAt.localeCompare(a.lastOpenedAt))
 }
 
-/**
- * Has this browser been shown the tour? §6.7 says once, and it means once per person: the second
- * project an analyst makes is not the first time they have seen the product. The flag stays on
- * the record (§7); this is the question every caller actually wants to ask.
- */
-export function tourSeen(): boolean {
-  return readAll().some((project) => project.tourDone)
+/** Everything this person has in this browser, gone. The server side is `deleteAccount()`. */
+export function clearProjects(): void {
+  writeAll([])
 }
 
 export function getProject(id: string): ProjectRecord | null {
@@ -234,6 +292,7 @@ export function createProject(input: { name: string; isSample: boolean; fileName
     turns: [],
     savedAnswerIds: [],
     savedTiles: [],
+    tipsSeen: [],
   }
   writeAll([record, ...readAll()])
   return record

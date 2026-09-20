@@ -26,6 +26,8 @@ function fakeStorage({ failTimes = 0 } = {}) {
 globalThis.localStorage = fakeStorage()
 
 const {
+  activity,
+  clearProjects,
   createProject,
   deleteProject,
   fileNamesFrom,
@@ -35,16 +37,19 @@ const {
   listProjects,
   projectName,
   projectSummary,
+  scopeProjectsTo,
   shrink,
   toggleSavedTile,
-  tourSeen,
   trimAnswer,
   trimTile,
   trimTurns,
   updateProject,
+  withTipSeen,
 } = await import('./projects.ts')
 
-const KEY = 'verity.projects.v1'
+// Projects live on one shelf per person (§10). Every test below is that person's browser.
+scopeProjectsTo('u1')
+const KEY = 'darwinlens.projects.v1.u1'
 const stored = () => JSON.parse(globalThis.localStorage.getItem(KEY) ?? '[]')
 
 const answer = (rows = 0, payloads = 1) => ({
@@ -217,12 +222,59 @@ test('a browser with storage switched off loses the history, not the app', () =>
   assert.doesNotThrow(() => deleteProject(project.id))
 })
 
-test('the tour is shown once per browser, not once per project', () => {
+test('a dismissed hint stays dismissed, and is not added twice', () => {
+  const project = { id: 'p', tipsSeen: [] }
+  const once = withTipSeen(project, 'data-button')
+  assert.deepEqual(once.tipsSeen, ['data-button'])
+  assert.deepEqual(withTipSeen(once, 'data-button').tipsSeen, ['data-button'])
+  assert.deepEqual(project.tipsSeen, [], 'the record handed in is not changed')
+  assert.deepEqual(withTipSeen({ id: 'p' }, 'overview-tab').tipsSeen, ['overview-tab'], 'a record stored before tipsSeen existed')
+})
+
+test('a project card can draw the days it was used', () => {
+  const now = new Date(2026, 8, 20, 10, 0)
+  const ask = (daysAgo) => ({ id: `t${daysAgo}`, question: 'q', answer: answer(0, 1), askedAt: new Date(2026, 8, 20 - daysAgo, 9).toISOString() })
+  const days = activity([ask(0), ask(0), ask(3), ask(99)], 7, now)
+  assert.equal(days.length, 7)
+  assert.equal(days.at(-1), 2, 'today is the last point')
+  assert.equal(days[3], 1, 'three days ago')
+  assert.equal(
+    days.reduce((a, b) => a + b, 0),
+    3,
+    'a question older than the window is not counted',
+  )
+  assert.deepEqual(activity([{ askedAt: 'not a date' }], 3, now), [0, 0, 0])
+})
+
+test('each person has their own shelf, and the first of them inherits what was here before', () => {
   globalThis.localStorage = fakeStorage()
-  const first = createProject({ name: 'One', isSample: false, fileNames: ['a.csv'], sessionId: 's1' })
-  assert.equal(tourSeen(), false, 'a first visit has not seen it')
-  updateProject(first.id, { tourDone: true })
-  assert.equal(tourSeen(), true)
-  createProject({ name: 'Two', isSample: false, fileNames: ['b.csv'], sessionId: 's2' })
-  assert.equal(tourSeen(), true, 'the second project is not this person’s first day')
+  // What this browser stored before there were accounts, under the old name.
+  globalThis.localStorage.store.set('verity.projects.v1', JSON.stringify([{ id: 'old', name: 'Before accounts', turns: [] }]))
+
+  scopeProjectsTo('first')
+  assert.deepEqual(
+    listProjects().map((project) => project.name),
+    ['Before accounts'],
+    'the projects that were on the screen a moment ago are still here',
+  )
+  assert.equal(globalThis.localStorage.getItem('verity.projects.v1'), null, 'moved, not copied')
+
+  scopeProjectsTo('second')
+  assert.deepEqual(listProjects(), [], 'somebody else signing in does not see them')
+  createProject({ name: 'Theirs', isSample: false, fileNames: [], sessionId: 's' })
+
+  scopeProjectsTo('first')
+  assert.deepEqual(
+    listProjects().map((project) => project.name),
+    ['Before accounts'],
+    'and signing back in finds your own',
+  )
+})
+
+test('deleting your data empties this browser', () => {
+  globalThis.localStorage = fakeStorage()
+  scopeProjectsTo('erase-me')
+  createProject({ name: 'Gone', isSample: false, fileNames: [], sessionId: 's' })
+  clearProjects()
+  assert.deepEqual(listProjects(), [])
 })

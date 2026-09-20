@@ -16,7 +16,7 @@ test('accepts exactly the types from the brief, whatever the letter case', () =>
 test('an unsupported type is skipped with a sentence naming the file and what is supported', () => {
   const { accepted, problems } = checkFiles([file('employees.csv'), file('notes.pdf')])
   assert.deepEqual(accepted.map((f) => f.name), ['employees.csv'])
-  assert.deepEqual(problems, ['notes.pdf was skipped. Verity reads .csv, .tsv, .xlsx and .xlsm files.'])
+  assert.deepEqual(problems, ['notes.pdf was skipped. DarwinLens reads .csv, .tsv, .xlsx and .xlsm files.'])
 })
 
 test('a double extension cannot sneak past the check', () => {
@@ -45,7 +45,7 @@ test('more files than the server takes at once: the first ten go, the rest get a
   assert.equal(MAX_FILES_PER_UPLOAD, 10)
   assert.deepEqual(accepted.map((f) => f.name), picked.slice(0, 10).map((f) => f.name))
   assert.deepEqual(problems, [
-    'notes.pdf was skipped. Verity reads .csv, .tsv, .xlsx and .xlsm files.',
+    'notes.pdf was skipped. DarwinLens reads .csv, .tsv, .xlsx and .xlsm files.',
     'Only 10 files can be added at a time, so the last 2 were left out. Add them once these have loaded.',
   ])
   assert.deepEqual(checkFiles(picked.slice(0, 10)).problems, [])
@@ -54,7 +54,7 @@ test('more files than the server takes at once: the first ten go, the rest get a
 
 test('a very long file name is kept whole in its sentence, so the analyst can still tell which file it was', () => {
   const name = `${'x'.repeat(200)}.docx`
-  assert.deepEqual(checkFiles([file(name)]).problems, [`${name} was skipped. Verity reads .csv, .tsv, .xlsx and .xlsm files.`])
+  assert.deepEqual(checkFiles([file(name)]).problems, [`${name} was skipped. DarwinLens reads .csv, .tsv, .xlsx and .xlsm files.`])
 })
 
 test('the same file added twice is noticed: the server skips it and returns the catalog unchanged', () => {
@@ -68,9 +68,9 @@ test('a folder of scans gives a short message, not thirty identical lines', () =
   const { accepted, problems } = checkFiles([file('employees.csv'), ...Array.from({ length: 30 }, (_, i) => file(`scan_${i}.pdf`))])
   assert.equal(accepted.length, 1)
   assert.equal(problems.length, 6)
-  assert.equal(problems[0], 'scan_0.pdf was skipped. Verity reads .csv, .tsv, .xlsx and .xlsm files.')
-  assert.equal(problems[5], '25 more files were skipped too. Verity reads .csv, .tsv, .xlsx and .xlsm files of up to 25 MB.')
+  assert.equal(problems[0], 'scan_0.pdf was skipped. DarwinLens reads .csv, .tsv, .xlsx and .xlsm files.')
+  assert.equal(problems[5], '25 more files were skipped too. DarwinLens reads .csv, .tsv, .xlsx and .xlsm files of up to 25 MB.')
   // Six skipped files: five sentences and "1 more file", never a count of zero.
-  assert.equal(checkFiles(Array.from({ length: 6 }, (_, i) => file(`scan_${i}.pdf`))).problems[5], '1 more file was skipped too. Verity reads .csv, .tsv, .xlsx and .xlsm files of up to 25 MB.')
+  assert.equal(checkFiles(Array.from({ length: 6 }, (_, i) => file(`scan_${i}.pdf`))).problems[5], '1 more file was skipped too. DarwinLens reads .csv, .tsv, .xlsx and .xlsm files of up to 25 MB.')
   assert.equal(checkFiles(Array.from({ length: 5 }, (_, i) => file(`scan_${i}.pdf`))).problems.length, 5)
 })

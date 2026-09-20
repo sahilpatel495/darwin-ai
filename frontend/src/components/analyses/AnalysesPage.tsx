@@ -1,5 +1,5 @@
-// Analyses: the guided, AI-free half of the product (§14). The analyst picks a kind, picks the
-// columns, and the database computes it — the same templates the Overview runs, aimed by hand.
+// Analyses: the guided, AI-free half of the product (§8). The analyst picks a kind, fills in a
+// sentence, and the database computes it — the same templates the Overview runs, aimed by hand.
 // No model is involved, so it is instant, identical every time, and it still works when every
 // free model is rate limited.
 
@@ -11,13 +11,13 @@ import { plainTile } from '../../lib/tables'
 import { isTileSaved, toggleSavedTile } from '../../lib/projects'
 import type { ProjectRecord } from '../../lib/projects'
 import { go, projectPath } from '../../lib/route'
-import type { AnalysisCatalog, AnalysisKind, InsightTile } from '../../types'
+import type { AnalysisCatalog, AnalysisKind, InsightTile, User } from '../../types'
 import TileCard from '../tiles/TileCard'
 import TileDataDialog from '../tiles/TileDataDialog'
-import { Banner, Button, Card, Chip, EmptyState, Skeleton, toast } from '../ui'
+import { Badge, Banner, Button, Card, Chip, EmptyState, Skeleton, cx, toast } from '../ui'
 import type { Problem } from '../shell/problem'
 import { problemFrom } from '../shell/problem'
-import AnalysisForm from './AnalysisForm'
+import SentenceBuilder from './SentenceBuilder'
 import { defaultOptions, previewSentence } from './form'
 import KindIcon from './kindIcons'
 
@@ -29,6 +29,10 @@ export interface AnalysesPageProps {
   onAsk: (question: string) => void
   /** Saves a tile to the board; App writes the record and hands it back as `project`. */
   onProjectChange: (next: ProjectRecord) => void
+  /** Part of the shared page seam. Every analyst sees the same analyses. */
+  user?: User | null
+  /** Part of the shared page seam: the Data drawer lives in the top bar. */
+  onOpenData?: () => void
 }
 
 /** One run made in this visit: enough to put the result and the analyst's choices back. */
@@ -42,11 +46,13 @@ interface Run {
 }
 
 /**
- * Phones stack the gallery above the form, so choosing a kind has to bring the next step into
- * view. On desktop both columns are already on screen and scrolling would be noise.
+ * Bring the next step into view after a choice that changed what is below the fold — and only
+ * then: scrolling something the analyst is already looking at reads as the page twitching.
  */
-function revealOnPhone(node: HTMLElement | null): void {
-  if (!node || typeof window === 'undefined' || window.matchMedia('(min-width: 1024px)').matches) return
+function reveal(node: HTMLElement | null): void {
+  if (!node || typeof window === 'undefined') return
+  const box = node.getBoundingClientRect()
+  if (box.top >= 80 && box.bottom <= window.innerHeight) return
   const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   node.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' })
 }
@@ -55,6 +61,7 @@ export default function AnalysesPage({ sessionId, project, onAsk, onProjectChang
   const [catalog, setCatalog] = useState<AnalysisCatalog | null>(null)
   const [loadProblem, setLoadProblem] = useState<Problem | null>(null)
   const [kindKey, setKindKey] = useState<string | null>(null)
+  const [chosen, setChosen] = useState(false) // the analyst picked a kind, rather than it opening on one
   const [inputs, setInputs] = useState<Record<string, string>>({})
   const [options, setOptions] = useState<Record<string, string>>({})
   const [running, setRunning] = useState(false)
@@ -62,7 +69,7 @@ export default function AnalysesPage({ sessionId, project, onAsk, onProjectChang
   const [tile, setTile] = useState<InsightTile | null>(null)
   const [runs, setRuns] = useState<Run[]>([])
   const [dataOpen, setDataOpen] = useState(false)
-  const formRef = useRef<HTMLDivElement>(null)
+  const builderRef = useRef<HTMLDivElement>(null)
   const resultRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -70,7 +77,17 @@ export default function AnalysesPage({ sessionId, project, onAsk, onProjectChang
     let live = true
     setLoadProblem(null)
     getAnalyses(sessionId)
-      .then((next) => live && setCatalog(next))
+      .then((next) => {
+        if (!live) return
+        setCatalog(next)
+        // The screen opens on the first analysis with its sentence already there: an empty card
+        // saying "choose something" is a screen with nothing on it.
+        const first = next.kinds[0]
+        if (first) {
+          setKindKey(first.key)
+          setOptions(defaultOptions(first))
+        }
+      })
       .catch((error) => live && setLoadProblem(problemFrom(error)))
     return () => {
       live = false
@@ -101,16 +118,17 @@ export default function AnalysesPage({ sessionId, project, onAsk, onProjectChang
 
   const choose = (next: AnalysisKind) => {
     if (next.key !== kindKey) {
-      // A result belongs to the analysis that produced it: leaving it under a different form
+      // A result belongs to the analysis that produced it: leaving it under a different sentence
       // would invite the analyst to read it as the answer to the new one. The chips keep it.
       setTile(null)
       setDataOpen(false)
     }
     setKindKey(next.key)
+    setChosen(true)
     setInputs({})
     setOptions(defaultOptions(next))
     setRunProblem(null)
-    revealOnPhone(formRef.current)
+    reveal(builderRef.current)
   }
 
   const run = async () => {
@@ -120,18 +138,18 @@ export default function AnalysesPage({ sessionId, project, onAsk, onProjectChang
     try {
       const result = plainTile(await runAnalysis(sessionId, { kind: kind.key, inputs, options }), named)
       setTile(result)
-      // Same sentence run twice is one chip, moved to the front: the chips are a way back to a
-      // result, not a log of clicks.
+      // The same sentence run twice is one chip, moved to the front: the chips are a way back to
+      // a result, not a log of clicks.
       setRuns((previous) => [
         { id: result.id + Date.now(), sentence, tile: result, kindKey: kind.key, inputs, options },
         ...previous.filter((item) => item.sentence !== sentence),
       ])
-      revealOnPhone(resultRef.current)
+      reveal(resultRef.current)
     } catch (error) {
       setRunProblem(problemFrom(error))
       // The result on screen answered the choices as they were, not as they are now. Leaving it
-      // under a refusal invites reading it as the answer to the question just asked; the chips
-      // under it still put it back.
+      // under a refusal invites reading it as the answer to what was just asked; the chips under
+      // it still put it back.
       setTile(null)
     } finally {
       setRunning(false)
@@ -150,7 +168,7 @@ export default function AnalysesPage({ sessionId, project, onAsk, onProjectChang
   const toggleSaved = () => {
     if (!tile) return
     onProjectChange(toggleSavedTile(project, tile))
-    toast(saved ? 'Removed from the board' : 'Saved to board')
+    toast(saved ? 'Removed from the board' : 'Saved to the board')
   }
 
   const download = () => {
@@ -159,66 +177,71 @@ export default function AnalysesPage({ sessionId, project, onAsk, onProjectChang
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <h1 className="type-page text-ink">Analyses</h1>
-      <p className="mt-1 measure type-small text-ink-2">No AI needed: you choose the columns, the database does the rest.</p>
+    <main className="mx-auto w-full max-w-[1120px] px-4 pb-20 sm:px-6">
+      <header className="pt-8 sm:pt-12">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <h1 className="text-heading-lg text-ink-deep">Analyses</h1>
+          <Badge tone="success">No AI needed</Badge>
+        </div>
+        <p className="mt-3 measure text-subtitle-md text-slate">
+          Say what you want measured and the database works it out, the same way every time.
+        </p>
+      </header>
 
-      {!sessionId && (
-        <Banner
-          tone="warn"
-          className="mt-5"
-          nextStep="Re-attach them on the Ask page and this screen works again."
+      {!sessionId ? (
+        <EmptyState
+          className="mt-10"
+          glyph="upload"
+          title="Nothing to analyse yet"
           action={
-            <Button variant="primary" size="sm" onClick={() => go(projectPath(project.id))}>
-              Go to Ask
+            <Button variant="primary" onClick={() => go(projectPath(project.id))}>
+              Re-attach your files
             </Button>
           }
         >
-          Your files are no longer loaded. We never keep them on our server.
-        </Banner>
-      )}
-
-      {sessionId && loadProblem && (
-        <Banner tone="error" className="mt-5" nextStep={loadProblem.nextStep}>
+          Your files are not loaded, so there are no columns to choose from.
+        </EmptyState>
+      ) : loadProblem ? (
+        <Banner tone="error" className="mt-8" nextStep={loadProblem.nextStep}>
           {loadProblem.message}
         </Banner>
-      )}
-
-      {sessionId && !loadProblem && (
-        <div className="mt-6 grid gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
-          <section aria-labelledby="analysis-kinds">
-            <h2 id="analysis-kinds" className="type-section text-ink">
+      ) : (
+        <>
+          <section aria-labelledby="analysis-kinds" className="mt-10">
+            <h2 id="analysis-kinds" className="text-heading-sm text-ink-deep">
               Choose an analysis
             </h2>
             {catalog && catalog.kinds.length === 0 ? (
-              <EmptyState className="mt-3">
+              <EmptyState className="mt-4" glyph="table">
                 Nothing in these files can be measured or grouped yet, so there is no analysis to run.
               </EmptyState>
             ) : catalog ? (
-              <ul className="stagger-children mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+              <ul className="stagger-children mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {catalog.kinds.map((item) => {
                   const active = item.key === kindKey
                   return (
                     <li key={item.key}>
                       <Card
                         as="button"
+                        radius="xl"
                         interactive
                         aria-pressed={active}
                         onClick={() => choose(item)}
-                        className={active ? 'bg-blue-soft ring-1 ring-blue' : undefined}
+                        className={cx('h-full', active && 'border-primary bg-primary-soft')}
                       >
-                        <div className="flex gap-3">
+                        <div className="flex items-start gap-3">
                           <span
-                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-pill ${
-                              active ? 'bg-blue text-white' : 'bg-blue-soft text-blue-ink'
-                            }`}
+                            className={cx(
+                              'flex size-10 shrink-0 items-center justify-center rounded-circle',
+                              active ? 'bg-primary text-white' : 'bg-surface-soft text-primary-deep',
+                            )}
                           >
-                            <KindIcon kind={item.key} />
+                            <KindIcon kind={item.key} size={22} />
                           </span>
                           <div className="min-w-0">
-                            <p className="type-section text-ink">{item.name}</p>
-                            <p className="mt-0.5 type-small text-ink-2">{item.description}</p>
-                            <p className="mt-1 type-small text-ink-2">e.g. {item.example}</p>
+                            <p className="text-subtitle-lg text-ink-deep">{item.name}</p>
+                            <p className="mt-0.5 text-body-sm text-slate">{item.description}</p>
+                            <p className="mt-1 text-body-sm text-steel">e.g. {item.example}</p>
                           </div>
                         </div>
                       </Card>
@@ -227,101 +250,94 @@ export default function AnalysesPage({ sessionId, project, onAsk, onProjectChang
                 })}
               </ul>
             ) : (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-                {[0, 1, 2, 3].map((row) => (
-                  <Card key={row}>
+              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {[0, 1, 2, 3, 4, 5].map((row) => (
+                  <Card key={row} radius="xl">
                     <Skeleton className="h-5 w-32" />
-                    <Skeleton className="mt-2 h-4 w-full" />
+                    <Skeleton className="mt-3 h-4 w-full" />
                   </Card>
                 ))}
               </div>
             )}
           </section>
 
-          <div ref={formRef} className="min-w-0 scroll-mt-4">
-            {kind && catalog ? (
-              <AnalysisForm
+          <div ref={builderRef} className="mt-10 scroll-mt-24">
+            {kind && catalog && (
+              <SentenceBuilder
                 kind={kind}
                 columns={catalog.columns}
                 labels={labels}
                 inputs={inputs}
                 options={options}
+                title={sentence}
                 onInput={(key, ref) => setInputs((previous) => ({ ...previous, [key]: ref }))}
                 onOption={(key, value) => setOptions((previous) => ({ ...previous, [key]: value }))}
-                sentence={sentence}
                 onRun={run}
                 running={running}
                 problem={runProblem}
+                autoFocus={chosen}
               />
-            ) : (
-              <Card>
-                <h2 className="type-card text-ink">Choose an analysis to start</h2>
-                <p className="mt-1 measure type-body text-ink-2">
-                  Every analysis here is a query this app writes itself, from the columns you choose. You see the sentence it
-                  will run before you run it, and the SQL after.
-                </p>
+            )}
+          </div>
+
+          <p role="status" className="sr-only">
+            {running ? `Running ${sentence}` : tile ? `${tile.title} is ready` : ''}
+          </p>
+
+          <div ref={resultRef} className="scroll-mt-24">
+            {running && (
+              <Card className="mt-6">
+                <Skeleton className="h-7 w-64" />
+                <Skeleton className="mt-3 h-4 w-80 max-w-full" />
+                <Skeleton className="mt-6 h-56 w-full" />
               </Card>
             )}
 
-            <p role="status" className="sr-only">
-              {running ? `Running ${sentence}` : tile ? `${tile.title} is ready` : ''}
-            </p>
-
-            <div ref={resultRef} className="scroll-mt-4">
-              {running && (
-                <Card className="mt-4">
-                  <Skeleton className="h-6 w-56" />
-                  <Skeleton className="mt-2 h-4 w-80 max-w-full" />
-                  <Skeleton className="mt-4 h-56 w-full" />
-                </Card>
-              )}
-
-              {!running && tile && (
-                <div className="mt-4">
-                  {/* compact: one result deserves its actions in the open, not folded into a menu. */}
-                  <TileCard tile={tile} compact />
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button variant="secondary" aria-pressed={saved} onClick={toggleSaved}>
-                      {saved ? 'Saved' : 'Save to board'}
-                    </Button>
-                    {tile.table && tile.table.rows.length > 0 && (
-                      <>
-                        <Button variant="secondary" onClick={download}>
-                          Download CSV
-                        </Button>
-                        <Button variant="secondary" onClick={() => setDataOpen(true)}>
-                          View table and SQL
-                        </Button>
-                      </>
-                    )}
-                    {tile.ask && (
-                      <Button variant="ghost" onClick={() => onAsk(tile.ask as string)}>
-                        Continue in chat
+            {!running && tile && (
+              <div className="mt-6">
+                {/* compact: one result deserves its actions in the open, not folded into a toolbar. */}
+                <TileCard tile={tile} compact />
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button variant="primary" aria-pressed={saved} onClick={toggleSaved}>
+                    {saved ? 'Saved to the board' : 'Save to the board'}
+                  </Button>
+                  {tile.table && tile.table.rows.length > 0 && (
+                    <>
+                      <Button variant="ghost" onClick={download}>
+                        Download CSV
                       </Button>
-                    )}
-                  </div>
-                  {dataOpen && <TileDataDialog tile={tile} open={dataOpen} onClose={() => setDataOpen(false)} />}
+                      <Button variant="ghost" onClick={() => setDataOpen(true)}>
+                        Table and SQL
+                      </Button>
+                    </>
+                  )}
+                  {tile.ask && (
+                    <Button variant="ghost" onClick={() => onAsk(tile.ask as string)}>
+                      Continue in chat
+                    </Button>
+                  )}
                 </div>
-              )}
-            </div>
-
-            {runs.length > 0 && (
-              <section aria-labelledby="analysis-runs" className="mt-6">
-                <h2 id="analysis-runs" className="type-section text-ink">
-                  Runs in this visit
-                </h2>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {runs.map((item) => (
-                    <Chip key={item.id} selected={item.tile === tile} onClick={() => reopen(item)}>
-                      {item.sentence}
-                    </Chip>
-                  ))}
-                </div>
-              </section>
+                {dataOpen && <TileDataDialog tile={tile} open={dataOpen} onClose={() => setDataOpen(false)} />}
+              </div>
             )}
           </div>
-        </div>
+
+          {runs.length > 0 && (
+            <section aria-labelledby="analysis-runs" className="mt-12">
+              <h2 id="analysis-runs" className="text-heading-sm text-ink-deep">
+                Run in this visit
+              </h2>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {runs.map((item) => (
+                  <Chip key={item.id} selected={item.tile === tile} onClick={() => reopen(item)}>
+                    {item.sentence}
+                  </Chip>
+                ))}
+              </div>
+            </section>
+          )}
+        </>
       )}
-    </div>
+    </main>
   )
 }

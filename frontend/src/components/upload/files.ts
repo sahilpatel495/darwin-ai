@@ -34,7 +34,7 @@ function extensionOf(name: string): string {
 function problemWith(file: { name: string; size: number }): string | null {
   const extension = extensionOf(file.name)
   if (extension === '.xls') return `${file.name} is in the old Excel format. Open it in Excel, save it as .xlsx, and add it again.`
-  if (!ACCEPTED_EXTENSIONS.includes(extension)) return `${file.name} was skipped. Verity reads .csv, .tsv, .xlsx and .xlsm files.`
+  if (!ACCEPTED_EXTENSIONS.includes(extension)) return `${file.name} was skipped. DarwinLens reads .csv, .tsv, .xlsx and .xlsm files.`
   if (file.size === 0) return `${file.name} is empty. Export it again and check it has rows.`
   if (file.size > MAX_FILE_BYTES) return `${file.name} is larger than 25 MB. Remove the sheets or columns you do not need and add it again.`
   return null
@@ -51,7 +51,7 @@ export function checkFiles<T extends { name: string; size: number }>(files: read
   // A dropped folder of scans must not become thirty identical lines that fill a phone screen.
   if (result.problems.length > MAX_SENTENCES) {
     const more = result.problems.splice(MAX_SENTENCES).length
-    result.problems.push(`${more} more ${more === 1 ? 'file was' : 'files were'} skipped too. Verity reads .csv, .tsv, .xlsx and .xlsm files of up to 25 MB.`)
+    result.problems.push(`${more} more ${more === 1 ? 'file was' : 'files were'} skipped too. DarwinLens reads .csv, .tsv, .xlsx and .xlsm files of up to 25 MB.`)
   }
   const leftOut = result.accepted.splice(MAX_FILES_PER_UPLOAD).length
   if (leftOut > 0) {

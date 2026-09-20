@@ -2,36 +2,51 @@ import type { ButtonHTMLAttributes, Ref } from 'react'
 import { cx } from './cx'
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  /** `primary` blue fill · `secondary` on `fill` · `ghost` text only. (`quiet` = `ghost`.) */
-  variant?: 'primary' | 'secondary' | 'ghost' | 'quiet'
-  /** `md` 36px · `sm` 28px. */
+  /**
+   * `primary` the black pill, for anything you can do · `action` the cobalt pill, reserved for
+   * Ask / Run / Continue / Create account and nothing else · `secondary` a 2px ink outline ·
+   * `ghost` a faint outline · `quiet` text only.
+   */
+  variant?: 'primary' | 'action' | 'secondary' | 'ghost' | 'quiet'
+  /** `md` 44px · `sm` 36px. */
   size?: 'md' | 'sm'
-  /** Fully rounded. For a button that sits among chips. */
-  pill?: boolean
   /** Swaps the label for a spinner and disables the button. The width does not change. */
   loading?: boolean
-  /** React 19: pass `ref` straight through, no forwardRef wrapper needed. */
+  /** Fills the row. For the one action in a card or a phone-width form. */
+  block?: boolean
+  /** TEMPORARY alias: every button is a pill now, so this does nothing. Delete the prop at the call site. */
+  pill?: boolean
   ref?: Ref<HTMLButtonElement>
 }
 
+// Every button is a pill (§2). There is no `pill` prop any more because there is no other shape:
+// a squared button is a bug.
 const VARIANT = {
-  primary: 'bg-blue text-white enabled:hover:bg-blue-hover',
-  secondary: 'bg-fill text-ink enabled:hover:bg-fill-hover',
-  // blue-ink, not blue: a ghost button often sits on the grey wash, where #0866FF is 4.3:1.
-  ghost: 'text-blue-ink enabled:hover:bg-blue-soft',
-  quiet: 'text-blue-ink enabled:hover:bg-blue-soft',
+  primary: 'bg-ink-deep text-white enabled:hover:bg-ink',
+  action: 'bg-primary text-white enabled:hover:bg-primary-deep',
+  secondary: 'border-2 border-ink-deep text-ink-deep enabled:hover:bg-surface-soft',
+  ghost: 'border-2 border-[rgb(10_19_23_/_.12)] text-ink-deep enabled:hover:border-[rgb(10_19_23_/_.28)]',
+  quiet: 'text-charcoal enabled:hover:bg-surface-soft enabled:hover:text-ink-deep',
 } as const
 
-const SIZE = { md: 'h-9 text-[15px]', sm: 'h-7 text-[13px]' } as const
-// A ghost button sits in running text and needs less air around it than a filled one.
-const PAD = { primary: 'px-4', secondary: 'px-4', ghost: 'px-2.5', quiet: 'px-2.5' } as const
+// 14×30 padding on the filled pills (§5); an outline eats 2px of it, and a quiet button sits in
+// running text and needs less air than either.
+const SIZE = { md: 'h-11', sm: 'h-9' } as const
+const PAD = {
+  primary: 'px-[30px]',
+  action: 'px-[30px]',
+  secondary: 'px-7',
+  ghost: 'px-7',
+  quiet: 'px-3.5',
+} as const
 
 /** The only button in the product. Buttons say what happens: "Save to board", not "Submit". */
 export default function Button({
   variant = 'secondary',
   size = 'md',
-  pill = false,
   loading = false,
+  block = false,
+  pill: _pill,
   className,
   children,
   disabled,
@@ -44,9 +59,10 @@ export default function Button({
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={cx(
-        'press relative inline-flex shrink-0 items-center justify-center gap-2 font-semibold whitespace-nowrap',
-        'disabled:cursor-not-allowed disabled:opacity-50',
-        pill ? 'rounded-pill' : 'rounded-input',
+        'press relative inline-flex shrink-0 items-center justify-center gap-2 rounded-full',
+        'text-button-md whitespace-nowrap',
+        'disabled:cursor-not-allowed disabled:opacity-40',
+        block ? 'w-full' : '',
         VARIANT[variant],
         SIZE[size],
         PAD[variant],

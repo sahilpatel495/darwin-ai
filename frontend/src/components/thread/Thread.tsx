@@ -1,24 +1,31 @@
-// The conversation (§6.3). A controlled component: the project record holds every completed
-// turn, and a turn that is still running lives here until its answer arrives. That split is
-// what makes the thread survive a reload — a half-finished question is not worth saving, and
-// an answer always is.
+// Ask (§8). Two screens in one component, because they are one conversation:
+//
+//  - empty: a greeting, the hero composer, four suggestion cards and a way to more ideas;
+//  - in conversation: an 820px column of questions and answers, with the composer docked below it.
+//
+// A controlled component: the project record holds every completed turn, and a turn that is still
+// running lives here until its answer arrives. That split is what makes the thread survive a
+// reload — a half-finished question is not worth saving, and an answer always is.
 //
 // One question runs at a time: the backend keeps the last turns as context for follow-ups, so
 // overlapping questions would make "split that by location" ambiguous.
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ApiError, ask } from '../../api'
-import { Banner, Button } from '../ui'
+import { Banner, Button, Card, Chip, Drawer } from '../ui'
+import { Glyph } from '../graphics'
+import { groupSuggestions, type Suggestion } from '../../lib/suggestions'
 import { columnLabel, plainAnswer } from '../../lib/tables'
 import type { Turn } from '../../lib/projects'
 import type { Catalog, StepEvent } from '../../types'
 import AnswerStatement from '../answer/AnswerStatement'
 import { AnswerContext } from '../answer/context'
-import { hasWork } from '../answer/HowIGotThis'
+import Composer from './Composer'
+import { glyphName } from './prompts'
 import Working from './Working'
 import { foldStep } from './steps'
 
 export interface ThreadProps {
-  /** null = the files are no longer loaded: history is readable and asking is off (§6.6). */
+  /** null = the files are no longer loaded: history is readable and asking is off (§6). */
   sessionId: string | null
   catalog: Catalog | null
   /** Controlled: the project record is the source of truth. */
@@ -28,9 +35,15 @@ export interface ThreadProps {
   savedAnswerIds: string[]
   onToggleSaved: (answerId: string) => void
   onSessionExpired: () => void
-  /** The briefing, supplied by the workspace. */
-  emptyState: ReactNode
-  /** The re-attach banner and anything like it, rendered above the composer. */
+  /** The analyst's name, for the greeting over an empty workspace (§8). */
+  heroGreetingName?: string
+  /** The four questions on the empty screen, chosen for this person's role by the shell
+   *  (lib/suggestions). "More ideas" below them is every question these files can answer. */
+  suggestions?: Suggestion[]
+  /** Opens the Data drawer, which the top bar owns (§6). */
+  onOpenData?: () => void
+  /** A banner to render with the composer. §6 keeps "your files are no longer loaded" in the app
+   *  shell, so this is the slot for it and the thread never invents one of its own. */
   notice?: ReactNode
 }
 
@@ -46,14 +59,14 @@ interface LiveTurn {
   /** Meanings the user picked for ambiguous terms, e.g. { salary: "salary_register.gross" }. */
   clarification: Record<string, string> | null
   steps: StepEvent[]
-  /** performance.now() when the question was sent, for the elapsed timer (§11). */
+  /** performance.now() when the question was sent, for the elapsed timer (§8). */
   startedAt: number
   state: 'running' | 'stopped' | 'failed'
   problem: Problem | null
 }
 
 /** How a completed turn was arrived at. Steps and chosen meanings are not worth the storage
- *  quota (§7), so they are remembered only for as long as the page is open. */
+ *  quota (§10), so they are remembered only for as long as the page is open. */
 interface HowItRan {
   steps: StepEvent[]
   clarification: Record<string, string> | null
@@ -63,18 +76,13 @@ interface HowItRan {
 
 const NO_TABLES: Catalog['tables'] = [] // one empty array, so the context value stays stable
 const NO_METRICS: Catalog['glossary'] = []
+const NO_SUGGESTIONS: Suggestion[] = []
+const NO_QUESTIONS: string[] = []
 
 const MAX_QUESTION = 500 // AskRequest.question max_length in backend/app/contracts.py
+const CARDS = 4 // §8: four suggestion cards; the rest are behind "More ideas"
 const UNEXPECTED: Problem = { message: 'Something went wrong while reading the answer.', nextStep: 'Ask the question again.' }
 const EXPIRED: Problem = { message: 'Your files are no longer loaded.', nextStep: 'Re-attach them to ask new questions.' }
-
-// §6.7. Three lines, only while the thread is empty, because they are about how to word a first
-// question and stop being news the moment there is an answer on the screen.
-const WRITING_TIPS = [
-  'Name the period: “in 2025”, “in FY25”.',
-  'Name the measure: “gross pay”, not “pay”.',
-  'Ask a follow-up: “now split that by location”.',
-]
 
 /** The meanings already chosen that a follow-up's own wording uses. "salary" stays CTC when the
  *  follow-up says "salary"; nothing else travels, so an unrelated question starts clean. */
@@ -85,15 +93,28 @@ function carried(question: string, chosen: Record<string, string> | null): Recor
 
 function Question({ text, clarification, tables }: { text: string; clarification: Record<string, string> | null | undefined; tables: Catalog['tables'] }) {
   return (
-    <div className="ml-auto w-fit max-w-[85%] rounded-hero bg-blue-soft px-4 py-2.5">
-      <h3 className="type-body whitespace-pre-wrap break-words text-ink">{text}</h3>
+    <div className="ml-auto w-fit max-w-[85%] rounded-xxl bg-primary-soft px-5 py-3">
+      <h3 className="text-body-md whitespace-pre-wrap break-words text-ink-deep">{text}</h3>
       {/* A Set: a second clarifying question about the same word can carry the same column twice. */}
       {clarification && (
-        <p className="mt-1 type-small text-blue-ink">
+        <p className="mt-1 text-body-sm text-primary-deep">
           Using {[...new Set(Object.values(clarification))].map((ref) => columnLabel(ref, tables)).join(', ')}
         </p>
       )}
     </div>
+  )
+}
+
+/** One question worth asking, as a card: press it and it is asked (§8). */
+function SuggestionCard({ suggestion, accent, onAsk }: { suggestion: Suggestion; accent: string; onAsk: () => void }) {
+  return (
+    <Card as="button" interactive radius="xl" onClick={onAsk} className="h-full">
+      <span className="flex items-center gap-2.5">
+        <Glyph name={glyphName(suggestion.glyph)} size={28} accent={accent} className="text-charcoal" />
+        <span className="text-body-sm text-steel">{suggestion.kind}</span>
+      </span>
+      <span className="mt-3 block text-body-md text-ink-deep">{suggestion.question}</span>
+    </Card>
   )
 }
 
@@ -105,13 +126,16 @@ export default function Thread({
   savedAnswerIds,
   onToggleSaved,
   onSessionExpired,
-  emptyState,
+  heroGreetingName,
+  suggestions,
+  onOpenData,
   notice,
 }: ThreadProps) {
   const [live, setLive] = useState<LiveTurn[]>([])
   const [ran, setRan] = useState<Record<string, HowItRan>>({})
   const [newAnswerId, setNewAnswerId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  const [ideasOpen, setIdeasOpen] = useState(false)
   const nextKey = useRef(0)
   const inFlight = useRef<AbortController | null>(null)
   const input = useRef<HTMLTextAreaElement>(null)
@@ -128,6 +152,7 @@ export default function Thread({
   const running = live.some((turn) => turn.state === 'running')
   const canAsk = sessionId !== null && !running
   const tables = catalog?.tables ?? NO_TABLES
+  const fileCount = tables.filter((table) => !table.is_view).length
 
   // Leaving the page must not leave a query running on the server, and a different session must
   // never show the previous one's half-finished question.
@@ -206,17 +231,18 @@ export default function Thread({
     setLive((all) => all.map((t) => (t.state === 'running' ? { ...t, state: 'stopped' } : t)))
   }
 
-  function submit(event: { preventDefault(): void }) {
-    event.preventDefault()
+  function submitDraft() {
     if (!draft.trim() || !canAsk) return
     typedLast.current = true
     run(draft)
     setDraft('')
   }
 
-  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    // isComposing: Enter also confirms a word in Hindi and other IME keyboards; that is not a submit.
-    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) submit(event)
+  /** A card, a chip or the sheet: the question is asked as it is written, there and then. */
+  const askNow = (question: string) => {
+    typedLast.current = false
+    setIdeasOpen(false)
+    run(question)
   }
 
   /** A follow-up keeps the meanings the analyst already chose; a clarify answer adds one. */
@@ -226,14 +252,8 @@ export default function Thread({
   }
 
   const context = useMemo(
-    () => ({
-      tables,
-      glossary: catalog?.glossary ?? NO_METRICS,
-      newAnswerId,
-      tourAnswerId: turns.find((turn) => hasWork(turn.answer.work))?.answer.id ?? null,
-      canAsk,
-    }),
-    [tables, catalog, newAnswerId, turns, canAsk],
+    () => ({ tables, glossary: catalog?.glossary ?? NO_METRICS, newAnswerId, canAsk }),
+    [tables, catalog, newAnswerId, canAsk],
   )
 
   const empty = turns.length === 0 && live.length === 0
@@ -242,6 +262,46 @@ export default function Thread({
     run(turn.question, turn.clarification)
   }
 
+  const offered = suggestions ?? NO_SUGGESTIONS
+  // The sheet is everything the files can answer, under the subject it is about — not the four
+  // cards again. The role is the shell's to know; here the order inside a subject is the
+  // server's own, which is the order it vouched for.
+  const ideas = useMemo(() => (catalog ? groupSuggestions(catalog.suggested_questions, null) : []), [catalog])
+  const ideaCount = ideas.reduce((total, group) => total + group.items.length, 0)
+  // Real questions, typed out one at a time while the box is empty (§8).
+  const examples = (offered.length > 0 ? offered.map((suggestion) => suggestion.question) : catalog?.suggested_questions ?? NO_QUESTIONS).slice(0, 5)
+
+  const left = MAX_QUESTION - draft.length
+  const composer = (
+    <Composer
+      variant={empty ? 'hero' : 'docked'}
+      value={draft}
+      onChange={setDraft}
+      onSubmit={submitDraft}
+      disabled={!canAsk}
+      ready={sessionId !== null}
+      // The typewriter belongs to the empty screen (§8). Once there is an answer to read, a box
+      // that types to itself beside it is movement with nothing to say.
+      examples={empty ? examples : NO_QUESTIONS}
+      idlePlaceholder={
+        sessionId === null
+          ? 'Re-attach your files to ask a new question'
+          : running
+            ? 'Working on your question'
+            : empty
+              ? 'Ask anything about your files'
+              : 'Ask a follow-up'
+      }
+      fileCount={fileCount}
+      onOpenData={onOpenData}
+      // §8: one quiet hint, and only until the first question has been asked. The character
+      // count replaces it near the limit, where it is the thing worth knowing.
+      hint={left <= 50 ? `${left} characters left.` : empty || turns.length > 0 ? undefined : 'Enter to ask'}
+      maxLength={MAX_QUESTION}
+      textareaRef={input}
+    />
+  )
+
   return (
     <AnswerContext.Provider value={context}>
       <section aria-label="Questions and answers" className="flex h-full min-h-0 flex-col">
@@ -249,101 +309,114 @@ export default function Thread({
             scroller it is laid out against the page instead, the page grows as tall as the whole
             conversation, and scrolling to a new question pushes the header off the screen. */}
         <div className="relative min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
-          <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-6 sm:px-6">
-            {empty && emptyState}
+          <div className="mx-auto w-full max-w-[820px] px-4 py-6 sm:px-6">
+            {empty ? (
+              <div className="pt-6 sm:pt-12">
+                {notice && <div className="mb-8">{notice}</div>}
+                <h2 className="text-display-lg text-ink-deep">
+                  {heroGreetingName ? `What do you want to know, ${heroGreetingName}?` : 'What do you want to know?'}
+                </h2>
+                <div className="mt-8">{composer}</div>
 
-            {turns.map((turn, i) => {
-              const detail = ran[turn.answer.id]
-              return (
-                <article key={turn.id} ref={i === turnCount - 1 ? latestTurn : undefined} className="scroll-mt-4 space-y-3 last:min-h-[70dvh]">
-                  <Question text={turn.question} clarification={detail?.clarification} tables={tables} />
-                  <Working steps={detail?.steps ?? []} running={false} ms={detail?.ms ?? null} />
-                  <AnswerStatement
-                    answer={turn.answer}
-                    mode="thread"
-                    saved={savedAnswerIds.includes(turn.answer.id)}
-                    // Only a real answer belongs on a printed report; a clarifying question does not.
-                    onToggleSaved={turn.answer.kind === 'answer' ? () => onToggleSaved(turn.answer.id) : undefined}
-                    onAsk={askFrom(detail?.clarification ?? null)}
-                  />
-                </article>
-              )
-            })}
-
-            {live.map((turn, i) => (
-              <article key={turn.key} ref={turns.length + i === turnCount - 1 ? latestTurn : undefined} className="scroll-mt-4 space-y-3 last:min-h-[70dvh]">
-                <Question text={turn.question} clarification={turn.clarification} tables={tables} />
-                {/* No elapsed time on a stopped or failed run: it was never answered, so the
-                    summary says what it got through instead of how long it took. */}
-                <Working steps={turn.steps} running={turn.state === 'running'} startedAt={turn.startedAt} onStop={stop} />
-                {turn.problem && (
-                  <Banner tone="error" nextStep={turn.problem.nextStep} action={turn.problem !== EXPIRED && canAsk && <Button variant="primary" onClick={askAgain(turn)}>Try again</Button>}>
-                    {turn.problem.message}
-                  </Banner>
+                {sessionId !== null && offered.length > 0 && (
+                  <>
+                    <ul className="stagger-children mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {offered.slice(0, CARDS).map((suggestion, i) => (
+                        <li key={suggestion.question} className="flex">
+                          {/* The second accent alternates, so four cards read as a set rather than
+                              as four copies of the same tile. */}
+                          <SuggestionCard
+                            suggestion={suggestion}
+                            accent={i % 2 === 1 ? 'var(--color-purple)' : 'var(--color-primary)'}
+                            onAsk={() => askNow(suggestion.question)}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                    {ideaCount > offered.length && (
+                      <Button variant="quiet" size="sm" className="mt-4 -ml-3.5" onClick={() => setIdeasOpen(true)}>
+                        More ideas
+                      </Button>
+                    )}
+                  </>
                 )}
-                {turn.state === 'stopped' && (
-                  <p className="type-body text-ink-2">
-                    You stopped this question.{' '}
-                    <button type="button" disabled={!canAsk} className="text-blue-ink underline decoration-blue-ink/40 underline-offset-2 hover:decoration-current disabled:no-underline disabled:opacity-55" onClick={askAgain(turn)}>
-                      Ask it again
-                    </button>
-                  </p>
-                )}
-              </article>
-            ))}
-          </div>
-        </div>
-
-        <div className="sticky bottom-0 shrink-0 bg-wash print-hide">
-          {notice && <div className="mx-auto w-full max-w-3xl px-4 pt-3 sm:px-6">{notice}</div>}
-          <form onSubmit={submit} data-tour="composer">
-            <div className="mx-auto w-full max-w-3xl px-4 pt-3 pb-4 sm:px-6">
-              {/* One white surface lifted off the wash: the place where a question is written. */}
-              <div className="flex items-end gap-2 rounded-hero bg-surface p-2 shadow-2">
-                <label htmlFor="verity-question" className="sr-only">
-                  Your question
-                </label>
-                <textarea
-                  id="verity-question"
-                  ref={input}
-                  rows={1}
-                  value={draft}
-                  maxLength={MAX_QUESTION}
-                  disabled={running || sessionId === null}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={onKeyDown}
-                  placeholder={
-                    sessionId === null
-                      ? 'Re-attach your files to ask a new question'
-                      : running
-                        ? 'Working on your question'
-                        : 'Ask about your data, for example: average CTC by department'
-                  }
-                  aria-describedby="verity-question-hint"
-                  // One line, growing to four, then it scrolls (§6.3).
-                  // The focus ring is the shared one (§9): it draws around the writing area itself,
-                  // inside the white surface, so tabbing to the composer is unmistakable.
-                  className="max-h-28 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 type-body text-[16px] text-ink md:text-[15px] [field-sizing:content] placeholder:text-ink-3 disabled:text-ink-3"
-                />
-                <Button type="submit" variant="primary" pill disabled={!draft.trim() || !canAsk}>
-                  Ask
-                </Button>
               </div>
-              <p id="verity-question-hint" className="mt-2 type-small text-ink-2">
-                Press Enter to ask, Shift+Enter for a new line.
-                {draft.length >= MAX_QUESTION - 50 && ` ${MAX_QUESTION - draft.length} characters left.`}
-              </p>
-              {empty && sessionId !== null && (
-                <ul className="mt-1 flex flex-wrap gap-x-6 gap-y-0.5 type-small text-ink-2">
-                  {WRITING_TIPS.map((tip) => (
-                    <li key={tip}>{tip}</li>
-                  ))}
-                </ul>
-              )}
+            ) : (
+              <div className="space-y-8">
+                {turns.map((turn, i) => {
+                  const detail = ran[turn.answer.id]
+                  return (
+                    <article key={turn.id} ref={i === turnCount - 1 ? latestTurn : undefined} className="scroll-mt-4 space-y-4 last:min-h-[70dvh]">
+                      <Question text={turn.question} clarification={detail?.clarification} tables={tables} />
+                      <Working steps={detail?.steps ?? []} running={false} ms={detail?.ms ?? null} />
+                      <AnswerStatement
+                        answer={turn.answer}
+                        mode="thread"
+                        saved={savedAnswerIds.includes(turn.answer.id)}
+                        // Only a real answer belongs on a printed report; a clarifying question does not.
+                        onToggleSaved={turn.answer.kind === 'answer' ? () => onToggleSaved(turn.answer.id) : undefined}
+                        onAsk={askFrom(detail?.clarification ?? null)}
+                      />
+                    </article>
+                  )
+                })}
+
+                {live.map((turn, i) => (
+                  <article key={turn.key} ref={turns.length + i === turnCount - 1 ? latestTurn : undefined} className="scroll-mt-4 space-y-4 last:min-h-[70dvh]">
+                    <Question text={turn.question} clarification={turn.clarification} tables={tables} />
+                    {/* No elapsed time on a stopped or failed run: it was never answered, so the
+                        summary says what it got through instead of how long it took. */}
+                    <Working steps={turn.steps} running={turn.state === 'running'} startedAt={turn.startedAt} onStop={stop} />
+                    {turn.problem && (
+                      <Banner tone="error" nextStep={turn.problem.nextStep} action={turn.problem !== EXPIRED && canAsk && <Button variant="primary" onClick={askAgain(turn)}>Try again</Button>}>
+                        {turn.problem.message}
+                      </Banner>
+                    )}
+                    {turn.state === 'stopped' && (
+                      <p className="text-body-md text-slate">
+                        You stopped this question.{' '}
+                        <button type="button" disabled={!canAsk} className="text-primary-deep underline underline-offset-2 disabled:no-underline disabled:opacity-55" onClick={askAgain(turn)}>
+                          Ask it again
+                        </button>
+                      </p>
+                    )}
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Docked: a bar floating over the conversation, which scrolls under its blur (§8). In
+              the empty state the composer is the hero above instead, so nothing is docked. */}
+          {!empty && (
+            <div className="sticky bottom-0 z-10 mx-auto w-full max-w-[820px] px-4 pb-4 sm:px-6 print-hide">
+              {notice && <div className="mb-3">{notice}</div>}
+              {composer}
             </div>
-          </form>
+          )}
         </div>
       </section>
+
+      {ideasOpen && (
+        <Drawer open onClose={() => setIdeasOpen(false)} title="More ideas" description="Questions these files can answer. Press one to ask it.">
+          <div className="space-y-6">
+            {ideas.map((group) => (
+              <section key={group.kind}>
+                <h3 className="text-subtitle-lg text-ink-deep">{group.kind}</h3>
+                <ul className="mt-3 space-y-2">
+                  {group.items.map((idea) => (
+                    <li key={idea.question}>
+                      <Chip className="w-full" disabled={!canAsk} leading={<Glyph name={glyphName(idea.glyph)} size={18} />} onClick={() => askNow(idea.question)}>
+                        {idea.question}
+                      </Chip>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        </Drawer>
+      )}
     </AnswerContext.Provider>
   )
 }

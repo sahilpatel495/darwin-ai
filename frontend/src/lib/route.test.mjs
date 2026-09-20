@@ -1,7 +1,7 @@
 // Run from frontend/: node --test "src/**/*.test.mjs"
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { analysesPath, boardPath, overviewPath, parseRoute, projectPath, routeProjectId } from './route.ts'
+import { analysesPath, boardPath, guard, overviewPath, parseRoute, projectPath, routeProjectId } from './route.ts'
 
 test('every screen has a route, and the gallery', () => {
   assert.deepEqual(parseRoute('#/'), { name: 'home' })
@@ -44,4 +44,21 @@ test('ids survive the round trip, including the ones a hash would otherwise spli
 
 test('a broken percent escape is read literally rather than thrown', () => {
   assert.deepEqual(parseRoute('#/p/%'), { name: 'project', id: '%' })
+})
+
+test('a visitor can read about the product but cannot open anybody’s work', () => {
+  for (const hash of ['#/', '#/signin', '#/signup', '#/how', '#/trust', '#/ui']) {
+    assert.equal(guard(parseRoute(hash), false), null, hash)
+  }
+  for (const hash of ['#/p/abc', '#/p/abc/overview', '#/p/abc/board', '#/settings', '#/welcome']) {
+    assert.equal(guard(parseRoute(hash), false), '#/', hash)
+  }
+})
+
+test('signing in takes you off the sign-in page and leaves you everywhere else', () => {
+  assert.equal(guard(parseRoute('#/signin'), true), '#/home')
+  assert.equal(guard(parseRoute('#/signup'), true), '#/home')
+  for (const hash of ['#/', '#/home', '#/welcome', '#/settings', '#/p/abc', '#/trust']) {
+    assert.equal(guard(parseRoute(hash), true), null, hash)
+  }
 })

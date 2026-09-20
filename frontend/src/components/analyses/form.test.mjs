@@ -3,7 +3,20 @@
 // kind in the fixture catalogue is checked here.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { defaultOptions, groupedColumns, isComplete, MISSING, noColumnsLine, previewSentence } from './form.ts'
+import {
+  defaultOptions,
+  groupedColumns,
+  groupValues,
+  isComplete,
+  MISSING,
+  noColumnsLine,
+  previewSentence,
+  sentenceParts,
+  shortLabel,
+  slotForMessage,
+  unmentionedInputs,
+} from './form.ts'
+import catalog from '../../fixtures/analyses.json' with { type: 'json' }
 
 const COLUMNS = [
   { ref: 'employees.department', label: 'department', table_label: 'employees.csv', kind: 'category' },
@@ -136,4 +149,97 @@ test('a column with no label still appears, by its reference', () => {
     previewSentence(breakdown, { measure: 'attendance.days_present', by: 'employees.department' }, { aggregate: 'sum' }, LABELS),
     'Attendance.days_present by Department',
   )
+})
+
+// --- The sentence builder ------------------------------------------------------------------------
+
+/** Every gap the builder will draw a picker in. */
+const slots = (parts) => parts.filter((part) => typeof part !== 'string')
+
+test('every analysis the server offers can be filled in entirely, with nothing out of reach', () => {
+  for (const item of catalog.kinds) {
+    const options = defaultOptions(item)
+    const keys = slots(sentenceParts(item, options)).map((slot) => slot.key)
+    const reachable = [...keys, ...unmentionedInputs(item, options).map((input) => input.key)]
+    for (const input of item.inputs) {
+      assert.ok(reachable.includes(input.key), `${item.key} has no picker for ${input.key}`)
+    }
+    // An option with no fixed choices is a value, and values live in the sentence itself.
+    for (const option of item.options.filter((o) => o.choices.length === 0)) {
+      assert.ok(keys.includes(option.key), `${item.key} has no gap for ${option.key}`)
+    }
+    assert.equal(new Set(reachable).size, reachable.length, `${item.key} asks for the same thing twice`)
+  }
+})
+
+test('a date the sentence names only by its grain still gets a picker of its own', () => {
+  const trend = catalog.kinds.find((k) => k.key === 'trend')
+  assert.deepEqual(unmentionedInputs(trend, defaultOptions(trend)).map((input) => input.key), ['date'])
+  const breakdown = catalog.kinds.find((k) => k.key === 'breakdown')
+  assert.deepEqual(unmentionedInputs(breakdown, defaultOptions(breakdown)), [])
+})
+
+test('an unknown analysis still offers a gap for every column it needs', () => {
+  const unknown = { key: 'cohort', name: 'Cohort retention', description: '', example: '', inputs: [measureIn, byIn], options: [] }
+  assert.deepEqual(slots(sentenceParts(unknown, {})).map((s) => s.key), ['measure', 'by'])
+})
+
+test('comparing two groups reads as a sentence and offers both groups', () => {
+  const compare = {
+    key: 'compare', name: 'Compare two groups', description: '', example: '',
+    inputs: [measureIn, { key: 'by', label: 'Which column', accepts: ['category'], optional: false }],
+    options: [aggregate, { key: 'group_a', label: "First group (one of the chosen column's values)", choices: [] },
+              { key: 'group_b', label: "Second group (one of the chosen column's values)", choices: [] }],
+  }
+  const inputs = { measure: 'employees.annual_ctc', by: 'employees.department' }
+  assert.equal(
+    previewSentence(compare, inputs, { aggregate: 'average', group_a: 'Engineering', group_b: 'Sales' }, LABELS),
+    'Average Annual CTC: Engineering against Sales in Department',
+  )
+  // Nothing chosen yet reads as gaps, never as a wrong promise.
+  assert.equal(previewSentence(compare, {}, { aggregate: 'average' }, LABELS), `Average ${MISSING}: ${MISSING} against ${MISSING} in ${MISSING}`)
+  assert.equal(shortLabel("First group (one of the chosen column's values)"), 'First group')
+})
+
+test('the two group pickers offer the chosen column\'s own values', () => {
+  const columns = [
+    { ref: 'employees.department', label: 'department', table_label: 'employees.csv', kind: 'category', values: ['Engineering', 'Sales'] },
+    { ref: 'employees.annual_ctc', label: 'annual_ctc', table_label: 'employees.csv', kind: 'measure', values: [] },
+  ]
+  const compare = { key: 'compare', name: 'Compare', description: '', example: '', inputs: [measureIn, byIn], options: [] }
+  assert.deepEqual(groupValues(compare, { measure: 'employees.annual_ctc', by: 'employees.department' }, columns), ['Engineering', 'Sales'])
+  // No group column chosen yet: nothing to offer, rather than the wrong column's values.
+  assert.deepEqual(groupValues(compare, { measure: 'employees.annual_ctc' }, columns), [])
+})
+
+test('an analysis whose groups are not chosen cannot be run', () => {
+  const compare = {
+    key: 'compare', name: 'Compare', description: '', example: '', inputs: [measureIn, byIn],
+    options: [aggregate, { key: 'group_a', label: 'First group', choices: [] }, { key: 'group_b', label: 'Second group', choices: [] }],
+  }
+  const chosen = { measure: 'employees.annual_ctc', by: 'employees.department' }
+  assert.equal(isComplete(compare, chosen, { aggregate: 'sum' }), false)
+  assert.equal(isComplete(compare, chosen, { aggregate: 'sum', group_a: 'Engineering' }), false)
+  assert.equal(isComplete(compare, chosen, { aggregate: 'sum', group_a: 'Engineering', group_b: 'Sales' }), true)
+  // An option with fixed choices is preselected, so it never blocks Run.
+  assert.equal(isComplete(kind('breakdown', [measureIn, byIn], [aggregate]), { measure: 'a', by: 'b' }), true)
+})
+
+test('a refusal from the server lands beside the picker it names', () => {
+  const pivot = kind('pivot', [measureIn, { key: 'by', label: 'Rows', accepts: ['category'], optional: false },
+                               { key: 'across', label: 'Columns', accepts: ['category'], optional: false }], [aggregate])
+  assert.deepEqual(slotForMessage('Break down needs a column for “Split by”. Pick one from the list.', kind('breakdown', [measureIn, byIn])), {
+    of: 'input',
+    key: 'by',
+  })
+  assert.deepEqual(slotForMessage('Rows and Columns have to be two different columns.', pivot), { of: 'input', key: 'by' })
+  const compare = kind('compare', [measureIn, byIn], [{ key: 'group_a', label: "First group (one of the chosen column's values)", choices: [] }])
+  // The label is matched up to its parenthesis, so the server's own punctuation — a curly
+  // apostrophe where the label has a straight one — still lands on the right picker.
+  assert.deepEqual(slotForMessage('Choose a value for “First group (one of the chosen column’s values)”.', compare), {
+    of: 'option',
+    key: 'group_a',
+  })
+  // Nothing it names: the message belongs beside Run, not beside a guess.
+  assert.equal(slotForMessage('Pick two different numbers. A column always moves with itself.', pivot), null)
 })

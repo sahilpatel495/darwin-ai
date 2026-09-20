@@ -1,14 +1,15 @@
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <title>Verity — ask your spreadsheets, verify the answer</title>
-    <!-- Sets data-theme before first paint. A file, not inline: the production CSP is
-         `default-src 'self'` and would refuse an inline script. -->
-    <script src="/theme.js"></script>
+    <!-- The latin subset carries every letter of the interface, so it is worth the early
+         request. latin-ext holds ₹ and is fetched by the first rupee figure, which is always
+         inside a card that has already painted. -->
+    <link rel="preload" href="/fonts/montserrat-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
+    <title>DarwinLens — see your HR data clearly. Verify every answer.</title>
   </head>
   <body>
     <div id="root"></div>

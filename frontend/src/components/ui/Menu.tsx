@@ -91,7 +91,7 @@ export default function Menu({ trigger, triggerLabel, actions, align = 'right', 
           onKeyDown={onMenuKeyDown}
           className={cx(
             'popover-in absolute top-full z-40 mt-1.5 min-w-48 max-w-[calc(100vw-2rem)] overflow-hidden',
-            'rounded-card bg-surface p-1 shadow-3',
+            'rounded-xl bg-surface p-1 shadow-level-2',
             align === 'right' ? 'right-0' : 'left-0',
           )}
         >
@@ -109,8 +109,8 @@ export default function Menu({ trigger, triggerLabel, actions, align = 'right', 
                 action.onSelect()
               }}
               className={cx(
-                'block w-full rounded-input px-3 py-2 text-left type-body text-ink',
-                'hover:bg-fill disabled:cursor-not-allowed disabled:text-ink-3 disabled:hover:bg-transparent',
+                'block w-full rounded-lg px-3 py-2 text-left text-body-md text-ink',
+                'hover:bg-surface-soft disabled:cursor-not-allowed disabled:text-stone disabled:hover:bg-transparent',
               )}
             >
               {action.label}

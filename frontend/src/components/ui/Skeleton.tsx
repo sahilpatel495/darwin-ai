@@ -1,8 +1,10 @@
 import { cx } from './cx'
 
 export interface SkeletonProps {
-  /** Size it with utilities: `h-5 w-40`. Match the shape of what is loading. */
+  /** Size it with utilities: `h-9 w-40`. Match the shape of what is loading. */
   className?: string
+  /** `pill` for a line of text, `card` for a tile. */
+  shape?: 'pill' | 'card'
 }
 
 /**
@@ -10,6 +12,6 @@ export interface SkeletonProps {
  * Decorative, so it is hidden from screen readers — put `role="status"` and a sentence on the
  * container instead, so the wait is announced once in words rather than as a row of empty boxes.
  */
-export default function Skeleton({ className }: SkeletonProps) {
-  return <div aria-hidden className={cx('shimmer rounded-input bg-fill', className)} />
+export default function Skeleton({ className, shape = 'pill' }: SkeletonProps) {
+  return <div aria-hidden className={cx('shimmer bg-surface-soft', shape === 'pill' ? 'rounded-full' : 'rounded-xxl', className)} />
 }

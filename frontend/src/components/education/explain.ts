@@ -31,7 +31,7 @@ export const EXPLAIN: Record<ExplainKey, Explanation> = {
   },
   definition: {
     title: 'Your agreed definition',
-    body: 'A measure like attrition can be worked out three or four ways, so Verity uses the definition written in your glossary instead of picking one. Change it there and every answer that uses that measure follows your company, not a default.',
+    body: 'A measure like attrition can be worked out three or four ways, so DarwinLens uses the definition written in your glossary instead of picking one. Change it there and every answer that uses that measure follows your company, not a default.',
   },
   dataHealth: {
     title: 'What Data Health shows',
@@ -43,7 +43,7 @@ export const EXPLAIN: Record<ExplainKey, Explanation> = {
   },
   combined: {
     title: 'What a combined view is',
-    body: 'When several files hold the same kind of rows, one per month for example, Verity stacks them into a single view so one question covers them all. Your files are not changed, and removing the view puts the question back to one file at a time.',
+    body: 'When several files hold the same kind of rows, one per month for example, DarwinLens stacks them into a single view so one question covers them all. Your files are not changed, and removing the view puts the question back to one file at a time.',
   },
   clarify: {
     title: 'Why am I asking?',
