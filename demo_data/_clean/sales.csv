@@ -1,0 +1,801 @@
+order_id,order_date,region,product,category,units,unit_price,revenue,customer
+SO-10001,2025-01-02,North,Headset,Audio and Video,6,6500,39000,Jasmine Pharma
+SO-10002,2025-01-03,East,24-inch Monitor,Displays,20,14500,290000,Evergreen Foods
+SO-10003,2025-01-03,West,Headset,Audio and Video,5,6500,32500,Anvil Logistics
+SO-10004,2025-01-04,East,27-inch Monitor,Displays,13,24000,312000,Deccan Motors
+SO-10005,2025-01-04,West,24-inch Monitor,Displays,13,14500,188500,Falcon Freight
+SO-10006,2025-01-04,North,Office Chair,Furniture,10,12500,125000,Saffron Kitchens
+SO-10007,2025-01-04,East,27-inch Monitor,Displays,21,24000,504000,Coral Retail
+SO-10008,2025-01-05,East,Standing Desk,Furniture,13,32000,416000,Saffron Kitchens
+SO-10009,2025-01-05,South,27-inch Monitor,Displays,17,24000,408000,Evergreen Foods
+SO-10010,2025-01-05,South,Wireless Mouse,Accessories,13,1200,15600,Coral Retail
+SO-10011,2025-01-05,South,27-inch Monitor,Displays,5,24000,120000,Ganga Textiles
+SO-10012,2025-01-06,North,Office Chair,Furniture,24,12500,300000,Jasmine Pharma
+SO-10013,2025-01-06,North,Office Chair,Furniture,4,12500,50000,Harbour Hotels
+SO-10014,2025-01-06,South,Standing Desk,Furniture,2,32000,64000,Falcon Freight
+SO-10015,2025-01-06,East,Headset,Audio and Video,20,6500,130000,Quartz Mining
+SO-10016,2025-01-07,West,Webcam,Audio and Video,16,4200,67200,Peacock Apparel
+SO-10017,2025-01-07,East,27-inch Monitor,Displays,5,24000,120000,Riverstone Realty
+SO-10018,2025-01-07,North,Laptop Stand,Accessories,24,1800,43200,Ganga Textiles
+SO-10019,2025-01-07,North,Office Chair,Furniture,8,12500,100000,Harbour Hotels
+SO-10020,2025-01-07,North,Conference Speaker,Audio and Video,20,18000,360000,Evergreen Foods
+SO-10021,2025-01-07,West,Wireless Mouse,Accessories,15,1200,18000,Cedar Finserv
+SO-10022,2025-01-07,North,27-inch Monitor,Displays,17,24000,408000,Tamarind Tech
+SO-10023,2025-01-07,North,Office Chair,Furniture,5,12500,62500,Totally Fine Corp
+SO-10024,2025-01-07,East,Standing Desk,Furniture,7,32000,224000,Falcon Freight
+SO-10025,2025-01-07,North,24-inch Monitor,Displays,3,14500,43500,Ganga Textiles
+SO-10026,2025-01-08,West,27-inch Monitor,Displays,6,24000,144000,Banyan Health
+SO-10027,2025-01-08,North,27-inch Monitor,Displays,12,24000,288000,Cedar Finserv
+SO-10028,2025-01-09,North,24-inch Monitor,Displays,21,14500,304500,Riverstone Realty
+SO-10029,2025-01-09,West,Standing Desk,Furniture,11,32000,352000,Cedar Finserv
+SO-10030,2025-01-09,East,Webcam,Audio and Video,11,4200,46200,Vista Telecom
+SO-10031,2025-01-09,West,Headset,Audio and Video,22,6500,143000,Umber Paints
+SO-10032,2025-01-09,West,Conference Speaker,Audio and Video,7,18000,126000,Tamarind Tech
+SO-10033,2025-01-09,West,Standing Desk,Furniture,3,32000,96000,Bluepeak Analytics
+SO-10034,2025-01-10,North,Conference Speaker,Audio and Video,2,18000,36000,Falcon Freight
+SO-10035,2025-01-10,South,Laptop Stand,Accessories,25,1800,45000,Kite Media
+SO-10036,2025-01-11,West,27-inch Monitor,Displays,5,24000,120000,Orchid Interiors
+SO-10037,2025-01-12,North,Wireless Mouse,Accessories,9,1200,10800,Evergreen Foods
+SO-10038,2025-01-12,East,Laptop Stand,Accessories,16,1800,28800,Harbour Hotels
+SO-10039,2025-01-12,West,Laptop Stand,Accessories,7,1800,12600,Orchid Interiors
+SO-10040,2025-01-13,East,USB-C Hub,Accessories,16,3500,56000,Riverstone Realty
+SO-10041,2025-01-14,South,Wireless Mouse,Accessories,11,1200,13200,Tamarind Tech
+SO-10042,2025-01-15,North,Laptop Stand,Accessories,16,1800,28800,Lotus Infra
+SO-10043,2025-01-15,East,Office Chair,Furniture,11,12500,137500,Evergreen Foods
+SO-10044,2025-01-15,North,Laptop Stand,Accessories,10,1800,18000,Ganga Textiles
+SO-10045,2025-01-15,East,Standing Desk,Furniture,15,32000,480000,Deccan Motors
+SO-10046,2025-01-15,North,24-inch Monitor,Displays,7,14500,101500,Cedar Finserv
+SO-10047,2025-01-16,North,24-inch Monitor,Displays,21,14500,304500,Lotus Infra
+SO-10048,2025-01-16,North,Office Chair,Furniture,4,12500,50000,Jasmine Pharma
+SO-10049,2025-01-16,South,Webcam,Audio and Video,2,4200,8400,Totally Fine Corp
+SO-10050,2025-01-16,South,USB-C Hub,Accessories,4,3500,14000,Bluepeak Analytics
+SO-10051,2025-01-17,West,Laptop Stand,Accessories,7,1800,12600,Vista Telecom
+SO-10052,2025-01-17,North,27-inch Monitor,Displays,19,24000,456000,Tamarind Tech
+SO-10053,2025-01-17,East,27-inch Monitor,Displays,15,24000,360000,Lotus Infra
+SO-10054,2025-01-18,South,27-inch Monitor,Displays,24,24000,576000,Totally Fine Corp
+SO-10055,2025-01-18,West,Conference Speaker,Audio and Video,24,18000,432000,Jasmine Pharma
+SO-10056,2025-01-19,East,Laptop Stand,Accessories,24,1800,43200,Anvil Logistics
+SO-10057,2025-01-19,North,Conference Speaker,Audio and Video,19,18000,342000,Totally Fine Corp
+SO-10058,2025-01-20,East,24-inch Monitor,Displays,19,14500,275500,Tamarind Tech
+SO-10059,2025-01-20,West,Webcam,Audio and Video,16,4200,67200,Monsoon Travel
+SO-10060,2025-01-22,South,24-inch Monitor,Displays,1,14500,14500,Saffron Kitchens
+SO-10061,2025-01-23,North,Conference Speaker,Audio and Video,11,18000,198000,Ganga Textiles
+SO-10062,2025-01-23,East,27-inch Monitor,Displays,22,24000,528000,Deccan Motors
+SO-10063,2025-01-24,North,Office Chair,Furniture,8,12500,100000,Anvil Logistics
+SO-10064,2025-01-24,South,Office Chair,Furniture,1,12500,12500,Coral Retail
+SO-10065,2025-01-24,North,Headset,Audio and Video,6,6500,39000,Tamarind Tech
+SO-10066,2025-01-25,South,24-inch Monitor,Displays,6,14500,87000,Tamarind Tech
+SO-10067,2025-01-26,East,Conference Speaker,Audio and Video,20,18000,360000,Totally Fine Corp
+SO-10068,2025-01-26,West,27-inch Monitor,Displays,13,24000,312000,Totally Fine Corp
+SO-10069,2025-01-26,North,Laptop Stand,Accessories,14,1800,25200,Ganga Textiles
+SO-10070,2025-01-27,East,27-inch Monitor,Displays,16,24000,384000,Kite Media
+SO-10071,2025-01-27,North,Webcam,Audio and Video,6,4200,25200,Kite Media
+SO-10072,2025-01-27,West,Standing Desk,Furniture,8,32000,256000,Cedar Finserv
+SO-10073,2025-01-28,North,27-inch Monitor,Displays,15,24000,360000,Bluepeak Analytics
+SO-10074,2025-02-01,South,27-inch Monitor,Displays,10,24000,240000,Umber Paints
+SO-10075,2025-02-01,West,Conference Speaker,Audio and Video,21,18000,378000,Jasmine Pharma
+SO-10076,2025-02-01,North,24-inch Monitor,Displays,13,14500,188500,Monsoon Travel
+SO-10077,2025-02-02,East,24-inch Monitor,Displays,9,14500,130500,Banyan Health
+SO-10078,2025-02-03,West,27-inch Monitor,Displays,22,24000,528000,Lotus Infra
+SO-10079,2025-02-03,North,Conference Speaker,Audio and Video,15,18000,270000,Vista Telecom
+SO-10080,2025-02-03,West,Office Chair,Furniture,14,12500,175000,Indigo Learning
+SO-10081,2025-02-03,South,Standing Desk,Furniture,10,32000,320000,Jasmine Pharma
+SO-10082,2025-02-04,North,Standing Desk,Furniture,4,32000,128000,Nimbus Cloud
+SO-10083,2025-02-05,South,Laptop Stand,Accessories,25,1800,45000,Evergreen Foods
+SO-10084,2025-02-06,West,Standing Desk,Furniture,15,32000,480000,Riverstone Realty
+SO-10085,2025-02-06,East,Standing Desk,Furniture,11,32000,352000,Jasmine Pharma
+SO-10086,2025-02-08,South,USB-C Hub,Accessories,1,3500,3500,Jasmine Pharma
+SO-10087,2025-02-08,West,Standing Desk,Furniture,16,32000,512000,Monsoon Travel
+SO-10088,2025-02-09,West,Headset,Audio and Video,4,6500,26000,Indigo Learning
+SO-10089,2025-02-09,West,Webcam,Audio and Video,19,4200,79800,Umber Paints
+SO-10090,2025-02-09,West,Conference Speaker,Audio and Video,23,18000,414000,Quartz Mining
+SO-10091,2025-02-09,East,Standing Desk,Furniture,16,32000,512000,Orchid Interiors
+SO-10092,2025-02-10,North,Webcam,Audio and Video,21,4200,88200,Indigo Learning
+SO-10093,2025-02-10,South,Wireless Mouse,Accessories,4,1200,4800,Falcon Freight
+SO-10094,2025-02-11,West,27-inch Monitor,Displays,3,24000,72000,Vista Telecom
+SO-10095,2025-02-12,South,Conference Speaker,Audio and Video,24,18000,432000,Banyan Health
+SO-10096,2025-02-12,South,Headset,Audio and Video,16,6500,104000,Riverstone Realty
+SO-10097,2025-02-13,East,Headset,Audio and Video,10,6500,65000,Saffron Kitchens
+SO-10098,2025-02-14,East,24-inch Monitor,Displays,22,14500,319000,Riverstone Realty
+SO-10099,2025-02-15,North,Laptop Stand,Accessories,25,1800,45000,Kite Media
+SO-10100,2025-02-15,North,27-inch Monitor,Displays,17,24000,408000,Saffron Kitchens
+SO-10101,2025-02-15,West,Headset,Audio and Video,1,6500,6500,Vista Telecom
+SO-10102,2025-02-16,East,USB-C Hub,Accessories,23,3500,80500,Indigo Learning
+SO-10103,2025-02-16,South,Standing Desk,Furniture,6,32000,192000,Banyan Health
+SO-10104,2025-02-16,West,Standing Desk,Furniture,10,32000,320000,Bluepeak Analytics
+SO-10105,2025-02-16,South,Wireless Mouse,Accessories,3,1200,3600,Kite Media
+SO-10106,2025-02-17,West,Headset,Audio and Video,14,6500,91000,Orchid Interiors
+SO-10107,2025-02-17,East,Wireless Mouse,Accessories,6,1200,7200,Coral Retail
+SO-10108,2025-02-17,North,27-inch Monitor,Displays,3,24000,72000,Vista Telecom
+SO-10109,2025-02-17,West,24-inch Monitor,Displays,12,14500,174000,Deccan Motors
+SO-10110,2025-02-17,North,Wireless Mouse,Accessories,7,1200,8400,Cedar Finserv
+SO-10111,2025-02-18,North,24-inch Monitor,Displays,8,14500,116000,Tamarind Tech
+SO-10112,2025-02-18,East,27-inch Monitor,Displays,25,24000,600000,Nimbus Cloud
+SO-10113,2025-02-19,South,USB-C Hub,Accessories,6,3500,21000,Kite Media
+SO-10114,2025-02-19,South,Webcam,Audio and Video,3,4200,12600,Orchid Interiors
+SO-10115,2025-02-19,South,USB-C Hub,Accessories,12,3500,42000,Banyan Health
+SO-10116,2025-02-19,West,Wireless Mouse,Accessories,15,1200,18000,Banyan Health
+SO-10117,2025-02-20,South,Office Chair,Furniture,13,12500,162500,Monsoon Travel
+SO-10118,2025-02-20,East,Headset,Audio and Video,2,6500,13000,Peacock Apparel
+SO-10119,2025-02-22,North,USB-C Hub,Accessories,13,3500,45500,Anvil Logistics
+SO-10120,2025-02-22,East,Standing Desk,Furniture,5,32000,160000,Totally Fine Corp
+SO-10121,2025-02-23,East,Conference Speaker,Audio and Video,3,18000,54000,Harbour Hotels
+SO-10122,2025-02-23,North,Headset,Audio and Video,8,6500,52000,Vista Telecom
+SO-10123,2025-02-25,East,24-inch Monitor,Displays,23,14500,333500,Quartz Mining
+SO-10124,2025-02-25,East,24-inch Monitor,Displays,2,14500,29000,Quartz Mining
+SO-10125,2025-02-26,South,Conference Speaker,Audio and Video,4,18000,72000,Tamarind Tech
+SO-10126,2025-02-26,North,Laptop Stand,Accessories,22,1800,39600,Tamarind Tech
+SO-10127,2025-02-27,South,Standing Desk,Furniture,6,32000,192000,Totally Fine Corp
+SO-10128,2025-02-27,North,Conference Speaker,Audio and Video,9,18000,162000,Saffron Kitchens
+SO-10129,2025-02-28,West,Headset,Audio and Video,16,6500,104000,Totally Fine Corp
+SO-10130,2025-03-01,East,Wireless Mouse,Accessories,23,1200,27600,Kite Media
+SO-10131,2025-03-02,South,27-inch Monitor,Displays,21,24000,504000,Jasmine Pharma
+SO-10132,2025-03-02,South,Conference Speaker,Audio and Video,19,18000,342000,Falcon Freight
+SO-10133,2025-03-03,South,Headset,Audio and Video,11,6500,71500,Jasmine Pharma
+SO-10134,2025-03-03,South,Office Chair,Furniture,18,12500,225000,Kite Media
+SO-10135,2025-03-03,East,USB-C Hub,Accessories,7,3500,24500,Saffron Kitchens
+SO-10136,2025-03-04,South,Conference Speaker,Audio and Video,5,18000,90000,Bluepeak Analytics
+SO-10137,2025-03-04,West,24-inch Monitor,Displays,15,14500,217500,Deccan Motors
+SO-10138,2025-03-05,South,Webcam,Audio and Video,15,4200,63000,Ganga Textiles
+SO-10139,2025-03-06,East,Webcam,Audio and Video,21,4200,88200,Coral Retail
+SO-10140,2025-03-06,North,Standing Desk,Furniture,1,32000,32000,Lotus Infra
+SO-10141,2025-03-07,South,Webcam,Audio and Video,4,4200,16800,Nimbus Cloud
+SO-10142,2025-03-07,West,24-inch Monitor,Displays,1,14500,14500,Ganga Textiles
+SO-10143,2025-03-09,South,24-inch Monitor,Displays,10,14500,145000,Harbour Hotels
+SO-10144,2025-03-09,West,Webcam,Audio and Video,11,4200,46200,Harbour Hotels
+SO-10145,2025-03-09,West,Standing Desk,Furniture,23,32000,736000,Totally Fine Corp
+SO-10146,2025-03-09,West,Conference Speaker,Audio and Video,21,18000,378000,Ganga Textiles
+SO-10147,2025-03-10,South,Office Chair,Furniture,10,12500,125000,Umber Paints
+SO-10148,2025-03-10,West,Webcam,Audio and Video,16,4200,67200,Cedar Finserv
+SO-10149,2025-03-11,South,Office Chair,Furniture,3,12500,37500,Orchid Interiors
+SO-10150,2025-03-11,South,Standing Desk,Furniture,4,32000,128000,Kite Media
+SO-10151,2025-03-11,North,Wireless Mouse,Accessories,13,1200,15600,Kite Media
+SO-10152,2025-03-12,South,USB-C Hub,Accessories,19,3500,66500,Deccan Motors
+SO-10153,2025-03-13,West,Wireless Mouse,Accessories,12,1200,14400,Ganga Textiles
+SO-10154,2025-03-13,South,Conference Speaker,Audio and Video,14,18000,252000,Jasmine Pharma
+SO-10155,2025-03-13,East,Headset,Audio and Video,6,6500,39000,Bluepeak Analytics
+SO-10156,2025-03-13,West,Webcam,Audio and Video,18,4200,75600,Deccan Motors
+SO-10157,2025-03-13,North,Laptop Stand,Accessories,20,1800,36000,Anvil Logistics
+SO-10158,2025-03-14,East,Conference Speaker,Audio and Video,4,18000,72000,Indigo Learning
+SO-10159,2025-03-14,South,Laptop Stand,Accessories,6,1800,10800,Umber Paints
+SO-10160,2025-03-15,West,Wireless Mouse,Accessories,25,1200,30000,Riverstone Realty
+SO-10161,2025-03-15,East,USB-C Hub,Accessories,11,3500,38500,Saffron Kitchens
+SO-10162,2025-03-15,East,USB-C Hub,Accessories,25,3500,87500,Tamarind Tech
+SO-10163,2025-03-16,East,24-inch Monitor,Displays,9,14500,130500,Vista Telecom
+SO-10164,2025-03-18,South,Headset,Audio and Video,5,6500,32500,Ganga Textiles
+SO-10165,2025-03-18,South,USB-C Hub,Accessories,15,3500,52500,Kite Media
+SO-10166,2025-03-18,East,Wireless Mouse,Accessories,18,1200,21600,Coral Retail
+SO-10167,2025-03-18,West,Webcam,Audio and Video,10,4200,42000,Ganga Textiles
+SO-10168,2025-03-19,South,27-inch Monitor,Displays,6,24000,144000,Vista Telecom
+SO-10169,2025-03-19,South,Webcam,Audio and Video,23,4200,96600,Saffron Kitchens
+SO-10170,2025-03-20,East,Headset,Audio and Video,22,6500,143000,Umber Paints
+SO-10171,2025-03-20,West,USB-C Hub,Accessories,11,3500,38500,Vista Telecom
+SO-10172,2025-03-21,South,USB-C Hub,Accessories,10,3500,35000,Saffron Kitchens
+SO-10173,2025-03-21,South,27-inch Monitor,Displays,15,24000,360000,Monsoon Travel
+SO-10174,2025-03-22,North,Wireless Mouse,Accessories,14,1200,16800,Umber Paints
+SO-10175,2025-03-22,North,Webcam,Audio and Video,9,4200,37800,Deccan Motors
+SO-10176,2025-03-25,North,USB-C Hub,Accessories,24,3500,84000,Tamarind Tech
+SO-10177,2025-03-25,South,Standing Desk,Furniture,20,32000,640000,Quartz Mining
+SO-10178,2025-03-25,South,Office Chair,Furniture,16,12500,200000,Peacock Apparel
+SO-10179,2025-03-25,East,Standing Desk,Furniture,24,32000,768000,Deccan Motors
+SO-10180,2025-03-25,West,Standing Desk,Furniture,23,32000,736000,Orchid Interiors
+SO-10181,2025-03-26,South,USB-C Hub,Accessories,18,3500,63000,Cedar Finserv
+SO-10182,2025-03-26,West,USB-C Hub,Accessories,11,3500,38500,Bluepeak Analytics
+SO-10183,2025-03-26,South,USB-C Hub,Accessories,11,3500,38500,Saffron Kitchens
+SO-10184,2025-03-28,East,Laptop Stand,Accessories,17,1800,30600,Deccan Motors
+SO-10185,2025-04-01,East,Headset,Audio and Video,18,6500,117000,Jasmine Pharma
+SO-10186,2025-04-01,North,Webcam,Audio and Video,25,4200,105000,Ganga Textiles
+SO-10187,2025-04-01,North,Webcam,Audio and Video,17,4200,71400,Vista Telecom
+SO-10188,2025-04-01,North,USB-C Hub,Accessories,7,3500,24500,Peacock Apparel
+SO-10189,2025-04-02,North,24-inch Monitor,Displays,21,14500,304500,Banyan Health
+SO-10190,2025-04-02,South,Headset,Audio and Video,25,6500,162500,Falcon Freight
+SO-10191,2025-04-02,North,Standing Desk,Furniture,20,32000,640000,Totally Fine Corp
+SO-10192,2025-04-03,South,Wireless Mouse,Accessories,11,1200,13200,Saffron Kitchens
+SO-10193,2025-04-03,North,Headset,Audio and Video,12,6500,78000,Jasmine Pharma
+SO-10194,2025-04-03,North,Headset,Audio and Video,13,6500,84500,Bluepeak Analytics
+SO-10195,2025-04-05,West,Office Chair,Furniture,24,12500,300000,Nimbus Cloud
+SO-10196,2025-04-05,South,Wireless Mouse,Accessories,17,1200,20400,Jasmine Pharma
+SO-10197,2025-04-06,South,Standing Desk,Furniture,22,32000,704000,Lotus Infra
+SO-10198,2025-04-06,West,Standing Desk,Furniture,1,32000,32000,Vista Telecom
+SO-10199,2025-04-07,South,24-inch Monitor,Displays,6,14500,87000,Banyan Health
+SO-10200,2025-04-07,West,27-inch Monitor,Displays,1,24000,24000,Ganga Textiles
+SO-10201,2025-04-08,North,Standing Desk,Furniture,3,32000,96000,Indigo Learning
+SO-10202,2025-04-09,East,Webcam,Audio and Video,15,4200,63000,Umber Paints
+SO-10203,2025-04-09,North,Conference Speaker,Audio and Video,2,18000,36000,Saffron Kitchens
+SO-10204,2025-04-09,North,Wireless Mouse,Accessories,2,1200,2400,Ganga Textiles
+SO-10205,2025-04-10,East,27-inch Monitor,Displays,21,24000,504000,Coral Retail
+SO-10206,2025-04-10,West,Laptop Stand,Accessories,12,1800,21600,Coral Retail
+SO-10207,2025-04-10,North,Laptop Stand,Accessories,7,1800,12600,Bluepeak Analytics
+SO-10208,2025-04-10,South,24-inch Monitor,Displays,20,14500,290000,Tamarind Tech
+SO-10209,2025-04-10,North,Laptop Stand,Accessories,5,1800,9000,Jasmine Pharma
+SO-10210,2025-04-11,East,27-inch Monitor,Displays,4,24000,96000,Saffron Kitchens
+SO-10211,2025-04-11,West,Standing Desk,Furniture,22,32000,704000,Totally Fine Corp
+SO-10212,2025-04-11,West,Conference Speaker,Audio and Video,1,18000,18000,Cedar Finserv
+SO-10213,2025-04-12,West,USB-C Hub,Accessories,7,3500,24500,Tamarind Tech
+SO-10214,2025-04-12,West,Wireless Mouse,Accessories,12,1200,14400,Monsoon Travel
+SO-10215,2025-04-12,South,Standing Desk,Furniture,22,32000,704000,Lotus Infra
+SO-10216,2025-04-12,North,Headset,Audio and Video,25,6500,162500,Coral Retail
+SO-10217,2025-04-12,North,Laptop Stand,Accessories,8,1800,14400,Indigo Learning
+SO-10218,2025-04-13,East,Headset,Audio and Video,2,6500,13000,Lotus Infra
+SO-10219,2025-04-13,South,Conference Speaker,Audio and Video,4,18000,72000,Quartz Mining
+SO-10220,2025-04-14,South,Wireless Mouse,Accessories,25,1200,30000,Falcon Freight
+SO-10221,2025-04-15,West,Conference Speaker,Audio and Video,12,18000,216000,Ganga Textiles
+SO-10222,2025-04-15,West,Laptop Stand,Accessories,11,1800,19800,Vista Telecom
+SO-10223,2025-04-16,West,Laptop Stand,Accessories,25,1800,45000,Monsoon Travel
+SO-10224,2025-04-17,North,Standing Desk,Furniture,15,32000,480000,Tamarind Tech
+SO-10225,2025-04-17,South,Standing Desk,Furniture,3,32000,96000,Lotus Infra
+SO-10226,2025-04-18,West,Office Chair,Furniture,8,12500,100000,Bluepeak Analytics
+SO-10227,2025-04-18,East,Laptop Stand,Accessories,22,1800,39600,Totally Fine Corp
+SO-10228,2025-04-18,South,Conference Speaker,Audio and Video,6,18000,108000,Cedar Finserv
+SO-10229,2025-04-18,North,Wireless Mouse,Accessories,13,1200,15600,Lotus Infra
+SO-10230,2025-04-19,East,USB-C Hub,Accessories,14,3500,49000,Kite Media
+SO-10231,2025-04-19,South,Standing Desk,Furniture,14,32000,448000,Peacock Apparel
+SO-10232,2025-04-19,East,Wireless Mouse,Accessories,15,1200,18000,Vista Telecom
+SO-10233,2025-04-20,North,Webcam,Audio and Video,25,4200,105000,Riverstone Realty
+SO-10234,2025-04-20,East,Office Chair,Furniture,15,12500,187500,Coral Retail
+SO-10235,2025-04-20,North,Conference Speaker,Audio and Video,8,18000,144000,Totally Fine Corp
+SO-10236,2025-04-20,South,Headset,Audio and Video,1,6500,6500,Ganga Textiles
+SO-10237,2025-04-21,East,Wireless Mouse,Accessories,16,1200,19200,Lotus Infra
+SO-10238,2025-04-21,North,Standing Desk,Furniture,16,32000,512000,Quartz Mining
+SO-10239,2025-04-21,West,Headset,Audio and Video,21,6500,136500,Jasmine Pharma
+SO-10240,2025-04-22,South,Wireless Mouse,Accessories,10,1200,12000,Totally Fine Corp
+SO-10241,2025-04-22,West,Wireless Mouse,Accessories,20,1200,24000,Anvil Logistics
+SO-10242,2025-04-23,East,Headset,Audio and Video,22,6500,143000,Anvil Logistics
+SO-10243,2025-04-23,South,USB-C Hub,Accessories,23,3500,80500,Anvil Logistics
+SO-10244,2025-04-23,West,Headset,Audio and Video,1,6500,6500,Coral Retail
+SO-10245,2025-04-24,West,USB-C Hub,Accessories,2,3500,7000,Evergreen Foods
+SO-10246,2025-04-24,West,Standing Desk,Furniture,12,32000,384000,Totally Fine Corp
+SO-10247,2025-04-25,West,27-inch Monitor,Displays,19,24000,456000,Peacock Apparel
+SO-10248,2025-04-25,North,Headset,Audio and Video,24,6500,156000,Quartz Mining
+SO-10249,2025-04-25,West,Wireless Mouse,Accessories,18,1200,21600,Kite Media
+SO-10250,2025-04-25,East,Office Chair,Furniture,18,12500,225000,Evergreen Foods
+SO-10251,2025-04-25,North,24-inch Monitor,Displays,10,14500,145000,Orchid Interiors
+SO-10252,2025-04-25,North,Laptop Stand,Accessories,14,1800,25200,Orchid Interiors
+SO-10253,2025-04-26,South,Headset,Audio and Video,12,6500,78000,Cedar Finserv
+SO-10254,2025-04-26,East,Wireless Mouse,Accessories,7,1200,8400,Cedar Finserv
+SO-10255,2025-04-27,East,Laptop Stand,Accessories,24,1800,43200,Quartz Mining
+SO-10256,2025-04-27,South,24-inch Monitor,Displays,2,14500,29000,Kite Media
+SO-10257,2025-04-27,North,Webcam,Audio and Video,16,4200,67200,Ganga Textiles
+SO-10258,2025-04-27,East,Webcam,Audio and Video,16,4200,67200,Indigo Learning
+SO-10259,2025-04-27,North,Headset,Audio and Video,7,6500,45500,Falcon Freight
+SO-10260,2025-04-28,South,Office Chair,Furniture,6,12500,75000,Lotus Infra
+SO-10261,2025-04-28,North,Office Chair,Furniture,12,12500,150000,Bluepeak Analytics
+SO-10262,2025-05-01,North,Laptop Stand,Accessories,13,1800,23400,Ganga Textiles
+SO-10263,2025-05-01,South,Headset,Audio and Video,14,6500,91000,Coral Retail
+SO-10264,2025-05-01,North,Laptop Stand,Accessories,14,1800,25200,Indigo Learning
+SO-10265,2025-05-02,South,Headset,Audio and Video,4,6500,26000,Indigo Learning
+SO-10266,2025-05-02,North,24-inch Monitor,Displays,11,14500,159500,Cedar Finserv
+SO-10267,2025-05-03,North,Headset,Audio and Video,7,6500,45500,Harbour Hotels
+SO-10268,2025-05-03,South,USB-C Hub,Accessories,20,3500,70000,Orchid Interiors
+SO-10269,2025-05-03,East,27-inch Monitor,Displays,10,24000,240000,Indigo Learning
+SO-10270,2025-05-04,South,USB-C Hub,Accessories,24,3500,84000,Banyan Health
+SO-10271,2025-05-04,South,27-inch Monitor,Displays,11,24000,264000,Riverstone Realty
+SO-10272,2025-05-04,West,Laptop Stand,Accessories,22,1800,39600,Quartz Mining
+SO-10273,2025-05-04,West,Standing Desk,Furniture,18,32000,576000,Vista Telecom
+SO-10274,2025-05-04,South,24-inch Monitor,Displays,14,14500,203000,Coral Retail
+SO-10275,2025-05-05,South,Standing Desk,Furniture,7,32000,224000,Harbour Hotels
+SO-10276,2025-05-05,East,Laptop Stand,Accessories,8,1800,14400,Tamarind Tech
+SO-10277,2025-05-05,South,Wireless Mouse,Accessories,17,1200,20400,Evergreen Foods
+SO-10278,2025-05-06,North,Wireless Mouse,Accessories,22,1200,26400,Jasmine Pharma
+SO-10279,2025-05-06,East,27-inch Monitor,Displays,10,24000,240000,Vista Telecom
+SO-10280,2025-05-07,North,Standing Desk,Furniture,23,32000,736000,Cedar Finserv
+SO-10281,2025-05-07,East,USB-C Hub,Accessories,14,3500,49000,Kite Media
+SO-10282,2025-05-08,North,27-inch Monitor,Displays,20,24000,480000,Tamarind Tech
+SO-10283,2025-05-08,East,Laptop Stand,Accessories,13,1800,23400,Indigo Learning
+SO-10284,2025-05-08,East,Conference Speaker,Audio and Video,3,18000,54000,Deccan Motors
+SO-10285,2025-05-09,West,Office Chair,Furniture,11,12500,137500,Anvil Logistics
+SO-10286,2025-05-10,West,Standing Desk,Furniture,3,32000,96000,Kite Media
+SO-10287,2025-05-10,South,USB-C Hub,Accessories,25,3500,87500,Saffron Kitchens
+SO-10288,2025-05-10,South,Wireless Mouse,Accessories,21,1200,25200,Monsoon Travel
+SO-10289,2025-05-11,South,27-inch Monitor,Displays,24,24000,576000,Orchid Interiors
+SO-10290,2025-05-11,South,Office Chair,Furniture,3,12500,37500,Totally Fine Corp
+SO-10291,2025-05-11,North,Webcam,Audio and Video,16,4200,67200,Coral Retail
+SO-10292,2025-05-12,East,27-inch Monitor,Displays,21,24000,504000,Jasmine Pharma
+SO-10293,2025-05-12,East,Conference Speaker,Audio and Video,20,18000,360000,Cedar Finserv
+SO-10294,2025-05-12,East,Headset,Audio and Video,12,6500,78000,Bluepeak Analytics
+SO-10295,2025-05-12,West,Wireless Mouse,Accessories,14,1200,16800,Banyan Health
+SO-10296,2025-05-13,South,27-inch Monitor,Displays,11,24000,264000,Vista Telecom
+SO-10297,2025-05-13,West,Wireless Mouse,Accessories,2,1200,2400,Coral Retail
+SO-10298,2025-05-13,West,Headset,Audio and Video,3,6500,19500,Ganga Textiles
+SO-10299,2025-05-13,South,27-inch Monitor,Displays,13,24000,312000,Quartz Mining
+SO-10300,2025-05-15,West,Office Chair,Furniture,21,12500,262500,Falcon Freight
+SO-10301,2025-05-16,North,24-inch Monitor,Displays,21,14500,304500,Umber Paints
+SO-10302,2025-05-16,West,27-inch Monitor,Displays,5,24000,120000,Banyan Health
+SO-10303,2025-05-17,East,Standing Desk,Furniture,9,32000,288000,Harbour Hotels
+SO-10304,2025-05-17,North,27-inch Monitor,Displays,22,24000,528000,Nimbus Cloud
+SO-10305,2025-05-18,North,Conference Speaker,Audio and Video,8,18000,144000,Peacock Apparel
+SO-10306,2025-05-18,West,Webcam,Audio and Video,5,4200,21000,Evergreen Foods
+SO-10307,2025-05-19,East,27-inch Monitor,Displays,24,24000,576000,Quartz Mining
+SO-10308,2025-05-19,South,Wireless Mouse,Accessories,8,1200,9600,Cedar Finserv
+SO-10309,2025-05-20,West,Office Chair,Furniture,8,12500,100000,Jasmine Pharma
+SO-10310,2025-05-20,South,Headset,Audio and Video,21,6500,136500,Lotus Infra
+SO-10311,2025-05-20,South,Headset,Audio and Video,3,6500,19500,Anvil Logistics
+SO-10312,2025-05-20,South,27-inch Monitor,Displays,12,24000,288000,Lotus Infra
+SO-10313,2025-05-21,West,Wireless Mouse,Accessories,6,1200,7200,Umber Paints
+SO-10314,2025-05-22,East,Conference Speaker,Audio and Video,18,18000,324000,Indigo Learning
+SO-10315,2025-05-22,West,Webcam,Audio and Video,24,4200,100800,Nimbus Cloud
+SO-10316,2025-05-22,South,Laptop Stand,Accessories,3,1800,5400,Evergreen Foods
+SO-10317,2025-05-22,North,Webcam,Audio and Video,11,4200,46200,Vista Telecom
+SO-10318,2025-05-22,West,Headset,Audio and Video,4,6500,26000,Orchid Interiors
+SO-10319,2025-05-22,West,24-inch Monitor,Displays,17,14500,246500,Quartz Mining
+SO-10320,2025-05-22,East,27-inch Monitor,Displays,9,24000,216000,Vista Telecom
+SO-10321,2025-05-23,North,USB-C Hub,Accessories,3,3500,10500,Vista Telecom
+SO-10322,2025-05-24,North,Laptop Stand,Accessories,19,1800,34200,Lotus Infra
+SO-10323,2025-05-24,East,Standing Desk,Furniture,3,32000,96000,Nimbus Cloud
+SO-10324,2025-05-24,West,Conference Speaker,Audio and Video,5,18000,90000,Lotus Infra
+SO-10325,2025-05-25,North,27-inch Monitor,Displays,20,24000,480000,Riverstone Realty
+SO-10326,2025-05-25,West,Laptop Stand,Accessories,3,1800,5400,Umber Paints
+SO-10327,2025-05-25,East,Webcam,Audio and Video,18,4200,75600,Nimbus Cloud
+SO-10328,2025-05-26,West,24-inch Monitor,Displays,17,14500,246500,Cedar Finserv
+SO-10329,2025-05-26,North,Headset,Audio and Video,20,6500,130000,Monsoon Travel
+SO-10330,2025-05-27,West,Laptop Stand,Accessories,14,1800,25200,Lotus Infra
+SO-10331,2025-05-28,West,Laptop Stand,Accessories,18,1800,32400,Saffron Kitchens
+SO-10332,2025-06-01,East,27-inch Monitor,Displays,8,24000,192000,Monsoon Travel
+SO-10333,2025-06-01,East,Standing Desk,Furniture,24,32000,768000,Bluepeak Analytics
+SO-10334,2025-06-01,North,27-inch Monitor,Displays,11,24000,264000,Indigo Learning
+SO-10335,2025-06-02,North,27-inch Monitor,Displays,9,24000,216000,Deccan Motors
+SO-10336,2025-06-02,South,27-inch Monitor,Displays,21,24000,504000,Riverstone Realty
+SO-10337,2025-06-03,South,Wireless Mouse,Accessories,7,1200,8400,Anvil Logistics
+SO-10338,2025-06-03,North,Laptop Stand,Accessories,1,1800,1800,Deccan Motors
+SO-10339,2025-06-04,South,Wireless Mouse,Accessories,2,1200,2400,Falcon Freight
+SO-10340,2025-06-04,South,Webcam,Audio and Video,20,4200,84000,Evergreen Foods
+SO-10341,2025-06-04,West,Office Chair,Furniture,25,12500,312500,Ganga Textiles
+SO-10342,2025-06-04,West,24-inch Monitor,Displays,16,14500,232000,Lotus Infra
+SO-10343,2025-06-05,North,Standing Desk,Furniture,8,32000,256000,Vista Telecom
+SO-10344,2025-06-05,West,Standing Desk,Furniture,3,32000,96000,Kite Media
+SO-10345,2025-06-05,South,27-inch Monitor,Displays,18,24000,432000,Anvil Logistics
+SO-10346,2025-06-06,South,Conference Speaker,Audio and Video,2,18000,36000,Cedar Finserv
+SO-10347,2025-06-07,North,27-inch Monitor,Displays,16,24000,384000,Evergreen Foods
+SO-10348,2025-06-07,South,Webcam,Audio and Video,19,4200,79800,Monsoon Travel
+SO-10349,2025-06-07,West,Conference Speaker,Audio and Video,18,18000,324000,Deccan Motors
+SO-10350,2025-06-08,North,Standing Desk,Furniture,20,32000,640000,Banyan Health
+SO-10351,2025-06-08,North,Webcam,Audio and Video,16,4200,67200,Cedar Finserv
+SO-10352,2025-06-09,South,Conference Speaker,Audio and Video,19,18000,342000,Peacock Apparel
+SO-10353,2025-06-09,West,27-inch Monitor,Displays,1,24000,24000,Tamarind Tech
+SO-10354,2025-06-10,South,Headset,Audio and Video,2,6500,13000,Harbour Hotels
+SO-10355,2025-06-10,South,USB-C Hub,Accessories,12,3500,42000,Orchid Interiors
+SO-10356,2025-06-10,South,Headset,Audio and Video,18,6500,117000,Evergreen Foods
+SO-10357,2025-06-11,North,27-inch Monitor,Displays,5,24000,120000,Nimbus Cloud
+SO-10358,2025-06-12,West,Wireless Mouse,Accessories,19,1200,22800,Quartz Mining
+SO-10359,2025-06-13,East,Headset,Audio and Video,14,6500,91000,Quartz Mining
+SO-10360,2025-06-13,North,Webcam,Audio and Video,3,4200,12600,Indigo Learning
+SO-10361,2025-06-13,East,Headset,Audio and Video,4,6500,26000,Falcon Freight
+SO-10362,2025-06-14,North,27-inch Monitor,Displays,16,24000,384000,Anvil Logistics
+SO-10363,2025-06-14,North,Webcam,Audio and Video,22,4200,92400,Jasmine Pharma
+SO-10364,2025-06-14,North,Laptop Stand,Accessories,3,1800,5400,Lotus Infra
+SO-10365,2025-06-15,South,Conference Speaker,Audio and Video,3,18000,54000,Tamarind Tech
+SO-10366,2025-06-17,West,Headset,Audio and Video,15,6500,97500,Vista Telecom
+SO-10367,2025-06-17,West,Laptop Stand,Accessories,19,1800,34200,Coral Retail
+SO-10368,2025-06-17,South,Headset,Audio and Video,19,6500,123500,Quartz Mining
+SO-10369,2025-06-18,North,Standing Desk,Furniture,25,32000,800000,Jasmine Pharma
+SO-10370,2025-06-18,North,Laptop Stand,Accessories,12,1800,21600,Nimbus Cloud
+SO-10371,2025-06-18,East,Wireless Mouse,Accessories,6,1200,7200,Umber Paints
+SO-10372,2025-06-19,South,Laptop Stand,Accessories,1,1800,1800,Coral Retail
+SO-10373,2025-06-20,North,Office Chair,Furniture,7,12500,87500,Nimbus Cloud
+SO-10374,2025-06-20,East,27-inch Monitor,Displays,16,24000,384000,Tamarind Tech
+SO-10375,2025-06-21,North,Webcam,Audio and Video,7,4200,29400,Lotus Infra
+SO-10376,2025-06-22,West,Laptop Stand,Accessories,16,1800,28800,Orchid Interiors
+SO-10377,2025-06-22,East,Headset,Audio and Video,8,6500,52000,Totally Fine Corp
+SO-10378,2025-06-22,East,24-inch Monitor,Displays,6,14500,87000,Ganga Textiles
+SO-10379,2025-06-23,East,Wireless Mouse,Accessories,18,1200,21600,Quartz Mining
+SO-10380,2025-06-23,South,Office Chair,Furniture,1,12500,12500,Umber Paints
+SO-10381,2025-06-23,West,Headset,Audio and Video,4,6500,26000,Vista Telecom
+SO-10382,2025-06-24,South,Office Chair,Furniture,13,12500,162500,Falcon Freight
+SO-10383,2025-06-24,South,Conference Speaker,Audio and Video,25,18000,450000,Peacock Apparel
+SO-10384,2025-06-24,South,Laptop Stand,Accessories,21,1800,37800,Kite Media
+SO-10385,2025-06-24,West,Standing Desk,Furniture,17,32000,544000,Anvil Logistics
+SO-10386,2025-06-25,West,Office Chair,Furniture,3,12500,37500,Harbour Hotels
+SO-10387,2025-06-26,West,Laptop Stand,Accessories,21,1800,37800,Lotus Infra
+SO-10388,2025-06-26,South,Standing Desk,Furniture,9,32000,288000,Nimbus Cloud
+SO-10389,2025-06-26,West,27-inch Monitor,Displays,21,24000,504000,Ganga Textiles
+SO-10390,2025-06-26,East,Standing Desk,Furniture,15,32000,480000,Quartz Mining
+SO-10391,2025-06-27,East,Conference Speaker,Audio and Video,15,18000,270000,Monsoon Travel
+SO-10392,2025-06-28,West,Headset,Audio and Video,4,6500,26000,Quartz Mining
+SO-10393,2025-06-28,North,Headset,Audio and Video,8,6500,52000,Nimbus Cloud
+SO-10394,2025-07-01,East,24-inch Monitor,Displays,18,14500,261000,Nimbus Cloud
+SO-10395,2025-07-01,East,27-inch Monitor,Displays,23,24000,552000,Bluepeak Analytics
+SO-10396,2025-07-01,South,27-inch Monitor,Displays,4,24000,96000,Evergreen Foods
+SO-10397,2025-07-02,West,Webcam,Audio and Video,20,4200,84000,Banyan Health
+SO-10398,2025-07-02,East,Conference Speaker,Audio and Video,3,18000,54000,Totally Fine Corp
+SO-10399,2025-07-03,East,Laptop Stand,Accessories,15,1800,27000,Banyan Health
+SO-10400,2025-07-03,South,Office Chair,Furniture,24,12500,300000,Coral Retail
+SO-10401,2025-07-04,West,USB-C Hub,Accessories,24,3500,84000,Riverstone Realty
+SO-10402,2025-07-04,West,Wireless Mouse,Accessories,1,1200,1200,Saffron Kitchens
+SO-10403,2025-07-04,East,Conference Speaker,Audio and Video,6,18000,108000,Harbour Hotels
+SO-10404,2025-07-05,North,Conference Speaker,Audio and Video,25,18000,450000,Orchid Interiors
+SO-10405,2025-07-05,East,24-inch Monitor,Displays,16,14500,232000,Deccan Motors
+SO-10406,2025-07-05,West,27-inch Monitor,Displays,14,24000,336000,Totally Fine Corp
+SO-10407,2025-07-06,West,Headset,Audio and Video,15,6500,97500,Coral Retail
+SO-10408,2025-07-06,South,Webcam,Audio and Video,20,4200,84000,Tamarind Tech
+SO-10409,2025-07-07,South,USB-C Hub,Accessories,16,3500,56000,Anvil Logistics
+SO-10410,2025-07-07,North,24-inch Monitor,Displays,4,14500,58000,Deccan Motors
+SO-10411,2025-07-07,West,27-inch Monitor,Displays,20,24000,480000,Peacock Apparel
+SO-10412,2025-07-07,North,Wireless Mouse,Accessories,11,1200,13200,Riverstone Realty
+SO-10413,2025-07-07,South,24-inch Monitor,Displays,9,14500,130500,Harbour Hotels
+SO-10414,2025-07-07,East,Laptop Stand,Accessories,22,1800,39600,Orchid Interiors
+SO-10415,2025-07-08,North,Laptop Stand,Accessories,12,1800,21600,Umber Paints
+SO-10416,2025-07-09,East,Office Chair,Furniture,25,12500,312500,Nimbus Cloud
+SO-10417,2025-07-10,East,Conference Speaker,Audio and Video,8,18000,144000,Banyan Health
+SO-10418,2025-07-10,North,USB-C Hub,Accessories,2,3500,7000,Riverstone Realty
+SO-10419,2025-07-10,West,Conference Speaker,Audio and Video,16,18000,288000,Jasmine Pharma
+SO-10420,2025-07-10,North,24-inch Monitor,Displays,12,14500,174000,Monsoon Travel
+SO-10421,2025-07-10,North,USB-C Hub,Accessories,21,3500,73500,Anvil Logistics
+SO-10422,2025-07-11,East,24-inch Monitor,Displays,11,14500,159500,Deccan Motors
+SO-10423,2025-07-11,East,USB-C Hub,Accessories,12,3500,42000,Anvil Logistics
+SO-10424,2025-07-11,South,Webcam,Audio and Video,12,4200,50400,Falcon Freight
+SO-10425,2025-07-13,North,Wireless Mouse,Accessories,18,1200,21600,Harbour Hotels
+SO-10426,2025-07-13,West,Conference Speaker,Audio and Video,2,18000,36000,Monsoon Travel
+SO-10427,2025-07-14,North,Wireless Mouse,Accessories,14,1200,16800,Totally Fine Corp
+SO-10428,2025-07-15,South,Office Chair,Furniture,15,12500,187500,Riverstone Realty
+SO-10429,2025-07-15,West,Office Chair,Furniture,17,12500,212500,Banyan Health
+SO-10430,2025-07-15,East,Standing Desk,Furniture,8,32000,256000,Totally Fine Corp
+SO-10431,2025-07-15,East,Webcam,Audio and Video,4,4200,16800,Vista Telecom
+SO-10432,2025-07-15,West,Wireless Mouse,Accessories,20,1200,24000,Falcon Freight
+SO-10433,2025-07-15,North,Headset,Audio and Video,20,6500,130000,Lotus Infra
+SO-10434,2025-07-16,West,24-inch Monitor,Displays,4,14500,58000,Cedar Finserv
+SO-10435,2025-07-17,North,Wireless Mouse,Accessories,14,1200,16800,Bluepeak Analytics
+SO-10436,2025-07-17,West,Conference Speaker,Audio and Video,9,18000,162000,Umber Paints
+SO-10437,2025-07-17,East,24-inch Monitor,Displays,2,14500,29000,Lotus Infra
+SO-10438,2025-07-18,West,27-inch Monitor,Displays,8,24000,192000,Tamarind Tech
+SO-10439,2025-07-20,South,Webcam,Audio and Video,6,4200,25200,Peacock Apparel
+SO-10440,2025-07-20,West,24-inch Monitor,Displays,4,14500,58000,Riverstone Realty
+SO-10441,2025-07-20,West,24-inch Monitor,Displays,2,14500,29000,Orchid Interiors
+SO-10442,2025-07-22,West,24-inch Monitor,Displays,9,14500,130500,Tamarind Tech
+SO-10443,2025-07-22,South,Laptop Stand,Accessories,13,1800,23400,Orchid Interiors
+SO-10444,2025-07-22,West,Conference Speaker,Audio and Video,21,18000,378000,Orchid Interiors
+SO-10445,2025-07-22,West,Conference Speaker,Audio and Video,14,18000,252000,Peacock Apparel
+SO-10446,2025-07-22,South,Wireless Mouse,Accessories,9,1200,10800,Deccan Motors
+SO-10447,2025-07-22,West,Conference Speaker,Audio and Video,1,18000,18000,Lotus Infra
+SO-10448,2025-07-22,West,Office Chair,Furniture,20,12500,250000,Totally Fine Corp
+SO-10449,2025-07-23,East,Conference Speaker,Audio and Video,3,18000,54000,Nimbus Cloud
+SO-10450,2025-07-23,East,Conference Speaker,Audio and Video,24,18000,432000,Jasmine Pharma
+SO-10451,2025-07-24,West,Webcam,Audio and Video,13,4200,54600,Cedar Finserv
+SO-10452,2025-07-24,South,Webcam,Audio and Video,13,4200,54600,Jasmine Pharma
+SO-10453,2025-07-25,East,Conference Speaker,Audio and Video,10,18000,180000,Monsoon Travel
+SO-10454,2025-07-25,East,27-inch Monitor,Displays,18,24000,432000,Orchid Interiors
+SO-10455,2025-07-25,South,Conference Speaker,Audio and Video,23,18000,414000,Saffron Kitchens
+SO-10456,2025-07-26,East,27-inch Monitor,Displays,1,24000,24000,Harbour Hotels
+SO-10457,2025-07-27,North,Standing Desk,Furniture,8,32000,256000,Falcon Freight
+SO-10458,2025-07-27,East,Webcam,Audio and Video,24,4200,100800,Kite Media
+SO-10459,2025-07-27,South,Wireless Mouse,Accessories,3,1200,3600,Riverstone Realty
+SO-10460,2025-08-02,West,27-inch Monitor,Displays,6,24000,144000,Riverstone Realty
+SO-10461,2025-08-03,East,Webcam,Audio and Video,16,4200,67200,Indigo Learning
+SO-10462,2025-08-04,North,Headset,Audio and Video,14,6500,91000,Jasmine Pharma
+SO-10463,2025-08-04,South,Headset,Audio and Video,7,6500,45500,Peacock Apparel
+SO-10464,2025-08-04,South,24-inch Monitor,Displays,18,14500,261000,Riverstone Realty
+SO-10465,2025-08-04,West,Office Chair,Furniture,12,12500,150000,Lotus Infra
+SO-10466,2025-08-05,West,Standing Desk,Furniture,20,32000,640000,Jasmine Pharma
+SO-10467,2025-08-06,West,Headset,Audio and Video,17,6500,110500,Jasmine Pharma
+SO-10468,2025-08-07,South,Office Chair,Furniture,3,12500,37500,Orchid Interiors
+SO-10469,2025-08-07,East,Wireless Mouse,Accessories,19,1200,22800,Ganga Textiles
+SO-10470,2025-08-08,East,24-inch Monitor,Displays,1,14500,14500,Indigo Learning
+SO-10471,2025-08-08,West,Wireless Mouse,Accessories,8,1200,9600,Bluepeak Analytics
+SO-10472,2025-08-08,West,USB-C Hub,Accessories,21,3500,73500,Jasmine Pharma
+SO-10473,2025-08-09,North,Webcam,Audio and Video,23,4200,96600,Tamarind Tech
+SO-10474,2025-08-09,East,Headset,Audio and Video,11,6500,71500,Cedar Finserv
+SO-10475,2025-08-09,North,27-inch Monitor,Displays,25,24000,600000,Saffron Kitchens
+SO-10476,2025-08-09,South,Conference Speaker,Audio and Video,14,18000,252000,Falcon Freight
+SO-10477,2025-08-10,East,24-inch Monitor,Displays,4,14500,58000,Jasmine Pharma
+SO-10478,2025-08-10,North,Standing Desk,Furniture,18,32000,576000,Ganga Textiles
+SO-10479,2025-08-10,North,27-inch Monitor,Displays,16,24000,384000,Evergreen Foods
+SO-10480,2025-08-10,North,Conference Speaker,Audio and Video,14,18000,252000,Quartz Mining
+SO-10481,2025-08-10,North,Headset,Audio and Video,11,6500,71500,Harbour Hotels
+SO-10482,2025-08-11,East,Conference Speaker,Audio and Video,8,18000,144000,Banyan Health
+SO-10483,2025-08-11,East,24-inch Monitor,Displays,3,14500,43500,Tamarind Tech
+SO-10484,2025-08-11,North,USB-C Hub,Accessories,14,3500,49000,Umber Paints
+SO-10485,2025-08-11,East,24-inch Monitor,Displays,21,14500,304500,Riverstone Realty
+SO-10486,2025-08-12,North,Conference Speaker,Audio and Video,10,18000,180000,Saffron Kitchens
+SO-10487,2025-08-12,North,Laptop Stand,Accessories,3,1800,5400,Tamarind Tech
+SO-10488,2025-08-13,West,Conference Speaker,Audio and Video,6,18000,108000,Peacock Apparel
+SO-10489,2025-08-13,South,Conference Speaker,Audio and Video,2,18000,36000,Harbour Hotels
+SO-10490,2025-08-14,West,USB-C Hub,Accessories,1,3500,3500,Jasmine Pharma
+SO-10491,2025-08-15,North,27-inch Monitor,Displays,1,24000,24000,Tamarind Tech
+SO-10492,2025-08-15,South,Standing Desk,Furniture,8,32000,256000,Umber Paints
+SO-10493,2025-08-15,North,Standing Desk,Furniture,24,32000,768000,Deccan Motors
+SO-10494,2025-08-16,East,Webcam,Audio and Video,3,4200,12600,Jasmine Pharma
+SO-10495,2025-08-16,North,Standing Desk,Furniture,10,32000,320000,Umber Paints
+SO-10496,2025-08-16,South,Headset,Audio and Video,23,6500,149500,Anvil Logistics
+SO-10497,2025-08-17,North,Standing Desk,Furniture,21,32000,672000,Riverstone Realty
+SO-10498,2025-08-17,East,Office Chair,Furniture,12,12500,150000,Kite Media
+SO-10499,2025-08-18,North,Standing Desk,Furniture,1,32000,32000,Nimbus Cloud
+SO-10500,2025-08-19,East,Standing Desk,Furniture,14,32000,448000,Monsoon Travel
+SO-10501,2025-08-19,West,27-inch Monitor,Displays,4,24000,96000,Indigo Learning
+SO-10502,2025-08-20,East,24-inch Monitor,Displays,3,14500,43500,Ganga Textiles
+SO-10503,2025-08-20,West,24-inch Monitor,Displays,1,14500,14500,Orchid Interiors
+SO-10504,2025-08-20,South,24-inch Monitor,Displays,11,14500,159500,Cedar Finserv
+SO-10505,2025-08-21,South,Wireless Mouse,Accessories,15,1200,18000,Indigo Learning
+SO-10506,2025-08-21,South,24-inch Monitor,Displays,17,14500,246500,Jasmine Pharma
+SO-10507,2025-08-21,North,Standing Desk,Furniture,19,32000,608000,Ganga Textiles
+SO-10508,2025-08-22,South,Webcam,Audio and Video,8,4200,33600,Kite Media
+SO-10509,2025-08-22,East,Wireless Mouse,Accessories,13,1200,15600,Ganga Textiles
+SO-10510,2025-08-22,South,Conference Speaker,Audio and Video,23,18000,414000,Bluepeak Analytics
+SO-10511,2025-08-22,West,Conference Speaker,Audio and Video,4,18000,72000,Harbour Hotels
+SO-10512,2025-08-22,North,Standing Desk,Furniture,18,32000,576000,Ganga Textiles
+SO-10513,2025-08-23,West,Webcam,Audio and Video,4,4200,16800,Saffron Kitchens
+SO-10514,2025-08-23,South,Headset,Audio and Video,1,6500,6500,Cedar Finserv
+SO-10515,2025-08-23,North,Standing Desk,Furniture,3,32000,96000,Monsoon Travel
+SO-10516,2025-08-23,North,Standing Desk,Furniture,21,32000,672000,Saffron Kitchens
+SO-10517,2025-08-23,North,Office Chair,Furniture,8,12500,100000,Banyan Health
+SO-10518,2025-08-24,West,Webcam,Audio and Video,17,4200,71400,Jasmine Pharma
+SO-10519,2025-08-24,South,Office Chair,Furniture,8,12500,100000,Jasmine Pharma
+SO-10520,2025-08-24,South,27-inch Monitor,Displays,23,24000,552000,Cedar Finserv
+SO-10521,2025-08-25,North,Conference Speaker,Audio and Video,14,18000,252000,Totally Fine Corp
+SO-10522,2025-08-26,East,24-inch Monitor,Displays,24,14500,348000,Kite Media
+SO-10523,2025-08-26,West,Headset,Audio and Video,9,6500,58500,Totally Fine Corp
+SO-10524,2025-08-26,South,Wireless Mouse,Accessories,19,1200,22800,Indigo Learning
+SO-10525,2025-08-26,South,24-inch Monitor,Displays,24,14500,348000,Riverstone Realty
+SO-10526,2025-08-27,East,Office Chair,Furniture,13,12500,162500,Lotus Infra
+SO-10527,2025-08-27,South,Standing Desk,Furniture,3,32000,96000,Indigo Learning
+SO-10528,2025-08-27,West,Conference Speaker,Audio and Video,7,18000,126000,Orchid Interiors
+SO-10529,2025-08-28,South,Headset,Audio and Video,10,6500,65000,Evergreen Foods
+SO-10530,2025-08-28,East,Conference Speaker,Audio and Video,14,18000,252000,Umber Paints
+SO-10531,2025-08-28,East,Laptop Stand,Accessories,20,1800,36000,Deccan Motors
+SO-10532,2025-08-28,West,Standing Desk,Furniture,15,32000,480000,Banyan Health
+SO-10533,2025-09-01,South,Laptop Stand,Accessories,10,1800,18000,Deccan Motors
+SO-10534,2025-09-02,North,Standing Desk,Furniture,1,32000,32000,Cedar Finserv
+SO-10535,2025-09-03,North,Laptop Stand,Accessories,16,1800,28800,Falcon Freight
+SO-10536,2025-09-03,South,Conference Speaker,Audio and Video,21,18000,378000,Bluepeak Analytics
+SO-10537,2025-09-04,North,Standing Desk,Furniture,18,32000,576000,Bluepeak Analytics
+SO-10538,2025-09-04,East,Wireless Mouse,Accessories,3,1200,3600,Orchid Interiors
+SO-10539,2025-09-05,West,Wireless Mouse,Accessories,13,1200,15600,Orchid Interiors
+SO-10540,2025-09-05,West,27-inch Monitor,Displays,21,24000,504000,Falcon Freight
+SO-10541,2025-09-07,North,Headset,Audio and Video,4,6500,26000,Bluepeak Analytics
+SO-10542,2025-09-07,West,24-inch Monitor,Displays,23,14500,333500,Peacock Apparel
+SO-10543,2025-09-08,North,USB-C Hub,Accessories,10,3500,35000,Riverstone Realty
+SO-10544,2025-09-09,East,24-inch Monitor,Displays,24,14500,348000,Falcon Freight
+SO-10545,2025-09-09,South,USB-C Hub,Accessories,5,3500,17500,Harbour Hotels
+SO-10546,2025-09-09,East,Headset,Audio and Video,21,6500,136500,Umber Paints
+SO-10547,2025-09-09,North,Laptop Stand,Accessories,10,1800,18000,Quartz Mining
+SO-10548,2025-09-10,North,24-inch Monitor,Displays,11,14500,159500,Peacock Apparel
+SO-10549,2025-09-11,West,Office Chair,Furniture,3,12500,37500,Cedar Finserv
+SO-10550,2025-09-12,North,24-inch Monitor,Displays,9,14500,130500,Saffron Kitchens
+SO-10551,2025-09-12,North,Headset,Audio and Video,1,6500,6500,Vista Telecom
+SO-10552,2025-09-12,South,USB-C Hub,Accessories,12,3500,42000,Ganga Textiles
+SO-10553,2025-09-12,East,24-inch Monitor,Displays,5,14500,72500,Jasmine Pharma
+SO-10554,2025-09-13,East,Wireless Mouse,Accessories,6,1200,7200,Jasmine Pharma
+SO-10555,2025-09-13,North,USB-C Hub,Accessories,21,3500,73500,Kite Media
+SO-10556,2025-09-13,East,Office Chair,Furniture,15,12500,187500,Vista Telecom
+SO-10557,2025-09-13,West,Headset,Audio and Video,10,6500,65000,Riverstone Realty
+SO-10558,2025-09-14,North,Webcam,Audio and Video,24,4200,100800,Tamarind Tech
+SO-10559,2025-09-14,South,24-inch Monitor,Displays,20,14500,290000,Coral Retail
+SO-10560,2025-09-16,South,Laptop Stand,Accessories,24,1800,43200,Riverstone Realty
+SO-10561,2025-09-16,South,27-inch Monitor,Displays,23,24000,552000,Deccan Motors
+SO-10562,2025-09-16,South,Standing Desk,Furniture,9,32000,288000,Tamarind Tech
+SO-10563,2025-09-16,South,Office Chair,Furniture,6,12500,75000,Indigo Learning
+SO-10564,2025-09-17,West,Webcam,Audio and Video,14,4200,58800,Peacock Apparel
+SO-10565,2025-09-17,North,USB-C Hub,Accessories,18,3500,63000,Nimbus Cloud
+SO-10566,2025-09-18,West,USB-C Hub,Accessories,8,3500,28000,Orchid Interiors
+SO-10567,2025-09-18,South,Conference Speaker,Audio and Video,3,18000,54000,Totally Fine Corp
+SO-10568,2025-09-18,North,Webcam,Audio and Video,17,4200,71400,Peacock Apparel
+SO-10569,2025-09-18,South,Wireless Mouse,Accessories,25,1200,30000,Coral Retail
+SO-10570,2025-09-19,West,Office Chair,Furniture,13,12500,162500,Quartz Mining
+SO-10571,2025-09-19,West,Headset,Audio and Video,5,6500,32500,Coral Retail
+SO-10572,2025-09-21,South,Laptop Stand,Accessories,14,1800,25200,Harbour Hotels
+SO-10573,2025-09-21,East,Wireless Mouse,Accessories,11,1200,13200,Indigo Learning
+SO-10574,2025-09-21,South,24-inch Monitor,Displays,6,14500,87000,Ganga Textiles
+SO-10575,2025-09-22,West,USB-C Hub,Accessories,19,3500,66500,Nimbus Cloud
+SO-10576,2025-09-23,South,Office Chair,Furniture,2,12500,25000,Nimbus Cloud
+SO-10577,2025-09-24,North,Standing Desk,Furniture,12,32000,384000,Peacock Apparel
+SO-10578,2025-09-24,East,Wireless Mouse,Accessories,21,1200,25200,Lotus Infra
+SO-10579,2025-09-24,East,Office Chair,Furniture,20,12500,250000,Monsoon Travel
+SO-10580,2025-09-25,East,27-inch Monitor,Displays,12,24000,288000,Orchid Interiors
+SO-10581,2025-09-25,North,Conference Speaker,Audio and Video,19,18000,342000,Coral Retail
+SO-10582,2025-09-25,East,24-inch Monitor,Displays,20,14500,290000,Saffron Kitchens
+SO-10583,2025-09-25,South,Webcam,Audio and Video,6,4200,25200,Orchid Interiors
+SO-10584,2025-09-25,West,24-inch Monitor,Displays,22,14500,319000,Monsoon Travel
+SO-10585,2025-09-25,West,Headset,Audio and Video,19,6500,123500,Deccan Motors
+SO-10586,2025-09-26,East,Webcam,Audio and Video,21,4200,88200,Riverstone Realty
+SO-10587,2025-09-26,South,Standing Desk,Furniture,9,32000,288000,Vista Telecom
+SO-10588,2025-09-26,North,Conference Speaker,Audio and Video,21,18000,378000,Ganga Textiles
+SO-10589,2025-09-26,West,USB-C Hub,Accessories,10,3500,35000,Falcon Freight
+SO-10590,2025-09-26,East,Conference Speaker,Audio and Video,11,18000,198000,Harbour Hotels
+SO-10591,2025-09-27,East,USB-C Hub,Accessories,23,3500,80500,Lotus Infra
+SO-10592,2025-09-27,South,Standing Desk,Furniture,12,32000,384000,Kite Media
+SO-10593,2025-09-27,South,Conference Speaker,Audio and Video,19,18000,342000,Quartz Mining
+SO-10594,2025-09-28,East,27-inch Monitor,Displays,21,24000,504000,Coral Retail
+SO-10595,2025-09-28,West,Wireless Mouse,Accessories,5,1200,6000,Lotus Infra
+SO-10596,2025-09-28,West,27-inch Monitor,Displays,18,24000,432000,Peacock Apparel
+SO-10597,2025-09-28,West,Office Chair,Furniture,11,12500,137500,Banyan Health
+SO-10598,2025-10-01,East,USB-C Hub,Accessories,23,3500,80500,Totally Fine Corp
+SO-10599,2025-10-01,North,USB-C Hub,Accessories,5,3500,17500,Cedar Finserv
+SO-10600,2025-10-01,East,Conference Speaker,Audio and Video,13,18000,234000,Indigo Learning
+SO-10601,2025-10-01,South,Laptop Stand,Accessories,9,1800,16200,Bluepeak Analytics
+SO-10602,2025-10-02,South,Headset,Audio and Video,18,6500,117000,Umber Paints
+SO-10603,2025-10-02,West,Office Chair,Furniture,25,12500,312500,Totally Fine Corp
+SO-10604,2025-10-02,North,Laptop Stand,Accessories,14,1800,25200,Ganga Textiles
+SO-10605,2025-10-03,East,Webcam,Audio and Video,21,4200,88200,Totally Fine Corp
+SO-10606,2025-10-03,North,Standing Desk,Furniture,23,32000,736000,Banyan Health
+SO-10607,2025-10-03,North,27-inch Monitor,Displays,20,24000,480000,Riverstone Realty
+SO-10608,2025-10-04,West,USB-C Hub,Accessories,8,3500,28000,Vista Telecom
+SO-10609,2025-10-05,West,Office Chair,Furniture,8,12500,100000,Banyan Health
+SO-10610,2025-10-05,South,Office Chair,Furniture,15,12500,187500,Coral Retail
+SO-10611,2025-10-05,North,Office Chair,Furniture,9,12500,112500,Falcon Freight
+SO-10612,2025-10-07,East,Laptop Stand,Accessories,2,1800,3600,Umber Paints
+SO-10613,2025-10-07,East,Conference Speaker,Audio and Video,18,18000,324000,Vista Telecom
+SO-10614,2025-10-08,South,Webcam,Audio and Video,18,4200,75600,Ganga Textiles
+SO-10615,2025-10-08,North,Conference Speaker,Audio and Video,10,18000,180000,Nimbus Cloud
+SO-10616,2025-10-09,South,Laptop Stand,Accessories,13,1800,23400,Tamarind Tech
+SO-10617,2025-10-09,East,24-inch Monitor,Displays,15,14500,217500,Deccan Motors
+SO-10618,2025-10-10,East,USB-C Hub,Accessories,23,3500,80500,Bluepeak Analytics
+SO-10619,2025-10-10,North,Headset,Audio and Video,2,6500,13000,Coral Retail
+SO-10620,2025-10-11,East,Laptop Stand,Accessories,6,1800,10800,Tamarind Tech
+SO-10621,2025-10-11,East,Office Chair,Furniture,16,12500,200000,Bluepeak Analytics
+SO-10622,2025-10-12,North,Webcam,Audio and Video,8,4200,33600,Umber Paints
+SO-10623,2025-10-12,North,USB-C Hub,Accessories,24,3500,84000,Nimbus Cloud
+SO-10624,2025-10-12,West,Headset,Audio and Video,15,6500,97500,Banyan Health
+SO-10625,2025-10-12,South,Laptop Stand,Accessories,13,1800,23400,Evergreen Foods
+SO-10626,2025-10-12,West,USB-C Hub,Accessories,10,3500,35000,Deccan Motors
+SO-10627,2025-10-13,East,Laptop Stand,Accessories,22,1800,39600,Kite Media
+SO-10628,2025-10-13,East,Laptop Stand,Accessories,18,1800,32400,Harbour Hotels
+SO-10629,2025-10-15,East,Wireless Mouse,Accessories,10,1200,12000,Evergreen Foods
+SO-10630,2025-10-15,North,Wireless Mouse,Accessories,23,1200,27600,Cedar Finserv
+SO-10631,2025-10-15,North,Webcam,Audio and Video,23,4200,96600,Cedar Finserv
+SO-10632,2025-10-16,West,USB-C Hub,Accessories,22,3500,77000,Cedar Finserv
+SO-10633,2025-10-16,South,24-inch Monitor,Displays,7,14500,101500,Lotus Infra
+SO-10634,2025-10-16,South,Webcam,Audio and Video,11,4200,46200,Ganga Textiles
+SO-10635,2025-10-16,West,Wireless Mouse,Accessories,20,1200,24000,Ganga Textiles
+SO-10636,2025-10-16,East,Office Chair,Furniture,22,12500,275000,Monsoon Travel
+SO-10637,2025-10-16,South,Headset,Audio and Video,22,6500,143000,Harbour Hotels
+SO-10638,2025-10-16,West,Wireless Mouse,Accessories,24,1200,28800,Falcon Freight
+SO-10639,2025-10-16,West,Conference Speaker,Audio and Video,19,18000,342000,Vista Telecom
+SO-10640,2025-10-18,West,27-inch Monitor,Displays,12,24000,288000,Coral Retail
+SO-10641,2025-10-18,West,Laptop Stand,Accessories,17,1800,30600,Nimbus Cloud
+SO-10642,2025-10-18,West,Conference Speaker,Audio and Video,2,18000,36000,Evergreen Foods
+SO-10643,2025-10-19,North,Conference Speaker,Audio and Video,21,18000,378000,Kite Media
+SO-10644,2025-10-19,South,USB-C Hub,Accessories,7,3500,24500,Ganga Textiles
+SO-10645,2025-10-20,West,Headset,Audio and Video,10,6500,65000,Riverstone Realty
+SO-10646,2025-10-20,South,Standing Desk,Furniture,23,32000,736000,Bluepeak Analytics
+SO-10647,2025-10-21,West,24-inch Monitor,Displays,12,14500,174000,Quartz Mining
+SO-10648,2025-10-21,South,Office Chair,Furniture,3,12500,37500,Anvil Logistics
+SO-10649,2025-10-22,East,Wireless Mouse,Accessories,5,1200,6000,Harbour Hotels
+SO-10650,2025-10-22,North,Wireless Mouse,Accessories,15,1200,18000,Harbour Hotels
+SO-10651,2025-10-23,East,Conference Speaker,Audio and Video,12,18000,216000,Nimbus Cloud
+SO-10652,2025-10-24,West,Wireless Mouse,Accessories,2,1200,2400,Jasmine Pharma
+SO-10653,2025-10-24,West,Conference Speaker,Audio and Video,2,18000,36000,Saffron Kitchens
+SO-10654,2025-10-25,North,Wireless Mouse,Accessories,25,1200,30000,Riverstone Realty
+SO-10655,2025-10-25,South,Wireless Mouse,Accessories,10,1200,12000,Indigo Learning
+SO-10656,2025-10-26,East,27-inch Monitor,Displays,1,24000,24000,Cedar Finserv
+SO-10657,2025-10-26,West,USB-C Hub,Accessories,9,3500,31500,Umber Paints
+SO-10658,2025-10-26,East,Office Chair,Furniture,22,12500,275000,Kite Media
+SO-10659,2025-10-26,North,Standing Desk,Furniture,21,32000,672000,Ganga Textiles
+SO-10660,2025-10-27,West,24-inch Monitor,Displays,19,14500,275500,Coral Retail
+SO-10661,2025-10-27,North,Office Chair,Furniture,5,12500,62500,Indigo Learning
+SO-10662,2025-10-28,East,Office Chair,Furniture,1,12500,12500,Deccan Motors
+SO-10663,2025-10-28,West,Conference Speaker,Audio and Video,14,18000,252000,Harbour Hotels
+SO-10664,2025-11-01,West,24-inch Monitor,Displays,20,14500,290000,Ganga Textiles
+SO-10665,2025-11-02,West,24-inch Monitor,Displays,13,14500,188500,Saffron Kitchens
+SO-10666,2025-11-02,North,Wireless Mouse,Accessories,2,1200,2400,Cedar Finserv
+SO-10667,2025-11-02,South,Webcam,Audio and Video,22,4200,92400,Riverstone Realty
+SO-10668,2025-11-02,South,USB-C Hub,Accessories,9,3500,31500,Jasmine Pharma
+SO-10669,2025-11-02,North,Webcam,Audio and Video,8,4200,33600,Anvil Logistics
+SO-10670,2025-11-03,South,Office Chair,Furniture,10,12500,125000,Falcon Freight
+SO-10671,2025-11-03,East,Webcam,Audio and Video,14,4200,58800,Lotus Infra
+SO-10672,2025-11-03,West,USB-C Hub,Accessories,5,3500,17500,Jasmine Pharma
+SO-10673,2025-11-03,South,24-inch Monitor,Displays,19,14500,275500,Tamarind Tech
+SO-10674,2025-11-04,North,Conference Speaker,Audio and Video,18,18000,324000,Lotus Infra
+SO-10675,2025-11-04,West,Office Chair,Furniture,11,12500,137500,Totally Fine Corp
+SO-10676,2025-11-05,West,24-inch Monitor,Displays,18,14500,261000,Deccan Motors
+SO-10677,2025-11-05,North,Standing Desk,Furniture,24,32000,768000,Bluepeak Analytics
+SO-10678,2025-11-05,South,Headset,Audio and Video,21,6500,136500,Ganga Textiles
+SO-10679,2025-11-05,North,Conference Speaker,Audio and Video,16,18000,288000,Riverstone Realty
+SO-10680,2025-11-05,North,Webcam,Audio and Video,16,4200,67200,Cedar Finserv
+SO-10681,2025-11-06,South,Conference Speaker,Audio and Video,24,18000,432000,Harbour Hotels
+SO-10682,2025-11-06,West,Office Chair,Furniture,20,12500,250000,Ganga Textiles
+SO-10683,2025-11-06,North,Standing Desk,Furniture,1,32000,32000,Falcon Freight
+SO-10684,2025-11-06,North,Laptop Stand,Accessories,5,1800,9000,Bluepeak Analytics
+SO-10685,2025-11-06,North,Wireless Mouse,Accessories,17,1200,20400,Indigo Learning
+SO-10686,2025-11-07,North,24-inch Monitor,Displays,21,14500,304500,Deccan Motors
+SO-10687,2025-11-07,North,USB-C Hub,Accessories,7,3500,24500,Banyan Health
+SO-10688,2025-11-08,South,Standing Desk,Furniture,11,32000,352000,Nimbus Cloud
+SO-10689,2025-11-09,North,Headset,Audio and Video,19,6500,123500,Nimbus Cloud
+SO-10690,2025-11-09,West,27-inch Monitor,Displays,21,24000,504000,Jasmine Pharma
+SO-10691,2025-11-10,East,Laptop Stand,Accessories,15,1800,27000,Riverstone Realty
+SO-10692,2025-11-10,South,27-inch Monitor,Displays,10,24000,240000,Saffron Kitchens
+SO-10693,2025-11-10,West,Wireless Mouse,Accessories,23,1200,27600,Tamarind Tech
+SO-10694,2025-11-11,East,27-inch Monitor,Displays,7,24000,168000,Riverstone Realty
+SO-10695,2025-11-12,North,Office Chair,Furniture,3,12500,37500,Ganga Textiles
+SO-10696,2025-11-13,South,Laptop Stand,Accessories,5,1800,9000,Peacock Apparel
+SO-10697,2025-11-13,North,Wireless Mouse,Accessories,25,1200,30000,Umber Paints
+SO-10698,2025-11-14,South,Webcam,Audio and Video,3,4200,12600,Orchid Interiors
+SO-10699,2025-11-14,East,Office Chair,Furniture,21,12500,262500,Falcon Freight
+SO-10700,2025-11-14,West,Headset,Audio and Video,8,6500,52000,Nimbus Cloud
+SO-10701,2025-11-14,West,Office Chair,Furniture,22,12500,275000,Monsoon Travel
+SO-10702,2025-11-14,South,Wireless Mouse,Accessories,23,1200,27600,Lotus Infra
+SO-10703,2025-11-14,West,24-inch Monitor,Displays,24,14500,348000,Orchid Interiors
+SO-10704,2025-11-15,South,Conference Speaker,Audio and Video,4,18000,72000,Kite Media
+SO-10705,2025-11-15,North,Wireless Mouse,Accessories,20,1200,24000,Cedar Finserv
+SO-10706,2025-11-15,South,Laptop Stand,Accessories,21,1800,37800,Quartz Mining
+SO-10707,2025-11-15,South,Headset,Audio and Video,13,6500,84500,Orchid Interiors
+SO-10708,2025-11-15,West,Office Chair,Furniture,13,12500,162500,Cedar Finserv
+SO-10709,2025-11-16,West,24-inch Monitor,Displays,1,14500,14500,Indigo Learning
+SO-10710,2025-11-17,West,Wireless Mouse,Accessories,23,1200,27600,Vista Telecom
+SO-10711,2025-11-17,North,Laptop Stand,Accessories,11,1800,19800,Totally Fine Corp
+SO-10712,2025-11-17,East,Laptop Stand,Accessories,19,1800,34200,Lotus Infra
+SO-10713,2025-11-17,East,24-inch Monitor,Displays,22,14500,319000,Tamarind Tech
+SO-10714,2025-11-19,South,USB-C Hub,Accessories,13,3500,45500,Harbour Hotels
+SO-10715,2025-11-19,South,24-inch Monitor,Displays,24,14500,348000,Totally Fine Corp
+SO-10716,2025-11-19,East,Conference Speaker,Audio and Video,19,18000,342000,Cedar Finserv
+SO-10717,2025-11-19,West,27-inch Monitor,Displays,20,24000,480000,Anvil Logistics
+SO-10718,2025-11-21,East,USB-C Hub,Accessories,7,3500,24500,Tamarind Tech
+SO-10719,2025-11-21,North,Office Chair,Furniture,3,12500,37500,Orchid Interiors
+SO-10720,2025-11-21,East,27-inch Monitor,Displays,22,24000,528000,Jasmine Pharma
+SO-10721,2025-11-22,North,Webcam,Audio and Video,19,4200,79800,Saffron Kitchens
+SO-10722,2025-11-22,North,Standing Desk,Furniture,2,32000,64000,Banyan Health
+SO-10723,2025-11-22,West,Laptop Stand,Accessories,2,1800,3600,Ganga Textiles
+SO-10724,2025-11-22,South,Headset,Audio and Video,24,6500,156000,Orchid Interiors
+SO-10725,2025-11-22,West,Conference Speaker,Audio and Video,2,18000,36000,Nimbus Cloud
+SO-10726,2025-11-22,North,Office Chair,Furniture,20,12500,250000,Vista Telecom
+SO-10727,2025-11-23,North,Conference Speaker,Audio and Video,9,18000,162000,Ganga Textiles
+SO-10728,2025-11-23,South,Wireless Mouse,Accessories,14,1200,16800,Nimbus Cloud
+SO-10729,2025-11-24,East,Webcam,Audio and Video,3,4200,12600,Nimbus Cloud
+SO-10730,2025-11-24,East,Webcam,Audio and Video,1,4200,4200,Nimbus Cloud
+SO-10731,2025-11-24,South,Laptop Stand,Accessories,15,1800,27000,Jasmine Pharma
+SO-10732,2025-11-24,North,Headset,Audio and Video,11,6500,71500,Vista Telecom
+SO-10733,2025-11-25,West,Conference Speaker,Audio and Video,9,18000,162000,Bluepeak Analytics
+SO-10734,2025-11-25,South,Webcam,Audio and Video,18,4200,75600,Harbour Hotels
+SO-10735,2025-11-26,West,Standing Desk,Furniture,6,32000,192000,Riverstone Realty
+SO-10736,2025-11-26,North,Office Chair,Furniture,3,12500,37500,Riverstone Realty
+SO-10737,2025-11-26,South,Conference Speaker,Audio and Video,9,18000,162000,Saffron Kitchens
+SO-10738,2025-11-26,North,Headset,Audio and Video,3,6500,19500,Banyan Health
+SO-10739,2025-11-27,East,Standing Desk,Furniture,11,32000,352000,Lotus Infra
+SO-10740,2025-11-27,South,Office Chair,Furniture,24,12500,300000,Peacock Apparel
+SO-10741,2025-11-27,East,USB-C Hub,Accessories,5,3500,17500,Indigo Learning
+SO-10742,2025-11-28,North,27-inch Monitor,Displays,16,24000,384000,Falcon Freight
+SO-10743,2025-11-28,North,Laptop Stand,Accessories,3,1800,5400,Ganga Textiles
+SO-10744,2025-11-28,South,27-inch Monitor,Displays,19,24000,456000,Vista Telecom
+SO-10745,2025-12-01,East,USB-C Hub,Accessories,5,3500,17500,Vista Telecom
+SO-10746,2025-12-01,South,Standing Desk,Furniture,13,32000,416000,Coral Retail
+SO-10747,2025-12-02,North,Webcam,Audio and Video,6,4200,25200,Vista Telecom
+SO-10748,2025-12-02,West,Conference Speaker,Audio and Video,9,18000,162000,Vista Telecom
+SO-10749,2025-12-02,South,USB-C Hub,Accessories,1,3500,3500,Jasmine Pharma
+SO-10750,2025-12-03,North,Standing Desk,Furniture,12,32000,384000,Tamarind Tech
+SO-10751,2025-12-04,West,Laptop Stand,Accessories,14,1800,25200,Totally Fine Corp
+SO-10752,2025-12-04,West,Office Chair,Furniture,2,12500,25000,Nimbus Cloud
+SO-10753,2025-12-04,North,Webcam,Audio and Video,19,4200,79800,Quartz Mining
+SO-10754,2025-12-05,West,Standing Desk,Furniture,21,32000,672000,Coral Retail
+SO-10755,2025-12-05,West,24-inch Monitor,Displays,8,14500,116000,Anvil Logistics
+SO-10756,2025-12-05,West,Webcam,Audio and Video,2,4200,8400,Tamarind Tech
+SO-10757,2025-12-06,West,Headset,Audio and Video,14,6500,91000,Harbour Hotels
+SO-10758,2025-12-06,West,USB-C Hub,Accessories,19,3500,66500,Lotus Infra
+SO-10759,2025-12-07,East,Wireless Mouse,Accessories,17,1200,20400,Falcon Freight
+SO-10760,2025-12-07,West,Standing Desk,Furniture,8,32000,256000,Cedar Finserv
+SO-10761,2025-12-07,South,Headset,Audio and Video,9,6500,58500,Coral Retail
+SO-10762,2025-12-07,South,Headset,Audio and Video,2,6500,13000,Coral Retail
+SO-10763,2025-12-07,South,Wireless Mouse,Accessories,2,1200,2400,Nimbus Cloud
+SO-10764,2025-12-08,South,Wireless Mouse,Accessories,23,1200,27600,Indigo Learning
+SO-10765,2025-12-08,East,Laptop Stand,Accessories,7,1800,12600,Falcon Freight
+SO-10766,2025-12-09,South,USB-C Hub,Accessories,23,3500,80500,Peacock Apparel
+SO-10767,2025-12-09,North,Laptop Stand,Accessories,19,1800,34200,Kite Media
+SO-10768,2025-12-10,East,Conference Speaker,Audio and Video,1,18000,18000,Evergreen Foods
+SO-10769,2025-12-10,West,Webcam,Audio and Video,19,4200,79800,Lotus Infra
+SO-10770,2025-12-10,North,Webcam,Audio and Video,16,4200,67200,Deccan Motors
+SO-10771,2025-12-11,North,Webcam,Audio and Video,22,4200,92400,Evergreen Foods
+SO-10772,2025-12-11,West,Conference Speaker,Audio and Video,5,18000,90000,Tamarind Tech
+SO-10773,2025-12-12,West,27-inch Monitor,Displays,22,24000,528000,Indigo Learning
+SO-10774,2025-12-13,North,Headset,Audio and Video,8,6500,52000,Monsoon Travel
+SO-10775,2025-12-13,West,Wireless Mouse,Accessories,5,1200,6000,Vista Telecom
+SO-10776,2025-12-13,West,Headset,Audio and Video,13,6500,84500,Quartz Mining
+SO-10777,2025-12-14,South,Standing Desk,Furniture,18,32000,576000,Lotus Infra
+SO-10778,2025-12-14,South,24-inch Monitor,Displays,11,14500,159500,Tamarind Tech
+SO-10779,2025-12-16,East,Standing Desk,Furniture,8,32000,256000,Totally Fine Corp
+SO-10780,2025-12-17,East,Conference Speaker,Audio and Video,24,18000,432000,Quartz Mining
+SO-10781,2025-12-18,North,Webcam,Audio and Video,6,4200,25200,Vista Telecom
+SO-10782,2025-12-18,East,Webcam,Audio and Video,16,4200,67200,Bluepeak Analytics
+SO-10783,2025-12-19,South,Standing Desk,Furniture,13,32000,416000,Saffron Kitchens
+SO-10784,2025-12-20,East,USB-C Hub,Accessories,4,3500,14000,Quartz Mining
+SO-10785,2025-12-20,South,Webcam,Audio and Video,14,4200,58800,Orchid Interiors
+SO-10786,2025-12-20,East,24-inch Monitor,Displays,13,14500,188500,Bluepeak Analytics
+SO-10787,2025-12-21,East,24-inch Monitor,Displays,24,14500,348000,Monsoon Travel
+SO-10788,2025-12-22,West,Wireless Mouse,Accessories,18,1200,21600,Lotus Infra
+SO-10789,2025-12-24,South,Wireless Mouse,Accessories,20,1200,24000,Indigo Learning
+SO-10790,2025-12-24,East,Office Chair,Furniture,4,12500,50000,Orchid Interiors
+SO-10791,2025-12-24,North,USB-C Hub,Accessories,24,3500,84000,Umber Paints
+SO-10792,2025-12-24,North,Webcam,Audio and Video,8,4200,33600,Peacock Apparel
+SO-10793,2025-12-25,West,27-inch Monitor,Displays,12,24000,288000,Banyan Health
+SO-10794,2025-12-25,South,Standing Desk,Furniture,13,32000,416000,Coral Retail
+SO-10795,2025-12-25,South,27-inch Monitor,Displays,15,24000,360000,Kite Media
+SO-10796,2025-12-26,East,USB-C Hub,Accessories,4,3500,14000,Quartz Mining
+SO-10797,2025-12-26,East,USB-C Hub,Accessories,7,3500,24500,Orchid Interiors
+SO-10798,2025-12-27,West,Headset,Audio and Video,14,6500,91000,Falcon Freight
+SO-10799,2025-12-27,North,USB-C Hub,Accessories,16,3500,56000,Umber Paints
+SO-10800,2025-12-28,East,Webcam,Audio and Video,3,4200,12600,Peacock Apparel
