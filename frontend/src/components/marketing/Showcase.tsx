@@ -19,7 +19,9 @@ export default function Showcase() {
   return (
     <div
       ref={card}
-      className="rounded-xxxl bg-ink-deep px-6 py-10 text-white sm:px-10 sm:py-14 lg:grid lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-16"
+      // `items-center`: the six stops make this card tall, and a heading pinned to the top of a
+      // 26rem column leaves two thirds of the left side empty at 1280.
+      className="rounded-xxxl bg-ink-deep px-6 py-10 text-white sm:px-10 sm:py-14 lg:grid lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:items-center lg:gap-16"
     >
       <div>
         <h2 className="text-display-lg">See the working</h2>

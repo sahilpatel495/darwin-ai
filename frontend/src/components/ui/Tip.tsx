@@ -27,7 +27,9 @@ export default function Tip({ id, seen, onDismiss, children, className }: TipPro
     <div
       role="note"
       className={cx(
-        'rise-in flex flex-wrap items-center gap-x-3 gap-y-1 rounded-full bg-primary-soft py-2 pr-2 pl-4',
+        // `w-fit`: a hint is an aside, not a banner. Stretched to the content width it reads as a
+        // system message and outranks the thing it is pointing at.
+        'rise-in flex w-fit max-w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-full bg-primary-soft py-2 pr-2 pl-4',
         className,
       )}
     >

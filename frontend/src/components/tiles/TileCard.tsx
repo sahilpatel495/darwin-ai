@@ -51,6 +51,19 @@ export default function TileCard({ tile, onAsk, saved = false, onToggleSaved, co
   const table = tile.table
   const figure = tile.kind === 'kpi' || tile.chart?.type === 'kpi' ? kpiValue(tile) : null
 
+  // The facts the server computed, as static chips. Drawn beside a figure and under a chart, so
+  // the list itself is written once.
+  const insightChips =
+    tile.kind !== 'quality' && tile.insights.length > 0 ? (
+      <ul className="mt-auto flex flex-wrap gap-2 pt-1">
+        {tile.insights.map((insight) => (
+          <li key={insight}>
+            <Chip static>{insight}</Chip>
+          </li>
+        ))}
+      </ul>
+    ) : null
+
   return (
     // `group` drives the toolbar; overflow-wrap is inherited, so one declaration here keeps a long
     // figure ("-₹12.34 Cr" at 36px), a long title and a long insight inside a quarter tile on a
@@ -106,7 +119,19 @@ export default function TileCard({ tile, onAsk, saved = false, onToggleSaved, co
       {figure !== null ? (
         // The figure is the tile, so it leads and the sentence explains it underneath. The
         // sparkline is the section's trend, and says so under itself.
-        <StatTile value={figure} label={kpiLabel(tile, figure)} aside={spark && <Sparkline {...spark} />} animate />
+        //
+        // The facts sit beside the figure rather than under it: a lone number in a tile that has
+        // been widened to fill its row otherwise leaves two thirds of the card empty.
+        <div className="flex flex-1 flex-wrap items-end justify-between gap-x-10 gap-y-5">
+          <StatTile
+            value={figure}
+            label={kpiLabel(tile, figure)}
+            aside={spark && <Sparkline {...spark} />}
+            animate
+            className="min-w-0 flex-1"
+          />
+          {insightChips}
+        </div>
       ) : (
         <>
           <p className="measure text-body-md text-slate">{tile.statement}</p>
@@ -123,16 +148,9 @@ export default function TileCard({ tile, onAsk, saved = false, onToggleSaved, co
         </>
       )}
 
-      {/* The quality tile has already read its insights out as the checklist above. */}
-      {tile.kind !== 'quality' && tile.insights.length > 0 && (
-        <ul className="mt-auto flex flex-wrap gap-2 pt-1">
-          {tile.insights.map((insight) => (
-            <li key={insight}>
-              <Chip static>{insight}</Chip>
-            </li>
-          ))}
-        </ul>
-      )}
+      {/* The quality tile has already read its insights out as the checklist above; a figure tile
+          has already shown them beside the figure. */}
+      {figure === null && insightChips}
 
       {tile.caveats.length > 0 && (
         <div className="rounded-xl border-l-[3px] border-attention bg-attention-soft px-4 py-3">

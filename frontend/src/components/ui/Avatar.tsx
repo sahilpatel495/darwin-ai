@@ -32,7 +32,9 @@ export default function Avatar({ name, guest = false, size = 'md', className }: 
       aria-label={guest ? `${name}, signed in as a guest` : name}
       className={cx(
         'inline-flex shrink-0 items-center justify-center rounded-circle font-bold',
-        guest ? 'border border-dashed border-hairline bg-canvas text-charcoal' : 'bg-ink-deep text-white',
+        // A guest is the same circle in a quieter fill. It was a dashed outline, which at 40px in
+        // the top bar reads as an empty slot waiting for something rather than as a person.
+        guest ? 'bg-surface-soft text-charcoal ring-1 ring-hairline-soft ring-inset' : 'bg-ink-deep text-white',
         SIZE[size],
         className,
       )}

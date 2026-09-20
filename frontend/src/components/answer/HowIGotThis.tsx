@@ -61,15 +61,24 @@ function Loop({ times }: { times: number }) {
 
 function Flow({ nodes }: { nodes: FlowNode[] }) {
   return (
-    <ol className="flex flex-wrap items-stretch gap-1.5">
+    <ol className="flex flex-wrap items-stretch gap-y-2">
       {nodes.map((node, i) => (
-        <li key={node.id} className="flex items-center gap-1.5">
+        <li key={node.id} className="flex items-center">
+          {/* The connector leads each stop rather than trailing it: trailing, the strip wraps with
+              a dash hanging off the end of a line. Leading, a wrapped line opens with the chevron
+              and still reads as one chain. */}
+          {i > 0 && (
+            <span aria-hidden className="px-1.5 text-stone">
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M7.5 4.5 13 10l-5.5 5.5" />
+              </svg>
+            </span>
+          )}
           <span className={cx('flex flex-col items-start rounded-xl px-3 py-2', TONE[node.tone])}>
             <span className="text-caption font-bold">{node.label}</span>
             {node.note && <span className="text-caption opacity-80">{node.note}</span>}
             {node.loops > 0 && <Loop times={node.loops} />}
           </span>
-          {i < nodes.length - 1 && <span aria-hidden className="h-px w-3 shrink-0 bg-hairline" />}
         </li>
       ))}
     </ol>

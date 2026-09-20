@@ -49,7 +49,16 @@ export default function AuroraBackdrop({ intensity = 'hero', className }: Aurora
   const alpha = intensity === 'hero' ? 0.34 : 0.18
 
   return (
-    <div aria-hidden className={cx('pointer-events-none absolute inset-0 overflow-hidden bg-canvas', className)}>
+    // The mask fades the last sixth into white. Without it a short hero (the Trust page) cuts its
+    // own gradient off with a hard horizontal line where the section ends.
+    <div
+      aria-hidden
+      className={cx(
+        'pointer-events-none absolute inset-0 overflow-hidden bg-canvas',
+        '[mask-image:linear-gradient(to_bottom,#000_82%,transparent_100%)]',
+        className,
+      )}
+    >
       {BLOBS.map((blob, i) => (
         <div
           key={i}

@@ -232,8 +232,17 @@ export default function ProjectShell({
    * because until then there is nothing for an overview to be an alternative to.
    */
   const unseen = (id: TipId) => !project.tipsSeen.includes(id)
+  // The answer's own hint outranks both of these while it is on screen: two tinted hints over one
+  // page is the coach-mark tour again, and the one under the answer is the one being looked at.
+  const answerTipPending = project.turns.length > 0 && unseen('how-i-got-this')
   const bandTip: TipId | null =
-    detached || loading ? null : unseen('data-button') ? 'data-button' : project.turns.length > 0 && unseen('overview-tab') ? 'overview-tab' : null
+    detached || loading || answerTipPending
+      ? null
+      : unseen('data-button')
+        ? 'data-button'
+        : project.turns.length > 0 && unseen('overview-tab')
+          ? 'overview-tab'
+          : null
   const dismissTip = (id: string) => update(withTipSeen(project, id))
 
   let page: React.ReactNode
@@ -270,7 +279,8 @@ export default function ProjectShell({
           {showBanner && banner}
           {detached && <Reattach project={project} busy={busy} onFiles={onFiles} onSample={onSample} />}
           {bandTip && (
-            <Tip id={bandTip} seen={project.tipsSeen} onDismiss={dismissTip}>
+            // Under the control it explains: the Data button sits at the right end of the top bar.
+            <Tip id={bandTip} seen={project.tipsSeen} onDismiss={dismissTip} className={bandTip === 'data-button' ? 'ml-auto' : undefined}>
               {TIPS[bandTip].text}
             </Tip>
           )}
