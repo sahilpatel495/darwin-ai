@@ -1,0 +1,29 @@
+# Fail closed: nothing enters the Docker build context unless it is allowed by name below.
+# This keeps .env, .git, the assignment PDF and anything added later out of every image layer.
+*
+
+!pyproject.toml
+!uv.lock
+!backend/
+!demo_data/
+!eval/report.json
+!frontend/
+
+# Trim what the allowed folders hold but the image does not need.
+**/__pycache__
+**/*.pyc
+**/.DS_Store
+backend/tests
+backend/scripts
+demo_data/_clean
+demo_data/*.py
+frontend/node_modules
+frontend/dist
+
+# Allowing a folder allows everything inside it. Keep these rules last so no allow rule above
+# can ever re-admit a secrets file, a private key or a nested git history.
+**/.env*
+**/*.env
+**/*.pem
+**/*.key
+**/.git

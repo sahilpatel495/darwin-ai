@@ -1,0 +1,26 @@
+name: Keep warm
+
+# The free host puts the app to sleep after 15 idle minutes and takes about a minute to wake.
+# This ping keeps it awake for visitors. To turn it on, set the repository variable APP_URL
+# (Settings > Secrets and variables > Actions > Variables), for example
+# https://verity.onrender.com. While APP_URL is unset the job is skipped.
+#
+# GitHub may run scheduled jobs several minutes late, so pair this with a free uptime monitor
+# on the same /healthz address (see README, "Deploy").
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    if: ${{ vars.APP_URL != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The address goes through an environment variable, never straight into the script text.
+      - run: curl -fsS --retry 3 --retry-delay 15 --max-time 90 "${APP_URL%/}/healthz"
+        env:
+          APP_URL: ${{ vars.APP_URL }}

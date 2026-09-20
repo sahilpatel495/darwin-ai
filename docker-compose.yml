@@ -1,0 +1,25 @@
+# Run the whole app locally:  docker compose up --build   then open http://localhost:8000
+services:
+  verity:
+    build: .
+    image: verity:dev
+    ports:
+      - "8000:8000"
+    # API keys come from .env (copy .env.example). Without the file the app still starts and
+    # loads the sample data; asking a question needs at least one key.
+    env_file:
+      - path: .env
+        required: false
+    # Lets a model served by Ollama on this machine be reached from inside the container on
+    # Linux too: set OLLAMA_BASE_URL=http://host.docker.internal:11434/v1 in .env.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Defence in depth for HR data: the app can write only to an in-memory /tmp (uploads are
+    # deleted after loading anyway), has no Linux capabilities and cannot gain privileges.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
