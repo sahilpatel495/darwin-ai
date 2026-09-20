@@ -1,10 +1,48 @@
 // The only file that talks to the backend. Lead-owned: it must match backend/app/main.py.
 // Set VITE_MOCK=1 to develop the UI against ./fixtures with no backend running.
 
-import type { AnalysisCatalog, AnalysisRequest, Answer, AskRequest, Catalog, Dashboard, ErrorResponse, EvalReport, InsightTile, Metric, ResultTable, StepEvent } from './types'
+import type { AnalysisCatalog, AnalysisRequest, Answer, AuthResponse, MeResponse, User, AskRequest, Catalog, Dashboard, ErrorResponse, EvalReport, InsightTile, Metric, ResultTable, StepEvent } from './types'
 
 const MOCK = import.meta.env.VITE_MOCK === '1'
 const SESSION_KEY = 'verity.session'
+const TOKEN_KEY = 'verity.token'
+const USER_KEY = 'verity.user'
+
+// ---- Accounts. The token is the only credential; it lives in localStorage and rides on every
+// API call. With no token we silently become a guest, so "try the live demo" needs no sign-up.
+const read = (key: string): string | null => {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+const write = (key: string, value: string | null): void => {
+  try {
+    if (value === null) localStorage.removeItem(key)
+    else localStorage.setItem(key, value)
+  } catch {
+    /* storage unavailable: the app still works for this page view */
+  }
+}
+export const getToken = (): string | null => read(TOKEN_KEY)
+export function getStoredUser(): User | null {
+  try {
+    return JSON.parse(read(USER_KEY) ?? 'null') as User | null
+  } catch {
+    return null
+  }
+}
+function remember(auth: AuthResponse): AuthResponse {
+  write(TOKEN_KEY, auth.token)
+  write(USER_KEY, JSON.stringify(auth.user))
+  return auth
+}
+function withAuth(init?: RequestInit): RequestInit {
+  const token = getToken()
+  if (!token) return init ?? {}
+  return { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), Authorization: `Bearer ${token}` } }
+}
 
 export class ApiError extends Error {
   constructor(
@@ -33,7 +71,7 @@ async function toApiError(res: Response): Promise<ApiError> {
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response
   try {
-    res = await fetch(path, init)
+    res = await fetch(path, withAuth(init))
   } catch {
     throw new ApiError(0, 'Could not reach the server.', 'Check your connection and try again.')
   }
@@ -58,6 +96,7 @@ export async function ensureSession(): Promise<string> {
   } catch {
     /* storage unavailable */
   }
+  await ensureAuth()
   const { session_id } = await http<{ session_id: string }>('/api/sessions', { method: 'POST' })
   try {
     sessionStorage.setItem(SESSION_KEY, session_id)
@@ -73,7 +112,7 @@ export function resetSession(): void {
   try {
     const saved = sessionStorage.getItem(SESSION_KEY)
     sessionStorage.removeItem(SESSION_KEY)
-    if (saved && !MOCK) void fetch(`/api/sessions/${saved}`, { method: 'DELETE', keepalive: true }).catch(() => {})
+    if (saved && !MOCK) void fetch(`/api/sessions/${saved}`, withAuth({ method: 'DELETE', keepalive: true })).catch(() => {})
   } catch {
     /* storage unavailable */
   }
@@ -93,6 +132,8 @@ export function uploadFiles(sessionId: string, files: File[], onProgress?: (frac
     files.forEach((f) => form.append('files', f))
     const xhr = new XMLHttpRequest()
     xhr.open('POST', `/api/sessions/${sessionId}/files`)
+    const token = getToken()
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total)
     xhr.onerror = () => reject(new ApiError(0, 'Upload failed before reaching the server.', 'Check your connection and try again.'))
     xhr.onload = () => {
@@ -168,7 +209,7 @@ export async function ask(sessionId: string, req: AskRequest, onStep: (s: StepEv
   if (MOCK) return mockAsk(req, onStep)
   let res: Response
   try {
-    res = await fetch(`/api/sessions/${sessionId}/ask`, { ...json('POST', req), signal })
+    res = await fetch(`/api/sessions/${sessionId}/ask`, withAuth({ ...json('POST', req), signal }))
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw e
     throw new ApiError(0, 'Could not reach the server.', 'Check your connection and try again.')
@@ -195,4 +236,58 @@ export async function ask(sessionId: string, req: AskRequest, onStep: (s: StepEv
     }
   }
   throw new ApiError(0, 'The connection closed before the answer arrived.', 'Ask the question again.')
+}
+
+
+// ---- Accounts API (docs/DESIGN_SYSTEM.md section 9)
+const MOCK_USER: User = { id: 'mock-user', kind: 'guest', name: 'Guest', email: null, role: null, created_at: '2026-09-21T00:00:00Z', onboarded: false }
+
+/** Make sure there is a user. Silently becomes a guest when nobody is signed in. Against an older
+ *  server without the accounts routes (a 404) the app carries on with no token. */
+export async function ensureAuth(): Promise<User | null> {
+  if (MOCK) return getStoredUser() ?? remember({ token: 'mock-token', user: MOCK_USER }).user
+  const known = getStoredUser()
+  if (getToken() && known) return known
+  try {
+    return remember(await http<AuthResponse>('/api/auth/guest', { method: 'POST' })).user
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null
+    throw e
+  }
+}
+
+export const signup = async (body: { email: string; password: string; name: string; role?: string | null }): Promise<User> =>
+  MOCK
+    ? remember({ token: 'mock-token', user: { ...MOCK_USER, kind: 'member', name: body.name, email: body.email, role: body.role ?? null } }).user
+    : remember(await http<AuthResponse>('/api/auth/signup', json('POST', body))).user
+
+export const login = async (body: { email: string; password: string }): Promise<User> =>
+  MOCK
+    ? remember({ token: 'mock-token', user: { ...MOCK_USER, kind: 'member', name: body.email.split('@')[0], email: body.email } }).user
+    : remember(await http<AuthResponse>('/api/auth/login', json('POST', body))).user
+
+export const getMe = (): Promise<MeResponse> =>
+  MOCK
+    ? Promise.resolve({ user: getStoredUser() ?? MOCK_USER, usage: { asks_this_hour: 6, asks_per_hour: 40, asks_today: 21, asks_per_day: 200 } })
+    : http<MeResponse>('/api/auth/me')
+
+export async function updateProfile(body: { name?: string; role?: string | null; onboarded?: boolean }): Promise<User> {
+  const user = MOCK ? ({ ...(getStoredUser() ?? MOCK_USER), ...body } as User) : await http<User>('/api/auth/me', json('PATCH', body))
+  write(USER_KEY, JSON.stringify(user))
+  return user
+}
+
+/** Forget this browser's sign-in. Projects stay in the browser under the user's id. */
+export async function logout(): Promise<void> {
+  if (!MOCK) await http<unknown>('/api/auth/logout', { method: 'POST' }).catch(() => undefined)
+  write(TOKEN_KEY, null)
+  write(USER_KEY, null)
+  resetSession()
+}
+
+export async function deleteAccount(): Promise<void> {
+  if (!MOCK) await fetch('/api/auth/me', withAuth({ method: 'DELETE' }))
+  write(TOKEN_KEY, null)
+  write(USER_KEY, null)
+  resetSession()
 }

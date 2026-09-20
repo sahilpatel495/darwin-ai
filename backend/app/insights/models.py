@@ -76,6 +76,9 @@ class ColumnChoice(BaseModel):
     label: str  # the file's own header text
     table_label: str  # the file (and sheet) the analyst recognises
     kind: ColumnKind
+    # The column's own distinct values, for pickers such as "compare these two groups".
+    # Only for non-PII category columns with at most 30 values; never row data.
+    values: list[str] = Field(default_factory=list)
 
 
 class AnalysisCatalog(BaseModel):

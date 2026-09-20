@@ -41,10 +41,12 @@ Limits accepted with A: no statistical tests, forecasting or free-form Python. T
 
 ## 4. Scope
 
-**P0 — must ship (built first, end to end)**
-Multi-file upload (CSV, XLSX, multi-sheet) · cleaning + profiling · per-session locked-down DuckDB · plan→SQL generation · parser guard · execution with timeout and row cap · repair loop (max 2) · deterministic chart selection · grounded narration · "How I got this" panel · streamed pipeline steps · one-click sample HR data · Docker one-command run · deployed URL · README.
+*Revised at the end of the build day (2026-09-20, 23:00 IST). The tiers below are what actually shipped, not what was planned at 13:00. Where the plan and the code disagree, the code wins.*
 
-**P1 — the delta (in this order)**
+**P0 — shipped, end to end**
+Multi-file upload (CSV, XLSX, multi-sheet) · cleaning + profiling · per-session locked-down DuckDB · plan→SQL generation · parser guard · execution with timeout and row cap · repair loop (max 2) · deterministic chart selection · grounded narration · "How I got this" panel · streamed pipeline steps · one-click sample HR data · Docker one-command run · README. *Still open:* the deployed URL — the blueprint and the keep-warm job are written and tested, the deploy itself needs Sahil (`docs/PENDING.md`).
+
+**P1 — the delta. All thirteen shipped.**
 1. Data Health card / ingestion receipt per file
 2. PII detection; schema-only prompts; PII tokenisation before narration; "What the model saw" tab; canary test
 3. Relationship detection (match %, cardinality) + same-schema union views, confirm/reject
@@ -56,16 +58,25 @@ Multi-file upload (CSV, XLSX, multi-sheet) · cleaning + profiling · per-sessio
 9. Follow-up questions in context; suggested starter questions validated against the schema
 10. Golden eval (40 questions, dev/holdout split) + in-app Trust Report page
 11. Abuse limits: per-IP rate limit, global daily LLM budget
-12. A whole-app journey, local-first: projects, previous questions and a printable saved-answers board live in the browser; the server keeps no customer data (see `docs/DESIGN_SYSTEM.md` §6–7)
+12. A whole-app journey, local-first: projects, previous questions and a printable saved-answers board live in the browser; the server keeps no customer data (`docs/DESIGN_SYSTEM.md` §6–7)
 13. Learning the product: first-run tour, a "How Verity works" explainer, "What's this?" on every trust signal
 
-**P2 — only if P0 + P1 are green and tested (cut from the bottom)**
-Export PNG · answer feedback that appends to eval candidates · "exclude duplicates" toggle · mini SVG schema diagram · MCP endpoint over the same engine (Darwinbox ships an HCM MCP server; the FDE JD prefers MCP) · dark mode.
+**P1.5 — not planned at 13:00, built because the day found the need**
+14. **The no-AI half** (`backend/app/insights/`): an automatic Overview of computed tiles, and guided analyses (ten published, nine runnable — the tenth is an open item in `docs/PENDING.md`). No model call anywhere in it; same guard, executor, formatter and chart rules as an answer. Reasons in `DECISIONS.md` 27.
+15. **Claim checking on the sentence** (`query/narrator.py`), after a live answer named the wrong department as highest with every number genuine (`DECISIONS.md` 20), plus a cross-check tolerant of rounding and a named-period check (`query/verify.py`).
+16. **Computed insight lines** on answers and tiles (`insights/facts.py`, `DECISIONS.md` 28).
+17. **A second, messier test set** (`test_files/`) with expected answers computed by pandas, which found the catalog bugs listed in its README.
+18. **Failover with cooldowns, token pacing and a bounded wait** (`llm/client.py`), per-IP limits (`limits.py`), and the patches from an adversarial review.
+19. **A never-tuned challenge set** of sixteen questions, scored separately (`DECISIONS.md` 29).
+20. **The Clarity visual direction**, replacing Ledger (`DECISIONS.md` 26).
+
+**P2 — cut, and still cut**
+Export PNG · answer feedback that appends to eval candidates · "exclude duplicates" toggle · mini SVG schema diagram · **MCP endpoint over the same engine** (the strongest of these and the first thing named in `WRITEUP.md` as next). *Shipped after all:* dark mode, which came free with Clarity's token layer.
 
 **Deliberately out (stated in the write-up)**
-Auth and multi-tenancy · server-side storage of customer data (projects are saved in the browser instead) · teams, sharing and scheduled reports · warehouses other than DuckDB · fine-tuning · RAG/vector search over rows · two-row merged headers · wide attendance-muster unpivot · small-n salary suppression · files over 10 MB on the hosted demo (25 MB locally).
+Auth and multi-tenancy · server-side storage of customer data (projects are saved in the browser instead) · teams, sharing and scheduled reports · warehouses other than DuckDB · fine-tuning · RAG/vector search over rows · two-row merged headers *as a feature* (a two-row header's key is now rescued, but the upper row is still discarded) · wide attendance-muster unpivot · a time/timestamp column type, so punch-to-punch durations cannot be computed · small-n salary suppression · files over 10 MB on the hosted demo (25 MB locally).
 
-Rule: never leave a half-working feature visible. A feature that is not green by its gate is removed from the UI, not hidden behind a bug.
+Rule: never leave a half-working feature visible. A feature that is not green by its gate is removed from the UI, not hidden behind a bug. It held: main stayed deployable all day, and what was not finished and tested was taken out rather than shipped half-working.
 
 ## 5. Architecture
 
@@ -89,6 +100,35 @@ flowchart TD
   N --> GR[Number grounding check] --> CF[Confidence + reasons]
   CF --> O[Answer card + How I got this]
 ```
+
+### The other half: no model in the loop
+
+The diagram above is the question path. Since 2026-09-20 there is a second path to the same
+screen that calls no model at all, and it shares everything after the SQL is written:
+
+```mermaid
+flowchart LR
+  C[Catalog: roles, types, links] --> T[Templates: dashboard.py / analyses.py]
+  T --> GU[Guard: sqlglot allow-list]
+  GU --> E[Execute: timeout, row cap]
+  E --> P[Present: format, chart rules]
+  P --> F[facts.py: computed sentence and insight lines]
+  F --> O[Overview tiles / one guided analysis]
+```
+
+- `backend/app/insights/dashboard.py` proposes tiles from the catalog's roles, types and links,
+  runs them in waves under a 1.5 s query budget, scores what came back and keeps at most 14.
+  On the bundled sample data that is 14 tiles in about 66 ms, and the same 14 every time.
+- `backend/app/insights/analyses.py` publishes ten guided analyses and the columns that may fill
+  each slot. No string from a request is ever interpolated into SQL: `sqlbuild.resolve` maps a
+  reference to the catalog's own spelling and every option is matched against a fixed allow-list.
+- Both go through `query/guard.py`, `query/executor.py` and `query/presentation.py` — the same
+  code a model-written query goes through — so a tile and an answer cannot disagree about a
+  number. `insights/facts.py` writes the sentence and the insight lines, and the query pipeline
+  calls the same function, so an answer carries the reading a tile would have carried.
+- `backend/app/insights/routes.py` holds no model client. These routes spend no tokens and are
+  therefore outside the question budget; they are inside no other limit either, which is an open
+  item in `docs/PENDING.md`.
 
 - **Backend:** Python 3.12, FastAPI, DuckDB 1.5, pandas + openpyxl, sqlglot, Pydantic v2, `openai` client against any OpenAI-compatible base URL. Managed with `uv`.
 - **Frontend:** React + Vite + TypeScript + Tailwind + Recharts. No state library, no router, no component kit. Native `<details>` for collapsibles, `Intl.NumberFormat('en-IN')` for ₹ lakh/crore.

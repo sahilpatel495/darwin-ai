@@ -285,3 +285,10 @@ def test_a_preview_that_duckdb_refuses_is_a_sentence_that_quotes_no_cell(client,
     res = preview(client, sid, "employees")
     assert res.status_code == 500 and res.json()["message"] and res.json()["next_step"]
     assert "Asha Rao" not in res.text and "duckdb" not in res.text.lower()
+
+
+def test_an_unknown_api_path_is_a_json_404_never_the_web_page(client):
+    res = client.get("/api/sessions/whatever/not-a-real-route")
+    assert res.status_code == 404
+    if res.headers.get("content-type", "").startswith("application/json"):
+        assert res.json()["next_step"]

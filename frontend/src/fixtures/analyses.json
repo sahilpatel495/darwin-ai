@@ -345,91 +345,106 @@
       "ref": "employees.department",
       "label": "department",
       "table_label": "employees.csv",
-      "kind": "category"
+      "kind": "category",
+      "values": []
     },
     {
       "ref": "employees.location",
       "label": "location",
       "table_label": "employees.csv",
-      "kind": "category"
+      "kind": "category",
+      "values": []
     },
     {
       "ref": "employees.gender",
       "label": "gender",
       "table_label": "employees.csv",
-      "kind": "category"
+      "kind": "category",
+      "values": []
     },
     {
       "ref": "employees.date_of_joining",
       "label": "date_of_joining",
       "table_label": "employees.csv",
-      "kind": "date"
+      "kind": "date",
+      "values": []
     },
     {
       "ref": "employees.exit_date",
       "label": "exit_date",
       "table_label": "employees.csv",
-      "kind": "date"
+      "kind": "date",
+      "values": []
     },
     {
       "ref": "employees.ctc",
       "label": "ctc",
       "table_label": "employees.csv",
-      "kind": "measure"
+      "kind": "measure",
+      "values": []
     },
     {
       "ref": "salary_register.pay_month",
       "label": "pay_month",
       "table_label": "Salary_Register_2025.xlsx",
-      "kind": "date"
+      "kind": "date",
+      "values": []
     },
     {
       "ref": "salary_register.gross",
       "label": "gross",
       "table_label": "Salary_Register_2025.xlsx",
-      "kind": "measure"
+      "kind": "measure",
+      "values": []
     },
     {
       "ref": "salary_register.net",
       "label": "net",
       "table_label": "Salary_Register_2025.xlsx",
-      "kind": "measure"
+      "kind": "measure",
+      "values": []
     },
     {
       "ref": "attendance_q1.month",
       "label": "month",
       "table_label": "attendance_q1.csv",
-      "kind": "date"
+      "kind": "date",
+      "values": []
     },
     {
       "ref": "attendance_q1.days_present",
       "label": "days_present",
       "table_label": "attendance_q1.csv",
-      "kind": "measure"
+      "kind": "measure",
+      "values": []
     },
     {
       "ref": "attendance_q1.days_absent",
       "label": "days_absent",
       "table_label": "attendance_q1.csv",
-      "kind": "measure"
+      "kind": "measure",
+      "values": []
     },
     {
       "ref": "attendance_q2.month",
       "label": "month",
       "table_label": "attendance_q2.csv",
-      "kind": "date"
+      "kind": "date",
+      "values": []
     },
     {
       "ref": "attendance_q2.days_present",
       "label": "days_present",
       "table_label": "attendance_q2.csv",
-      "kind": "measure"
+      "kind": "measure",
+      "values": []
     },
     {
       "ref": "attendance_q2.days_absent",
       "label": "days_absent",
       "table_label": "attendance_q2.csv",
-      "kind": "measure"
+      "kind": "measure",
+      "values": []
     }
   ]
 }

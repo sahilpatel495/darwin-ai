@@ -327,8 +327,13 @@ if _DIST.exists():
     app.mount("/assets", StaticFiles(directory=_DIST / "assets"), name="assets")
 
     @app.get("/{path:path}", include_in_schema=False)
-    def spa(path: str) -> FileResponse:
+    def spa(path: str):
         """Serve real files from dist/, and index.html for everything else (client-side routes)."""
+        if path == "api" or path.startswith("api/"):
+            # An unknown API path must never be answered with the web page and a 200: the UI
+            # would try to read HTML as data and report a mystery failure.
+            return _problem(404, "This server does not know that request.",
+                            "The app and the server are out of step. Restart the server, then reload the page.")
         candidate = (_DIST / path).resolve()
         if path and candidate.is_file() and _DIST.resolve() in candidate.parents:
             return FileResponse(candidate)

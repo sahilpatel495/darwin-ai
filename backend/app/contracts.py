@@ -262,6 +262,57 @@ class ErrorResponse(BaseModel):
 
 
 # --------------------------------------------------------------------------
+# Accounts. A guest is a real user with no email: same limits, same ownership rules, so the
+# "try the live demo" path needs no sign-up. A guest who signs up keeps the same id.
+# --------------------------------------------------------------------------
+
+
+class User(BaseModel):
+    id: str
+    kind: Literal["guest", "member"]
+    name: str
+    email: str | None = None
+    role: str | None = None  # what they do ("HR analyst", "Payroll"); tunes suggested questions
+    created_at: str
+    onboarded: bool = False
+
+
+class Usage(BaseModel):
+    asks_this_hour: int
+    asks_per_hour: int
+    asks_today: int
+    asks_per_day: int
+
+
+class SignupRequest(BaseModel):
+    email: str = Field(min_length=5, max_length=254)
+    password: str = Field(min_length=8, max_length=128)
+    name: str = Field(min_length=1, max_length=80)
+    role: str | None = Field(default=None, max_length=60)
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(min_length=5, max_length=254)
+    password: str = Field(min_length=1, max_length=128)
+
+
+class ProfileUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    role: str | None = Field(default=None, max_length=60)
+    onboarded: bool | None = None
+
+
+class AuthResponse(BaseModel):
+    token: str
+    user: User
+
+
+class MeResponse(BaseModel):
+    user: User
+    usage: Usage
+
+
+# --------------------------------------------------------------------------
 # Evaluation report (served at /api/eval/report, rendered as the Trust Report)
 # --------------------------------------------------------------------------
 

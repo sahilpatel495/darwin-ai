@@ -236,6 +236,34 @@ export interface EvalReport {
   cases: EvalCase[]
 }
 
+// ---- Accounts (backend/app/contracts.py). A guest is a real user with no email.
+export interface User {
+  id: string
+  kind: 'guest' | 'member'
+  name: string
+  email: string | null
+  role: string | null
+  created_at: string
+  onboarded: boolean
+}
+
+export interface Usage {
+  asks_this_hour: number
+  asks_per_hour: number
+  asks_today: number
+  asks_per_day: number
+}
+
+export interface AuthResponse {
+  token: string
+  user: User
+}
+
+export interface MeResponse {
+  user: User
+  usage: Usage
+}
+
 // ---- The no-AI half: automatic overview and guided analyses (backend/app/insights/models.py)
 export type TileKind = 'kpi' | 'breakdown' | 'trend' | 'distribution' | 'share' | 'comparison' | 'relationship' | 'quality' | 'metric'
 export type ColumnKind = 'measure' | 'category' | 'date' | 'text'
@@ -294,6 +322,7 @@ export interface ColumnChoice {
   label: string
   table_label: string
   kind: ColumnKind
+  values: string[]
 }
 
 export interface AnalysisCatalog {
