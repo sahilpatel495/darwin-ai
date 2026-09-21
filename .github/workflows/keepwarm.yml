@@ -1,26 +1,50 @@
 name: Keep warm
 
-# The free host puts the app to sleep after 15 idle minutes and takes about a minute to wake.
-# This ping keeps it awake for visitors. To turn it on, set the repository variable APP_URL
-# (Settings > Secrets and variables > Actions > Variables), for example
-# https://darwinlens.onrender.com. While APP_URL is unset the job is skipped.
+# The free host puts the app to sleep after 15 idle minutes and takes 30 to 60 seconds to wake.
+# A reviewer who opens the link must never meet that wait.
 #
-# GitHub may run scheduled jobs several minutes late, so pair this with a free uptime monitor
-# on the same /healthz address (see README, "Deploy").
+# A plain "every 10 minutes" schedule does not do it: GitHub runs scheduled jobs when it has
+# capacity, and on this repository that turned out to be about once every two hours, so the app
+# slept between pings (measured on 21 September: a 33 second first response). So one run now
+# stays alive for five and a half hours and pings every four minutes itself, and the schedule only
+# has to hand over to the next run: while a run is active the next one waits in the queue
+# (`concurrency`, never cancelled) and starts the moment this one ends.
+#
+# To turn it on, set the repository variable APP_URL (Settings > Secrets and variables > Actions >
+# Variables), for example https://darwinlens.onrender.com. While APP_URL is unset the job is skipped.
+#
+# ponytail: a job that mostly sleeps is a stopgap for a free host during a hiring process, and it
+# leaves a gap of a few minutes if GitHub is slow to start the queued run. Upgrade path: a paid
+# instance that never sleeps, or an uptime monitor on the same /healthz address. Disable this
+# workflow (Actions > Keep warm > Disable) when the link no longer needs to be instant.
 on:
   schedule:
     - cron: "*/10 * * * *"
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/keepwarm.yml"] # a change to this file starts the new loop at once
 
 permissions: {}
+
+concurrency:
+  group: keepwarm
+  cancel-in-progress: false
 
 jobs:
   ping:
     if: ${{ vars.APP_URL != '' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 345
     steps:
       # The address goes through an environment variable, never straight into the script text.
-      - run: curl -fsS --retry 3 --retry-delay 15 --max-time 90 "${APP_URL%/}/healthz"
+      # A failed ping is logged and the loop goes on: one bad minute must not end five hours.
+      - run: |
+          end=$((SECONDS + 330 * 60))
+          while [ "$SECONDS" -lt "$end" ]; do
+            curl -fsS --retry 3 --retry-delay 15 --max-time 90 -o /dev/null "${APP_URL%/}/healthz" \
+              && echo "ok $(date -u +%H:%M:%S)" || echo "ping failed $(date -u +%H:%M:%S)"
+            sleep 240
+          done
         env:
           APP_URL: ${{ vars.APP_URL }}

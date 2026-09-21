@@ -222,9 +222,11 @@ git.
    `<url>/healthz`: it replies `{"status":"ok"}`.
 8. Keep it awake. In GitHub open **Settings > Secrets and variables > Actions > Variables > New
    repository variable**, name `APP_URL`, value the URL from step 7.
-   [`keepwarm.yml`](.github/workflows/keepwarm.yml) then pings `/healthz` every 10 minutes. While
-   `APP_URL` is unset the job is skipped, not failed. GitHub can run scheduled jobs late, so also
-   point a free uptime monitor at the same address.
+   [`keepwarm.yml`](.github/workflows/keepwarm.yml) then keeps one run alive for five and a half
+   hours, pinging `/healthz` every four minutes, with the next run queued behind it. A plain
+   ten-minute schedule was not enough: GitHub ran it about every two hours and the app slept in
+   between (a 33 second first response). While `APP_URL` is unset the job is skipped, not failed.
+   A free uptime monitor on the same address is a good second line.
 9. From your machine: `make warm URL=<url>`. It loads the sample data and asks the six starter
    questions, so the first visitor gets cached answers. Run it after every deploy, because the
    cache is in process memory.

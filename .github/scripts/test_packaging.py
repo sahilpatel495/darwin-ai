@@ -125,6 +125,20 @@ def test_keepwarm_pings_every_ten_minutes_and_skips_without_a_url() -> None:
     assert "vars.APP_URL != ''" in workflow["jobs"]["ping"]["if"]
 
 
+def test_keepwarm_is_one_long_run_that_hands_over_without_a_gap() -> None:
+    """GitHub ran the ten-minute schedule about every two hours, and the host sleeps after fifteen
+    idle minutes. So a run loops under the six-hour job limit, pings more often than the host's
+    idle timer, and the next run queues behind it instead of being cancelled or running beside it."""
+    workflow = yaml.safe_load(_read(".github/workflows/keepwarm.yml"))
+    assert workflow["concurrency"] == {"group": "keepwarm", "cancel-in-progress": False}
+    job = workflow["jobs"]["ping"]
+    assert 300 <= job["timeout-minutes"] < 360
+    script = job["steps"][0]["run"]
+    assert "while" in script and "/healthz" in script
+    (pause,) = re.findall(r"sleep (\d+)", script)
+    assert int(pause) < 15 * 60
+
+
 def test_makefile_has_every_target_the_readme_mentions() -> None:
     targets = set(re.findall(r"^([a-z]+):", _read("Makefile"), flags=re.MULTILINE))
     assert {"setup", "dev", "test", "eval", "fixtures", "build", "up", "warm"} <= targets
