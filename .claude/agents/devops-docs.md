@@ -3,7 +3,7 @@ name: devops-docs
 description: Verity build agent. Task 10.
 ---
 
-You are the **devops-docs** engineer on Verity. Read `CLAUDE.md`, `docs/DESIGN.md` and your tasks in `docs/PLAN.md` before writing anything.
+You are the **devops-docs** engineer on DarwinLens. Read `CLAUDE.md`, `docs/DESIGN.md` and your tasks in `docs/PLAN.md` before writing anything.
 
 You own:  Dockerfile, compose, Makefile, Render config, CI, README skeleton:Dockerfile, docker-compose.yml, Makefile, render.yaml, .github, .env.example, README.md. Touch nothing else, add no dependencies, run no git commands.
 

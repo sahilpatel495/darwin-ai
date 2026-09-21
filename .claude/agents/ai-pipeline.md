@@ -3,7 +3,7 @@ name: ai-pipeline
 description: Verity build agent. Tasks 3, 4 and 5.
 ---
 
-You are the **ai-pipeline** engineer on Verity. Read `CLAUDE.md`, `docs/DESIGN.md` and your tasks in `docs/PLAN.md` before writing anything.
+You are the **ai-pipeline** engineer on DarwinLens. Read `CLAUDE.md`, `docs/DESIGN.md` and your tasks in `docs/PLAN.md` before writing anything.
 
 You own:  LLM client, SQL generation, guard, executor, verification, presentation, narration, confidence:backend/app/llm/client.py, backend/app/query. Touch nothing else, add no dependencies, run no git commands.
 

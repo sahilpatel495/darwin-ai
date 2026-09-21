@@ -24,12 +24,30 @@ _Screenshot: <!-- SCREENSHOT --> the lead replaces this line with the image._
 > into SQL. DuckDB computes the result. Ordinary deterministic code checks the SQL before it runs
 > and the answer after. The screen shows the work.
 
-- One-page write-up: [`WRITEUP.md`](WRITEUP.md) · three-minute walkthrough: [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md)
+- One-page write-up: [`WRITEUP.md`](WRITEUP.md)
 - The same engine as MCP tools: [`docs/MCP.md`](docs/MCP.md) · measured capacity: [`docs/CAPACITY.md`](docs/CAPACITY.md)
 
 It was built as a take-home for a Forward Deployed Engineer role, with messy Indian HR exports as
 the worked example. Nothing in the engine is specific to HR, and the sample data includes a sales
 file to show it.
+
+## The flows, end to end
+
+| Flow | What the user does | What the app does |
+|---|---|---|
+| **Try it without files** | Landing, **Try the live demo** | Signs you in as a guest, reads a sample company of six messy files, opens the workspace. About ten seconds. |
+| **Sign up and onboard** | **Get started**, name, email, password, role; three onboarding steps | Creates an account (or upgrades the guest in place, keeping their projects), explains the product by doing: bring files, watch them being read, get three questions your files can answer. |
+| **Upload several files** | Drop up to ten CSV, TSV or Excel files at once; add more later from **Data** | Cleans each file (title rows, totals rows, duplicates, rupee strings, mixed dates), keeps IDs as text, flags personal columns, combines files with the same layout, finds the links between files. Every step is written to a receipt you can open. |
+| **Ask a question** | Type it, or press a suggestion card | Rules catch unclear words first (no model call). An open-weight model writes SQL from column names and summaries only. A guard allows one read-only query over known tables. DuckDB computes. A second model family writes its own query to cross-check. Rules pick the chart. The sentence is checked number by number against the result. |
+| **Read the answer** | Switch Bar / Line / Donut / Table, expand, copy, download CSV, save, **Ask next** | Shows confidence with reasons, "Keep in mind" notes, and **How I got this**: the reading of the question, the plan, the SQL, every attempt, the cross-check, and **What the model saw**. |
+| **An unclear question** | "average salary by department" | Asks which pay you mean (CTC, gross, net) and remembers the choice. |
+| **An unanswerable question** | "what will attrition be next quarter?" | Refuses, and says what data would make it answerable. |
+| **Overview** | Open the tab | A dashboard computed the moment files land, with no model: headcount, attrition, pay, trends, data quality. Every tile opens to its rows and SQL. |
+| **Analyses** | Build a sentence from drop-downs, **Run** | Guided analyses (break down, trend, top and bottom, distribution, share, two-way table, and more) with no model. |
+| **Data** | Open the drawer | Tables, receipts, row previews, links you can keep or remove, and the glossary of definitions (for example, what counts as attrition). |
+| **Saved** | Save answers and tiles | A board that prints as a report. |
+| **Projects, search, settings** | Project switcher, Cmd+K, avatar menu | Several projects per person, jump anywhere or re-ask from search, usage and limits, delete my data. |
+| **Agents** | `POST /mcp` with a token | The same engine as six MCP tools, with the same limits and the same masking of personal data. |
 
 ## The screens
 

@@ -3,7 +3,7 @@ name: qa-eval
 description: Verity build agent. Tasks 8 and 9.
 ---
 
-You are the **qa-eval** engineer on Verity. Read `CLAUDE.md`, `docs/DESIGN.md` and your tasks in `docs/PLAN.md` before writing anything.
+You are the **qa-eval** engineer on DarwinLens. Read `CLAUDE.md`, `docs/DESIGN.md` and your tasks in `docs/PLAN.md` before writing anything.
 
 You own:  synthetic demo data, ground truth, golden set, eval runner, adversarial tests, smoke test:demo_data, eval, backend/tests/eval, backend/tests/adversarial, e2e. Touch nothing else, add no dependencies, run no git commands.
 

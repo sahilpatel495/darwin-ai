@@ -1,59 +1,14 @@
-# Pending work
+# Known limits and what is next
 
 Rewritten 2026-09-21, after the deploy, the accounts work, the v3 "Canvas" rebuild and the MCP
 endpoint. This is the honest list of what is left, in the order it matters. Nothing here stops the
 app running, and the two things that used to block the submission — the deploy and the demo URL —
 are done.
 
-## Morning report, 21 September (read this first)
-
-**State at 03:00 IST.** The v3 "Canvas" UI is merged to `main`, CI is green and it is live. Checked
-on the live site after the deploy: guest sign-in, the sample company (8 tables in about 9 seconds),
-ten guided analyses, and one real question end to end ("total gross pay by department in 2025":
-an answer, high confidence, a bar chart, every pipeline step green). Frontend 235 tests, backend
-and packaging 1,651 tests, production build clean. Keep-warm pings every 10 minutes.
-
-**What the browser pass fixed overnight:** a guest could not sign up; a new member never saw
-onboarding; a failed demo start was silent; the app bar covered the sign-in form; sideways scroll on
-phones in Overview and Analyses; double focus rings on the composer and the command palette; three
-"Pay" suggestions out of four; tables miscounted as files; the composer now stays docked however
-long the conversation is.
-
-**Your 45 minutes before submitting (by 11:30):**
-1. Open the live link 2 minutes early (cold start), run the demo path once: landing, **Try the
-   live demo**, a suggestion card, **How I got this**, Overview, Analyses, **Data**.
-2. Read `WRITEUP.md`, then "Questions to expect" in `DEMO_SCRIPT.md`, then the titles in
-   `DECISIONS.md`. Being able to explain it matters more than any remaining feature.
-3. Take the README screenshot (an answer card with "How I got this" open, or the Overview) and
-   replace `<!-- SCREENSHOT -->`; candidates are in `.worktrees/ui/.playwright-mcp/v3-*.png`.
-4. Record the 3-minute video from `DEMO_SCRIPT.md` while the model quota is fresh.
-5. Submit: the live link, the repo link, `WRITEUP.md`, the video.
-6. Afterwards: rotate the five API keys pasted in chat, and drop the leftover `git stash` entry
-   (a duplicate of committed work).
-
-**Test data for trying it by hand:** `~/Downloads/DarwinLens-test-data/` (the sample company, the
-second messy set, and eight packs with `EXPECTED.md`). What the app reads wrong in those packs is
-listed in `test_files/packs/README.md`.
-
 **Live:** <https://darwinlens.onrender.com> (Render free, Docker, Singapore region, auto-deploys
 from `main`). Checked after the first deploy: `/healthz`, guest sign-in, the sample company loading
 to 8 tables and 4 links in about 8 seconds, the Overview computing its 14 tiles, a JSON 404 on an
 unknown route, and a 401 with `WWW-Authenticate` on `/mcp` without a token.
-
-## 1. Needs Sahil (nobody else can do these)
-
-1. **Fill `<!-- SCREENSHOT -->` in `README.md`.** `<!-- DEPLOY_URL -->` is done. Take the shot on
-   the Overview page or on an answer card with "How I got this" open — those are the two screens
-   that make the argument.
-2. **Record the 3-minute video** from `DEMO_SCRIPT.md`. Warm the instance first
-   (`make warm URL=https://darwinlens.onrender.com`); it sleeps after 15 idle minutes and takes
-   about a minute to wake.
-3. **Done: the GitHub repository variable `APP_URL`** is set to the live URL, and
-   `.github/workflows/keepwarm.yml` pings `/healthz` every 10 minutes (first successful run
-   01:33 IST on 21 September). GitHub runs scheduled jobs late, so a free uptime monitor on the
-   same address is still worth adding.
-4. **Rotate the five API keys** that were pasted into chat (Groq, OpenRouter, Hugging Face, NVIDIA,
-   Gemini). After submitting, not before, or the demo goes dark.
 
 ## 2. Re-run the evaluation on the final code
 

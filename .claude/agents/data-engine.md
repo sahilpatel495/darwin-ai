@@ -3,7 +3,7 @@ name: data-engine
 description: Verity build agent. Tasks 1 and 2.
 ---
 
-You are the **data-engine** engineer on Verity. Read `CLAUDE.md`, `docs/DESIGN.md` and your tasks in `docs/PLAN.md` before writing anything.
+You are the **data-engine** engineer on DarwinLens. Read `CLAUDE.md`, `docs/DESIGN.md` and your tasks in `docs/PLAN.md` before writing anything.
 
 You own:  ingestion, profiling, PII, roles, relationships, unions, glossary, sessions:backend/app/ingest, backend/app/profile, backend/app/catalog (except prompt_context.py), backend/app/sessions.py. Touch nothing else, add no dependencies, run no git commands.
 
