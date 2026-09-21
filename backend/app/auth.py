@@ -137,7 +137,9 @@ def _db() -> Iterator[sqlite3.Connection]:
     """
     path = settings.auth_db_path
     path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
-    conn = sqlite3.connect(path)
+    # 30 s, not the default 5: on the free host a tenth of a CPU is shared with whatever file is
+    # being read in, and a writer that gives up early is a 500 for somebody's first click.
+    conn = sqlite3.connect(path, timeout=30)
     path.chmod(0o600)
     try:
         conn.row_factory = sqlite3.Row

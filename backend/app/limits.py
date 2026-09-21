@@ -212,13 +212,19 @@ class Limits:
         self._ingest_slot = threading.BoundedSemaphore(1)
 
     @contextmanager
-    def ingest(self) -> Iterator[None]:
+    def ingest(self, wait_s: float = 0.0) -> Iterator[None]:
         """One file read at a time, for everybody: reading a spreadsheet in is the memory peak
         on a 512 MB host (the whole file as text, then a frame, then a DuckDB table), and two
-        at once is what kills the process. A second reader is refused now rather than queued,
-        because queueing would hold its request open while still owing all that memory.
+        at once is what kills the process.
+
+        A second reader waits `wait_s` for its turn and is refused only after that. Waiting owes
+        no memory (nothing has been parsed yet), and refusing at once is what a first visitor met
+        when they pressed the demo button twice, or arrived a second after somebody else: on the
+        free host one read takes eight seconds, so "try again in a few seconds" was most of the
+        time wrong. Callers that pass a wait must be in a worker thread, never on the event loop.
         """
-        if not self._ingest_slot.acquire(blocking=False):
+        got_it = self._ingest_slot.acquire(timeout=wait_s) if wait_s > 0 else self._ingest_slot.acquire(blocking=False)
+        if not got_it:
             raise LimitExceeded("Another upload is being read.", "Try again in a few seconds.", BUSY_RETRY_S)
         try:
             yield

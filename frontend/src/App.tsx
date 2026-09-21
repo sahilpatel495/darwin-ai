@@ -18,6 +18,7 @@ import { createFromFiles, createFromSample, NothingRead } from './components/hom
 import Landing from './components/marketing/Landing'
 import { MarketingFooter, MarketingNav } from './components/marketing/MarketingChrome'
 import Welcome from './components/onboarding/Welcome'
+import UploadProgress from './components/upload/UploadProgress'
 import type { LoadSource } from './components/onboarding/Welcome'
 import CommandPalette from './components/shell/CommandPalette'
 import MobileTabBar from './components/shell/MobileTabBar'
@@ -289,6 +290,23 @@ export default function App() {
         break
       default:
         screen = <Home user={session.user} onCreated={opened} />
+    }
+    // "Try the live demo" signs the visitor in as a guest a few seconds before the sample company
+    // has been read (about eight seconds on the free host). Without this they are dropped on an
+    // empty projects screen with no sign that anything is happening, press the sample card as
+    // well, and the two reads collide. One screen, one sentence, until the workspace opens.
+    if (demoBusy && route.name === 'home') {
+      screen = (
+        <Page>
+          <div role="status" className="mx-auto max-w-[560px] pt-16 text-center">
+            <h1 className="text-heading-lg text-ink-deep">Opening the sample company</h1>
+            <p className="mt-3 text-body-md text-slate">Reading six messy spreadsheets and finding the links between them. About ten seconds.</p>
+            <div className="mt-8 text-left">
+              <UploadProgress busy={{ kind: 'sample' }} />
+            </div>
+          </div>
+        </Page>
+      )
     }
   }
 

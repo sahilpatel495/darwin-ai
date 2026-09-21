@@ -7,9 +7,9 @@ const ACCEPTED_EXTENSIONS = ['.csv', '.tsv', '.xlsx', '.xlsm']
 /** Value for <input accept>, so the file picker greys out everything else. */
 export const ACCEPT_ATTRIBUTE = ACCEPTED_EXTENSIONS.join(',')
 
-// ponytail: mirrors the largest server cap (25 MB locally; the hosted demo allows 10 MB and the
+// ponytail: mirrors the largest server cap (50 MB locally; the hosted demo allows 15 MB and the
 // server says so itself). If the cap becomes configurable, serve it from the API instead.
-export const MAX_FILE_BYTES = 25 * 1024 * 1024
+export const MAX_FILE_BYTES = 50 * 1024 * 1024
 
 // ponytail: mirrors MAX_FILES_PER_UPLOAD in backend/app/main.py. The server only refuses after
 // every byte has arrived, so without this the analyst waits for an upload that was never going to
@@ -36,7 +36,7 @@ function problemWith(file: { name: string; size: number }): string | null {
   if (extension === '.xls') return `${file.name} is in the old Excel format. Open it in Excel, save it as .xlsx, and add it again.`
   if (!ACCEPTED_EXTENSIONS.includes(extension)) return `${file.name} was skipped. DarwinLens reads .csv, .tsv, .xlsx and .xlsm files.`
   if (file.size === 0) return `${file.name} is empty. Export it again and check it has rows.`
-  if (file.size > MAX_FILE_BYTES) return `${file.name} is larger than 25 MB. Remove the sheets or columns you do not need and add it again.`
+  if (file.size > MAX_FILE_BYTES) return `${file.name} is larger than 50 MB. Remove the sheets or columns you do not need and add it again.`
   return null
 }
 
@@ -51,7 +51,7 @@ export function checkFiles<T extends { name: string; size: number }>(files: read
   // A dropped folder of scans must not become thirty identical lines that fill a phone screen.
   if (result.problems.length > MAX_SENTENCES) {
     const more = result.problems.splice(MAX_SENTENCES).length
-    result.problems.push(`${more} more ${more === 1 ? 'file was' : 'files were'} skipped too. DarwinLens reads .csv, .tsv, .xlsx and .xlsm files of up to 25 MB.`)
+    result.problems.push(`${more} more ${more === 1 ? 'file was' : 'files were'} skipped too. DarwinLens reads .csv, .tsv, .xlsx and .xlsm files of up to 50 MB.`)
   }
   const leftOut = result.accepted.splice(MAX_FILES_PER_UPLOAD).length
   if (leftOut > 0) {

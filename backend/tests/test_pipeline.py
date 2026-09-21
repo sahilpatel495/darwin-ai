@@ -70,6 +70,19 @@ def test_a_rejected_query_is_repaired_and_the_attempt_is_shown():
     assert any("repair" in r.lower() for r in answer.confidence.reasons)
 
 
+def test_a_slow_question_stops_with_a_sentence_instead_of_trying_again(monkeypatch):
+    """A slow free model can take 30 s a call; three in a row kept a reader waiting two minutes.
+    Once the budget is spent no new attempt starts, and the sentence says why and what to do."""
+    from app.query import pipeline
+
+    monkeypatch.setattr(pipeline, "ATTEMPT_BUDGET_S", -1.0)  # the first attempt already took too long
+    bad = "SELECT department, sum(gross) FROM salary_register GROUP BY 1"
+    llm = FakeLLM({"sql": [gen(bad), gen(GROSS_BY_DEPT)], "narrate": [GOOD_NARRATION]})
+    answer, _ = ask(llm, "What is the total gross pay by department, slowly?")
+    assert answer.kind == "error" and "answering slowly" in answer.text and "Try again" in answer.text
+    assert len(llm.calls) == 1  # the repair was never started
+
+
 def test_hostile_sql_never_runs_and_the_user_gets_a_sentence():
     llm = FakeLLM({"sql": [gen("DROP TABLE employees")] * 3})
     session = make_session()

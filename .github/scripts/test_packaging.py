@@ -57,7 +57,7 @@ def test_every_documented_setting_may_be_left_empty() -> None:
     A fresh interpreter, because the settings are read once, when app.config is first imported."""
     names = re.findall(r"^#?\s*([A-Z][A-Z0-9_]+)=", _read(".env.example"), flags=re.MULTILINE)
     env = {**os.environ, **dict.fromkeys(names, ""), "PYTHONPATH": str(ROOT / "backend")}
-    code = "from app.config import chain, settings; assert settings.max_upload_mb == 25; assert chain('sql') == []"
+    code = "from app.config import chain, settings; assert settings.max_upload_mb == 50; assert chain('sql') == []"
     subprocess.run([sys.executable, "-c", code], env=env, check=True)
 
 
@@ -74,7 +74,7 @@ def test_render_blueprint_is_a_free_docker_service_with_no_secrets() -> None:
     assert service["healthCheckPath"] == "/healthz"
     env = {var["key"]: var for var in service["envVars"]}
     # Sized for the free instance: 512 MB of memory and a tenth of a CPU.
-    assert env["MAX_UPLOAD_MB"]["value"] == "10"
+    assert env["MAX_UPLOAD_MB"]["value"] == "15"  # measured: a 15 MB CSV peaks at 283 MB
     assert env["DUCKDB_MEMORY_LIMIT"]["value"] == "256MB"
     assert env["DUCKDB_THREADS"]["value"] == "2"
     for key, var in env.items():

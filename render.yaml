@@ -24,9 +24,9 @@ services:
       # and keeps it across deploys, so people stay signed in; nobody, including us, types it.
       - key: AUTH_SECRET
         generateValue: true
-      # Sized for the 512 MB instance. Locally the defaults are 25 MB, 512MB and 20 sessions.
+      # Sized for the 512 MB instance. Locally the defaults are 50 MB, 512MB and 20 sessions. 15 MB is the largest file measured to be safe here: a 15 MB CSV peaks at 283 MB while it is read, a 44 MB one at 548 MB.
       - key: MAX_UPLOAD_MB
-        value: "10"
+        value: "15"
       - key: DUCKDB_MEMORY_LIMIT
         value: 256MB
       # Already the default; stated so the hosted sizing is all in one place (0.1 CPU).

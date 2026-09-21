@@ -14,6 +14,7 @@ import shutil
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from contextlib import ExitStack
 from pathlib import Path
 
@@ -52,6 +53,7 @@ log = logging.getLogger("darwinlens")
 ROOT = Path(__file__).resolve().parents[2]
 MAX_FILES_PER_UPLOAD = 10
 HEARTBEAT_S = 15
+INGEST_WAIT_S = 25.0  # how long a second reader waits for the one reading slot before a 429
 
 app = FastAPI(title="DarwinLens", docs_url=None, redoc_url=None)
 app.include_router(sample_router)  # before the SPA catch-all below, which would swallow /api/sample/*
@@ -188,6 +190,13 @@ def create_session(request: Request, user: User = Depends(auth.current_user)) ->
     return {"session_id": store.create(user.id).id}
 
 
+def _read_in(read: Callable[[], Catalog]) -> Catalog:
+    """One file read at a time on this host (`Limits.ingest`). Runs in a worker thread, so waiting
+    for the turn holds up nobody else; after INGEST_WAIT_S it is LimitExceeded -> 429."""
+    with limits.ingest(wait_s=INGEST_WAIT_S):
+        return read()
+
+
 def _save_upload(upload: UploadFile, folder: Path) -> tuple[Path, str]:
     """Stream to disk with a hard cap, so a huge upload never sits in memory."""
     name = Path(upload.filename or "upload").name  # drop any client-supplied directories
@@ -219,8 +228,7 @@ async def upload_files(session_id: str, request: Request, files: list[UploadFile
     folder.mkdir(parents=True, exist_ok=True)
     try:
         saved = [await run_in_threadpool(_save_upload, f, folder) for f in files]
-        with limits.ingest():  # one file read at a time on this host: LimitExceeded -> 429
-            return await run_in_threadpool(session.add_files, saved)
+        return await run_in_threadpool(_read_in, lambda: session.add_files(saved))
     except IngestError as e:
         raise ApiProblem(422, str(e), "Fix or remove that file and upload again. The other files were not loaded.") from None
     finally:
@@ -232,8 +240,7 @@ async def load_sample(session_id: str, request: Request, user: User = Depends(au
     session = _session(session_id, user)
     limits.upload(_ip(request))  # the sample is read in exactly like an upload, so it costs the same
     try:
-        with limits.ingest():  # the sample is read in like any upload, so it queues for nothing either
-            return await run_in_threadpool(session.load_sample)
+        return await run_in_threadpool(_read_in, session.load_sample)  # read in like any upload
     except IngestError as e:
         raise ApiProblem(422, str(e), "Upload your own CSV or Excel files instead.") from None
 

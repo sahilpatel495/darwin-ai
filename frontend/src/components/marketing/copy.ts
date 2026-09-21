@@ -87,7 +87,7 @@ export const FAQ: Faq[] = [
     id: 'files',
     question: 'What kind of files can I bring?',
     answer: [
-      'CSV, TSV and Excel workbooks — .csv, .tsv, .xlsx and .xlsm — up to 25 MB and ten files at a time. Several files that describe the same people are better than one: DarwinLens finds the column they share and can then count pay from one file against headcount from another.',
+      'CSV, TSV and Excel workbooks — .csv, .tsv, .xlsx and .xlsm — up to 50 MB and ten files at a time. Several files that describe the same people are better than one: DarwinLens finds the column they share and can then count pay from one file against headcount from another.',
     ],
   },
   {

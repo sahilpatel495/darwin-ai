@@ -552,7 +552,7 @@ A smaller app that works beats a larger one that half works. Left out on purpose
 - Two-row merged headers as a feature. A blank header cell now borrows the text above it, so a key survives, but the upper row's grouping labels (`Earnings`, `Ratings`) are still discarded
 - Wide one-column-per-day attendance sheets, old `.xls` files (the upload says to save as `.xlsx`)
 - Suppressing small-group salary averages
-- Files over 10 MB on the hosted demo (25 MB locally, configurable)
+- Files over 15 MB on the hosted demo (50 MB locally, configurable; a 44 MB CSV peaks at 548 MB while it is read, more than the free host has)
 - SSE on `/mcp`, so tool progress streams the way the browser's steps do. Named in `WRITEUP.md`
 
 Known limits, measured rather than guessed:

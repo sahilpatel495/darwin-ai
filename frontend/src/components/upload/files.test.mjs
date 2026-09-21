@@ -35,7 +35,7 @@ test('empty and oversized files are stopped before any upload starts', () => {
   assert.deepEqual(accepted.map((f) => f.name), ['edge.csv'])
   assert.deepEqual(problems, [
     'blank.csv is empty. Export it again and check it has rows.',
-    'huge.csv is larger than 25 MB. Remove the sheets or columns you do not need and add it again.',
+    'huge.csv is larger than 50 MB. Remove the sheets or columns you do not need and add it again.',
   ])
 })
 
@@ -69,8 +69,8 @@ test('a folder of scans gives a short message, not thirty identical lines', () =
   assert.equal(accepted.length, 1)
   assert.equal(problems.length, 6)
   assert.equal(problems[0], 'scan_0.pdf was skipped. DarwinLens reads .csv, .tsv, .xlsx and .xlsm files.')
-  assert.equal(problems[5], '25 more files were skipped too. DarwinLens reads .csv, .tsv, .xlsx and .xlsm files of up to 25 MB.')
+  assert.equal(problems[5], '25 more files were skipped too. DarwinLens reads .csv, .tsv, .xlsx and .xlsm files of up to 50 MB.')
   // Six skipped files: five sentences and "1 more file", never a count of zero.
-  assert.equal(checkFiles(Array.from({ length: 6 }, (_, i) => file(`scan_${i}.pdf`))).problems[5], '1 more file was skipped too. DarwinLens reads .csv, .tsv, .xlsx and .xlsm files of up to 25 MB.')
+  assert.equal(checkFiles(Array.from({ length: 6 }, (_, i) => file(`scan_${i}.pdf`))).problems[5], '1 more file was skipped too. DarwinLens reads .csv, .tsv, .xlsx and .xlsm files of up to 50 MB.')
   assert.equal(checkFiles(Array.from({ length: 5 }, (_, i) => file(`scan_${i}.pdf`))).problems.length, 5)
 })

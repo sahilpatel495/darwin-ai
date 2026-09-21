@@ -46,6 +46,10 @@ from app.sessions import SessionLike, Turn
 log = logging.getLogger(__name__)
 
 MAX_REPAIRS = 2
+# No new attempt starts after this long. A slow free model can take 30 s a call, and three calls
+# in a row kept one reader waiting 115 s for "I couldn't write a query"; stopping early with a
+# sentence that says why, and a Try again that usually lands on a faster model, is kinder.
+ATTEMPT_BUDGET_S = 60.0
 Emit = Callable[[StepEvent], None]
 
 # Sent back when the model asks for a choice the analyst has already made. The choice itself is
@@ -250,6 +254,7 @@ def _generate_and_execute(session, req, llm, trace, schema_context, metric_conte
     work, signals = trace.work, Signals()
     why, repair = "initial", None
     tried_empty_repair = tried_period_repair = asked_again = False
+    started = time.monotonic()
     # While every free model is rate limited the pool waits briefly; say so instead of hanging.
     sql_llm = llm.with_options(on_wait=lambda s: trace.step(
         "generate", "warn", f"All the free AI models are busy. Retrying in {int(s) + 1} seconds."))
@@ -318,6 +323,11 @@ def _generate_and_execute(session, req, llm, trace, schema_context, metric_conte
         if signals.repairs >= MAX_REPAIRS:
             return _error(req, "I couldn't write a query that runs against your data for that question.",
                           "Try naming the columns or files you mean, or ask a simpler version first.")
+        if time.monotonic() - started > ATTEMPT_BUDGET_S:
+            if ran:
+                return generation, query, result, signals  # a result with a caveat beats no result
+            return _error(req, "The AI models are answering slowly right now, so I stopped instead of keeping you waiting.",
+                          "Try again: a faster model is usually free within a minute.")
         signals.repairs += 1
         why, repair = problem_kind, RepairContext(previous_sql=generation.sql, problem=problem)
 

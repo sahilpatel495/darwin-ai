@@ -353,7 +353,7 @@ def _load_sample_data(caller: _Caller, args: dict) -> tuple[str, dict[str, Any]]
     main.limits.new_session(caller.ip)
     session = main.store.create(caller.user.id)
     main.limits.upload(caller.ip)
-    with main.limits.ingest():  # one file read at a time on this host
+    with main.limits.ingest(wait_s=main.INGEST_WAIT_S):  # one read at a time; already in a worker thread
         catalog = session.load_sample()
     shape = _shape(catalog)
     return (f"Loaded the sample company into session {session.id}.\n{_shape_text(shape)}",

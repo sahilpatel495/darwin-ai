@@ -250,9 +250,11 @@ def test_new_sessions_and_uploads_are_limited_per_address(client, monkeypatch):
     assert client.get(f"/api/sessions/{sid}/catalog").status_code == 200  # looking at loaded data is never limited
 
 
-def test_only_one_file_is_read_in_at_a_time_and_the_second_is_refused_not_queued(client, monkeypatch):
-    """Parsing is the memory peak on a 512 MB host, so a second reader waits for nothing."""
+def test_only_one_file_is_read_in_at_a_time_and_the_second_is_refused_after_its_wait(client, monkeypatch):
+    """Parsing is the memory peak on a 512 MB host, so two never run together: the second waits
+    its turn (a moment here, 25 s in production) and only then is refused."""
     limited(monkeypatch)
+    monkeypatch.setattr(main, "INGEST_WAIT_S", 0.05)
     sid = new_session(client)
     with main.limits.ingest():  # somebody else's file is being read right now
         res = upload(client, sid, **{"employees.csv": EMPLOYEES})
@@ -325,3 +327,17 @@ def test_an_unknown_api_path_is_a_json_404_never_the_web_page(client):
     assert res.status_code == 404
     if res.headers.get("content-type", "").startswith("application/json"):
         assert res.json()["next_step"]
+
+
+def test_a_second_reader_waits_for_its_turn_instead_of_being_refused(client, monkeypatch):
+    """A first visitor who presses the demo button twice, or arrives a second after somebody else,
+    used to be told to try again. Now the second read waits for the first and then succeeds."""
+    import threading
+    import time
+
+    limited(monkeypatch)
+    sid = new_session(client)
+    holder = main.limits.ingest()
+    holder.__enter__()  # somebody else's file is being read right now
+    threading.Thread(target=lambda: (time.sleep(0.3), holder.__exit__(None, None, None))).start()
+    assert client.post(f"/api/sessions/{sid}/sample").status_code == 200  # waited about 0.3 s, then read

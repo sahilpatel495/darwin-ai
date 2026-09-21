@@ -81,7 +81,7 @@ def chain(role: str) -> list[ProviderModel]:
 
 @dataclass(frozen=True)
 class Settings:
-    max_upload_mb: int = int(_env("MAX_UPLOAD_MB", "25"))
+    max_upload_mb: int = int(_env("MAX_UPLOAD_MB", "50"))
     query_timeout_s: float = float(_env("QUERY_TIMEOUT_S", "10"))
     row_cap: int = int(_env("ROW_CAP", "5000"))
     duckdb_memory_limit: str = _env("DUCKDB_MEMORY_LIMIT", "512MB")
