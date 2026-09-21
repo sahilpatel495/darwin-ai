@@ -10,7 +10,9 @@ see the SQL, the data it touched and the exact prompt the model was sent.
 
 **Live demo: <https://darwinlens.onrender.com>** <!-- DEPLOY_URL -->
 
-_Screenshot: <!-- SCREENSHOT --> the lead replaces this line with the image._
+![An answer in DarwinLens: the sentence, three checks you can verify, confidence, and a chart](docs/img/answer-card.png)
+
+![The landing page](docs/img/landing.png)
 
 ## Try it in 60 seconds
 
